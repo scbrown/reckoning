@@ -280,7 +280,7 @@ export async function ttsRoutes(fastify: FastifyInstance) {
           cacheKey = cache.generateKey({
             text: text.trim(),
             voiceId: resolvedVoiceId,
-            settings: voiceSettings,
+            ...(voiceSettings && { settings: voiceSettings }),
           });
 
           const cachedAudio = await cache.get(cacheKey);
@@ -292,6 +292,8 @@ export async function ttsRoutes(fastify: FastifyInstance) {
           }
         } catch (cacheError) {
           // Redis unavailable - continue without caching
+          cache = null;
+          cacheKey = null;
           request.log.warn('Cache unavailable, proceeding without caching');
         }
 

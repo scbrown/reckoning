@@ -18,18 +18,10 @@ export type {
   NPCDisposition,
 } from './types.js';
 
-// Event types
+// Event types (SSE types are exported from ../sse/index.ts)
 export type {
   EventType,
   CanonicalEvent,
-  SSEEvent,
-  GenerationStartedEvent,
-  GenerationCompleteEvent,
-  GenerationErrorEvent,
-  StateChangedEvent,
-  TTSStartedEvent,
-  TTSCompleteEvent,
-  EditorStateEvent,
 } from './events.js';
 
 // Generation types
