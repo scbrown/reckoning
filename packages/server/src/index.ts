@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { config } from 'dotenv';
 
 import { healthRoutes } from './routes/health.js';
+import { ttsRoutes } from './routes/tts.js';
 
 // Load environment variables
 config();
@@ -22,6 +23,7 @@ await server.register(cors, {
 
 // Register routes
 await server.register(healthRoutes, { prefix: '/health' });
+await server.register(ttsRoutes, { prefix: '/api/tts' });
 
 // Start server
 const start = async () => {
