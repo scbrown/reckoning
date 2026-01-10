@@ -188,3 +188,89 @@ export interface VoiceConfiguration {
   mappings: VoiceMapping[];
   presets: Record<PresetName, VoiceSettings>;
 }
+
+// =============================================================================
+// Client-side TTS Service Types
+// =============================================================================
+
+/**
+ * Playback state of the TTS service
+ */
+export type TTSPlaybackState = 'idle' | 'loading' | 'playing' | 'paused';
+
+/**
+ * State of a queue item
+ */
+export type TTSItemState = 'pending' | 'loading' | 'ready' | 'playing' | 'completed' | 'error';
+
+/**
+ * Item in the TTS playback queue
+ */
+export interface TTSQueueItem {
+  /** Unique identifier for this queue item */
+  id: string;
+  /** The TTS request parameters */
+  request: TTSRequest;
+  /** Current state of this item */
+  state: TTSItemState;
+  /** Pre-loaded audio blob (if loaded) */
+  audioBlob?: Blob;
+  /** Error message if state is 'error' */
+  error?: string;
+}
+
+/**
+ * Status of the TTS playback queue
+ */
+export interface TTSQueueStatus {
+  /** Current playback state */
+  playbackState: TTSPlaybackState;
+  /** Currently playing item (if any) */
+  currentItem: TTSQueueItem | null;
+  /** Items waiting to be played */
+  pendingItems: TTSQueueItem[];
+  /** Total items including current */
+  totalItems: number;
+}
+
+/**
+ * Event callbacks for TTS playback events
+ */
+export interface TTSEventCallbacks {
+  /** Called when an item starts playing */
+  onStart?: (item: TTSQueueItem) => void;
+  /** Called when an item finishes playing */
+  onEnd?: (item: TTSQueueItem) => void;
+  /** Called when an error occurs */
+  onError?: (item: TTSQueueItem, error: Error) => void;
+  /** Called when the queue changes */
+  onQueueChange?: (status: TTSQueueStatus) => void;
+}
+
+/**
+ * Interface for client-side TTS service
+ */
+export interface ITTSService {
+  // Queue Management
+  speak(request: TTSRequest): Promise<string>;
+  preload(request: TTSRequest): Promise<string>;
+  getQueueStatus(): TTSQueueStatus;
+  clearQueue(): void;
+
+  // Playback Controls
+  play(): void;
+  pause(): void;
+  resume(): void;
+  skip(): void;
+  stop(): void;
+
+  // Volume Control
+  setVolume(volume: number): void;
+  getVolume(): number;
+
+  // Event Registration
+  setCallbacks(callbacks: TTSEventCallbacks): void;
+
+  // Lifecycle
+  dispose(): void;
+}
