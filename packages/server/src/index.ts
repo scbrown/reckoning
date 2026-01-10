@@ -18,7 +18,7 @@ const server = Fastify({
 await server.register(cors, {
   origin: process.env.NODE_ENV === 'production'
     ? false
-    : ['http://localhost:5173', 'http://localhost:3000'],
+    : true,  // Allow all origins in development
 });
 
 // Register routes

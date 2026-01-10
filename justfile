@@ -222,7 +222,10 @@ claude-run:
         -v claude-home:/home/admin \
         -v "$(pwd)":/home/admin/workspace/reckoning \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        --network host \
+        -p 3001:3001 \
+        -p 5173:5173 \
+        -p 5174:5174 \
+        --add-host=host.docker.internal:host-gateway \
         --name claude-dev-container \
         claude-dev
 
@@ -232,7 +235,10 @@ claude-start:
         -v claude-home:/home/admin \
         -v "$(pwd)":/home/admin/workspace/reckoning \
         -v /var/run/docker.sock:/var/run/docker.sock \
-        --network host \
+        -p 3001:3001 \
+        -p 5173:5173 \
+        -p 5174:5174 \
+        --add-host=host.docker.internal:host-gateway \
         claude-dev
 
 # Attach to running Claude dev container
