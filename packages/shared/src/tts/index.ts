@@ -127,7 +127,17 @@ export interface ListVoicesResponse {
 // Default Presets
 // =============================================================================
 
-export const DEFAULT_VOICE_PRESETS: Record<string, VoiceSettings> = {
+/**
+ * Available preset names for voice settings
+ */
+export type PresetName =
+  | 'chronicle'
+  | 'dialogue_calm'
+  | 'dialogue_intense'
+  | 'trial_judgment'
+  | 'inner_voice';
+
+export const DEFAULT_VOICE_PRESETS: Record<PresetName, VoiceSettings> = {
   chronicle: { stability: 0.7, similarityBoost: 0.8 },
   dialogue_calm: { stability: 0.5, similarityBoost: 0.75 },
   dialogue_intense: { stability: 0.3, similarityBoost: 0.7 },
@@ -135,96 +145,46 @@ export const DEFAULT_VOICE_PRESETS: Record<string, VoiceSettings> = {
   inner_voice: { stability: 0.6, similarityBoost: 0.85 },
 };
 
+/**
+ * Get a voice preset by name
+ * @param name - The preset name
+ * @returns The voice settings for the preset, or undefined if not found
+ */
+export function getPreset(name: string): VoiceSettings | undefined {
+  return DEFAULT_VOICE_PRESETS[name as PresetName];
+}
+
+/**
+ * Get all available preset names
+ */
+export function getPresetNames(): PresetName[] {
+  return Object.keys(DEFAULT_VOICE_PRESETS) as PresetName[];
+}
+
 // =============================================================================
-// Client-Side TTS Service Interface
+// Voice Configuration API Types
 // =============================================================================
 
 /**
- * State of the TTS playback queue
+ * Request to update voice mapping at runtime
  */
-export type TTSPlaybackState = 'idle' | 'playing' | 'paused' | 'loading';
-
-/**
- * Item in the TTS playback queue
- */
-export interface TTSQueueItem {
-  /** Unique identifier for this queue item */
-  id: string;
-  /** The original TTS request */
-  request: TTSRequest;
-  /** Current state of this item */
-  state: 'pending' | 'loading' | 'ready' | 'playing' | 'completed' | 'error';
-  /** Error message if state is 'error' */
-  error?: string;
-  /** Preloaded audio blob (if preloaded) */
-  audioBlob?: Blob;
+export interface UpdateVoiceMappingRequest {
+  role: VoiceRole;
+  voiceId: string;
 }
 
 /**
- * Queue status information
+ * Response from updating voice mapping
  */
-export interface TTSQueueStatus {
-  /** Current playback state */
-  playbackState: TTSPlaybackState;
-  /** Currently playing item (if any) */
-  currentItem: TTSQueueItem | null;
-  /** Items waiting to be played */
-  pendingItems: TTSQueueItem[];
-  /** Total items in queue (current + pending) */
-  totalItems: number;
+export interface UpdateVoiceMappingResponse {
+  success: boolean;
+  mapping: VoiceMapping;
 }
 
 /**
- * Event callbacks for TTS service
+ * Current voice configuration state
  */
-export interface TTSEventCallbacks {
-  /** Called when an item starts playing */
-  onStart?: (item: TTSQueueItem) => void;
-  /** Called when an item finishes playing */
-  onEnd?: (item: TTSQueueItem) => void;
-  /** Called when an error occurs */
-  onError?: (item: TTSQueueItem, error: Error) => void;
-  /** Called when the queue changes */
-  onQueueChange?: (status: TTSQueueStatus) => void;
-}
-
-/**
- * Client-side TTS service interface
- */
-export interface ITTSService {
-  // Queue Management
-  /** Add text to the playback queue and optionally start playing */
-  speak(request: TTSRequest): Promise<string>;
-  /** Preload audio for later playback (returns queue item ID) */
-  preload(request: TTSRequest): Promise<string>;
-  /** Get current queue status */
-  getQueueStatus(): TTSQueueStatus;
-  /** Clear all pending items from the queue */
-  clearQueue(): void;
-
-  // Playback Controls
-  /** Start or resume playback */
-  play(): void;
-  /** Pause current playback */
-  pause(): void;
-  /** Resume paused playback */
-  resume(): void;
-  /** Skip to the next item in queue */
-  skip(): void;
-  /** Stop playback and clear queue */
-  stop(): void;
-
-  // Volume Control
-  /** Set playback volume (0-1) */
-  setVolume(volume: number): void;
-  /** Get current volume (0-1) */
-  getVolume(): number;
-
-  // Event Registration
-  /** Set event callbacks */
-  setCallbacks(callbacks: TTSEventCallbacks): void;
-
-  // Lifecycle
-  /** Clean up resources */
-  dispose(): void;
+export interface VoiceConfiguration {
+  mappings: VoiceMapping[];
+  presets: Record<PresetName, VoiceSettings>;
 }
