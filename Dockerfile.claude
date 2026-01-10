@@ -23,6 +23,7 @@ RUN apt update && apt install -y \
     python3 \
     python3-pip \
     python3-venv \
+    sqlite3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Neovim (LazyVim requires >= 0.11.2)
@@ -89,29 +90,33 @@ RUN git clone https://github.com/LazyVim/starter /home/admin/.config/nvim && \
 
 # Add render-markdown plugin and Dracula theme to LazyVim
 RUN mkdir -p /home/admin/.config/nvim/lua/plugins && \
-    echo 'return {\n\
-  -- Dracula colorscheme\n\
-  {\n\
-    "Mofiqul/dracula.nvim",\n\
-    lazy = false,\n\
-    priority = 1000,\n\
-    config = function()\n\
-      vim.cmd([[colorscheme dracula]])\n\
-    end,\n\
-  },\n\
-  -- Render markdown in buffer\n\
-  {\n\
-    "MeanderingProgrammer/render-markdown.nvim",\n\
-    dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" },\n\
-    opts = {},\n\
-  },\n\
-}' > /home/admin/.config/nvim/lua/plugins/custom.lua
+    cat > /home/admin/.config/nvim/lua/plugins/custom.lua << 'LUA'
+return {
+  -- Dracula colorscheme
+  {
+    "Mofiqul/dracula.nvim",
+    lazy = false,
+    priority = 1000,
+    config = function()
+      vim.cmd([[colorscheme dracula]])
+    end,
+  },
+  -- Render markdown in buffer
+  {
+    "MeanderingProgrammer/render-markdown.nvim",
+    dependencies = { "nvim-treesitter/nvim-treesitter", "nvim-tree/nvim-web-devicons" },
+    opts = {},
+  },
+}
+LUA
 
 # Disable LazyVim default colorscheme so Dracula takes effect
-RUN echo 'return {\n\
-  { "catppuccin/nvim", enabled = false },\n\
-  { "folke/tokyonight.nvim", enabled = false },\n\
-}' > /home/admin/.config/nvim/lua/plugins/disabled.lua
+RUN cat > /home/admin/.config/nvim/lua/plugins/disabled.lua << 'LUA'
+return {
+  { "catppuccin/nvim", enabled = false },
+  { "folke/tokyonight.nvim", enabled = false },
+}
+LUA
 
 # Pre-install plugins (headless nvim run)
 RUN nvim --headless "+Lazy! sync" +qa || true
@@ -121,15 +126,33 @@ RUN mkdir -p /home/admin/workspace /home/admin/.ssh && \
     chmod 700 /home/admin/.ssh && \
     chown -R admin:admin /home/admin/workspace /home/admin/.ssh
 
-# Entrypoint script to fix volume permissions on startup
-RUN echo '#!/bin/bash\n\
-sudo chown -R admin:admin /home/admin/workspace /home/admin/.ssh 2>/dev/null\n\
-chmod 700 /home/admin/.ssh 2>/dev/null\n\
-exec "$@"' > /home/admin/entrypoint.sh && \
-    chmod +x /home/admin/entrypoint.sh
+# Stage home directory contents for volume initialization (need root)
+USER root
+RUN cp -a /home/admin /home/admin-initial
 
-# Start in admin's workspace
-WORKDIR /home/admin/workspace
+# Entrypoint script to initialize volume on first run and fix permissions
+RUN cat > /home/admin-initial/entrypoint.sh << 'ENTRYPOINT'
+#!/bin/bash
+# Initialize home volume if empty (first run)
+if [ ! -f /home/admin/.initialized ]; then
+  echo "First run: initializing home directory from image..."
+  cp -a /home/admin-initial/. /home/admin/
+  touch /home/admin/.initialized
+  chown -R admin:admin /home/admin
+fi
+# Fix workspace permissions and git safe directory
+chown -R admin:admin /home/admin/workspace 2>/dev/null
+gosu admin git config --global --add safe.directory '*'
+# Drop to admin user
+exec gosu admin "$@"
+ENTRYPOINT
+RUN chmod +x /home/admin-initial/entrypoint.sh
 
-ENTRYPOINT ["/home/admin/entrypoint.sh"]
+# Install gosu for dropping privileges in entrypoint
+RUN apt-get update && apt-get install -y gosu && rm -rf /var/lib/apt/lists/*
+
+# Start in admin's home directory
+WORKDIR /home/admin
+
+ENTRYPOINT ["/home/admin-initial/entrypoint.sh"]
 CMD ["/bin/bash"]

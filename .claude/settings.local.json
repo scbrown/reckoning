@@ -9,7 +9,12 @@
       "Bash(curl:*)",
       "Bash(bash -s:*)",
       "Bash(tree:*)",
-      "Bash(chmod:*)"
+      "Bash(chmod:*)",
+      "Bash(bd:*)",
+      "Bash(gt --version:*)",
+      "Bash(just:*)",
+      "Bash(pnpm --version:*)",
+      "Bash(go install:*)"
     ]
   }
 }

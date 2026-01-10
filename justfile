@@ -215,36 +215,44 @@ log:
 claude-build:
     docker build -f Dockerfile.claude -t claude-dev .
 
-# Run Claude dev container (standalone, clone repos inside)
-# Uses named volume for persistent workspace across sessions
+# Run Claude dev container interactively
+# Uses named volume for full home directory persistence
 claude-run:
-    docker run -it --rm \
-        -v claude-workspace:/home/admin/workspace \
-        -v claude-ssh:/home/admin/.ssh \
+    docker run -it \
+        -v claude-home:/home/admin \
+        -v "$(pwd)":/home/admin/workspace/reckoning \
         -v /var/run/docker.sock:/var/run/docker.sock \
         --network host \
+        --name claude-dev-container \
         claude-dev
 
 # Run Claude dev container in detached mode
 claude-start:
     docker run -dit --name claude-dev-container \
-        -v claude-workspace:/home/admin/workspace \
-        -v claude-ssh:/home/admin/.ssh \
+        -v claude-home:/home/admin \
+        -v "$(pwd)":/home/admin/workspace/reckoning \
         -v /var/run/docker.sock:/var/run/docker.sock \
         --network host \
         claude-dev
 
 # Attach to running Claude dev container
 claude-attach:
-    docker exec -it claude-dev-container bash
+    docker exec -it -u admin claude-dev-container bash
 
-# Stop and remove Claude dev container
+# Stop Claude dev container (keeps container for later)
+# WARNING: May interrupt running processes
 claude-stop:
-    docker stop claude-dev-container && docker rm claude-dev-container
+    @echo "WARNING: This will stop the container and may interrupt running processes."
+    @echo "Your home directory volume will be preserved."
+    @read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled." && exit 1)
+    docker stop claude-dev-container
 
-# Remove persistent volumes (WARNING: deletes all workspace data and SSH keys)
-claude-clean:
-    docker volume rm claude-workspace claude-ssh || true
+# Remove Claude dev container (volume persists, safe to remove)
+claude-rm:
+    @echo "WARNING: This will remove the container."
+    @echo "Your home directory volume will be preserved."
+    @read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled." && exit 1)
+    docker rm claude-dev-container
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Project Status
