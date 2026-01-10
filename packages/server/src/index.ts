@@ -3,6 +3,7 @@ import cors from '@fastify/cors';
 import { config } from 'dotenv';
 
 import { healthRoutes } from './routes/health.js';
+import { ttsRoutes } from './routes/tts.js';
 
 // Load environment variables
 config();
@@ -21,7 +22,8 @@ await server.register(cors, {
 });
 
 // Register routes
-await server.register(healthRoutes, { prefix: '/health' });
+await server.register(healthRoutes, { prefix: '/api/health' });
+await server.register(ttsRoutes, { prefix: '/api/tts' });
 
 // Start server
 const start = async () => {
@@ -37,7 +39,8 @@ const start = async () => {
 ╠═══════════════════════════════════════════════════════════╣
 ║  Status:  Running                                          ║
 ║  Port:    ${port.toString().padEnd(48)}║
-║  Health:  http://localhost:${port}/health                   ║
+║  Health:  http://localhost:${port}/api/health               ║
+║  TTS:     http://localhost:${port}/api/tts/speak            ║
 ╚═══════════════════════════════════════════════════════════╝
     `);
   } catch (err) {
