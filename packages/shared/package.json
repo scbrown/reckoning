@@ -14,6 +14,10 @@
     "./tts": {
       "types": "./dist/tts/index.d.ts",
       "import": "./dist/tts/index.js"
+    },
+    "./game": {
+      "types": "./dist/game/index.d.ts",
+      "import": "./dist/game/index.js"
     }
   },
   "scripts": {
