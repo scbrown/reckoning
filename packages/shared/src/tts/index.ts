@@ -136,77 +136,95 @@ export const DEFAULT_VOICE_PRESETS: Record<string, VoiceSettings> = {
 };
 
 // =============================================================================
-// Client-Side Speak Options
+// Client-Side TTS Service Interface
 // =============================================================================
 
 /**
- * Options for speak() calls on the client TTS service
+ * State of the TTS playback queue
  */
-export interface SpeakOptions {
-  /** Direct voice ID to use */
-  voice?: string;
-  /** Preset name for voice settings */
-  preset?: string;
-  /** Priority for queue ordering */
-  priority?: 'high' | 'normal' | 'low';
-  /** Whether to cache the result */
-  cache?: boolean;
+export type TTSPlaybackState = 'idle' | 'playing' | 'paused' | 'loading';
+
+/**
+ * Item in the TTS playback queue
+ */
+export interface TTSQueueItem {
+  /** Unique identifier for this queue item */
+  id: string;
+  /** The original TTS request */
+  request: TTSRequest;
+  /** Current state of this item */
+  state: 'pending' | 'loading' | 'ready' | 'playing' | 'completed' | 'error';
+  /** Error message if state is 'error' */
+  error?: string;
+  /** Preloaded audio blob (if preloaded) */
+  audioBlob?: Blob;
 }
 
-// =============================================================================
-// TTS Service Interface
-// =============================================================================
+/**
+ * Queue status information
+ */
+export interface TTSQueueStatus {
+  /** Current playback state */
+  playbackState: TTSPlaybackState;
+  /** Currently playing item (if any) */
+  currentItem: TTSQueueItem | null;
+  /** Items waiting to be played */
+  pendingItems: TTSQueueItem[];
+  /** Total items in queue (current + pending) */
+  totalItems: number;
+}
 
 /**
- * Events emitted by the TTS service
+ * Event callbacks for TTS service
  */
-export type TTSEvent = 'start' | 'end' | 'error';
-
-/**
- * Callback for TTS events
- */
-export type TTSEventCallback<E extends TTSEvent> = E extends 'error'
-  ? (error: TTSError) => void
-  : () => void;
+export interface TTSEventCallbacks {
+  /** Called when an item starts playing */
+  onStart?: (item: TTSQueueItem) => void;
+  /** Called when an item finishes playing */
+  onEnd?: (item: TTSQueueItem) => void;
+  /** Called when an error occurs */
+  onError?: (item: TTSQueueItem, error: Error) => void;
+  /** Called when the queue changes */
+  onQueueChange?: (status: TTSQueueStatus) => void;
+}
 
 /**
  * Client-side TTS service interface
- *
- * Provides methods for text-to-speech playback, queue management,
- * and configuration.
  */
 export interface ITTSService {
-  // Core methods
-  /** Speak text with optional settings */
-  speak(text: string, options?: SpeakOptions): Promise<void>;
-  /** Speak text as a specific voice role */
-  speakAs(role: VoiceRole, text: string): Promise<void>;
+  // Queue Management
+  /** Add text to the playback queue and optionally start playing */
+  speak(request: TTSRequest): Promise<string>;
+  /** Preload audio for later playback (returns queue item ID) */
+  preload(request: TTSRequest): Promise<string>;
+  /** Get current queue status */
+  getQueueStatus(): TTSQueueStatus;
+  /** Clear all pending items from the queue */
+  clearQueue(): void;
 
-  // Playback control
+  // Playback Controls
+  /** Start or resume playback */
+  play(): void;
   /** Pause current playback */
   pause(): void;
   /** Resume paused playback */
   resume(): void;
+  /** Skip to the next item in queue */
+  skip(): void;
   /** Stop playback and clear queue */
   stop(): void;
-  /** Skip current speech and play next in queue */
-  skip(): void;
 
-  // Queue management
-  /** Add text to the speech queue */
-  queue(text: string, options?: SpeakOptions): void;
-  /** Clear all queued speech */
-  clearQueue(): void;
-
-  // Configuration
+  // Volume Control
   /** Set playback volume (0-1) */
-  setVolume(level: number): void;
-  /** Map a voice role to a specific voice ID */
-  setVoice(role: VoiceRole, voiceId: string): void;
+  setVolume(volume: number): void;
+  /** Get current volume (0-1) */
+  getVolume(): number;
 
-  // Events
-  /** Subscribe to TTS events */
-  on<E extends TTSEvent>(event: E, callback: TTSEventCallback<E>): void;
-  /** Unsubscribe from TTS events */
-  off<E extends TTSEvent>(event: E, callback: TTSEventCallback<E>): void;
+  // Event Registration
+  /** Set event callbacks */
+  setCallbacks(callbacks: TTSEventCallbacks): void;
+
+  // Lifecycle
+  /** Clean up resources */
+  dispose(): void;
 }
