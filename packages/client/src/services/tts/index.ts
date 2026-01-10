@@ -207,8 +207,13 @@ export class TTSService implements ITTSService {
   dispose(): void {
     if (this.disposed) return;
 
+    // Stop playback before setting disposed flag
+    // (stop() checks ensureNotDisposed)
+    this.stopCurrentPlayback();
+    this.queue = [];
+    this.playbackState = 'idle';
+
     this.disposed = true;
-    this.stop();
     this.callbacks = {};
   }
 
