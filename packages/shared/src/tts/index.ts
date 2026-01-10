@@ -134,3 +134,97 @@ export const DEFAULT_VOICE_PRESETS: Record<string, VoiceSettings> = {
   trial_judgment: { stability: 0.8, similarityBoost: 0.9 },
   inner_voice: { stability: 0.6, similarityBoost: 0.85 },
 };
+
+// =============================================================================
+// Client-Side TTS Service Interface
+// =============================================================================
+
+/**
+ * State of the TTS playback queue
+ */
+export type TTSPlaybackState = 'idle' | 'playing' | 'paused' | 'loading';
+
+/**
+ * Item in the TTS playback queue
+ */
+export interface TTSQueueItem {
+  /** Unique identifier for this queue item */
+  id: string;
+  /** The original TTS request */
+  request: TTSRequest;
+  /** Current state of this item */
+  state: 'pending' | 'loading' | 'ready' | 'playing' | 'completed' | 'error';
+  /** Error message if state is 'error' */
+  error?: string;
+  /** Preloaded audio blob (if preloaded) */
+  audioBlob?: Blob;
+}
+
+/**
+ * Queue status information
+ */
+export interface TTSQueueStatus {
+  /** Current playback state */
+  playbackState: TTSPlaybackState;
+  /** Currently playing item (if any) */
+  currentItem: TTSQueueItem | null;
+  /** Items waiting to be played */
+  pendingItems: TTSQueueItem[];
+  /** Total items in queue (current + pending) */
+  totalItems: number;
+}
+
+/**
+ * Event callbacks for TTS service
+ */
+export interface TTSEventCallbacks {
+  /** Called when an item starts playing */
+  onStart?: (item: TTSQueueItem) => void;
+  /** Called when an item finishes playing */
+  onEnd?: (item: TTSQueueItem) => void;
+  /** Called when an error occurs */
+  onError?: (item: TTSQueueItem, error: Error) => void;
+  /** Called when the queue changes */
+  onQueueChange?: (status: TTSQueueStatus) => void;
+}
+
+/**
+ * Client-side TTS service interface
+ */
+export interface ITTSService {
+  // Queue Management
+  /** Add text to the playback queue and optionally start playing */
+  speak(request: TTSRequest): Promise<string>;
+  /** Preload audio for later playback (returns queue item ID) */
+  preload(request: TTSRequest): Promise<string>;
+  /** Get current queue status */
+  getQueueStatus(): TTSQueueStatus;
+  /** Clear all pending items from the queue */
+  clearQueue(): void;
+
+  // Playback Controls
+  /** Start or resume playback */
+  play(): void;
+  /** Pause current playback */
+  pause(): void;
+  /** Resume paused playback */
+  resume(): void;
+  /** Skip to the next item in queue */
+  skip(): void;
+  /** Stop playback and clear queue */
+  stop(): void;
+
+  // Volume Control
+  /** Set playback volume (0-1) */
+  setVolume(volume: number): void;
+  /** Get current volume (0-1) */
+  getVolume(): number;
+
+  // Event Registration
+  /** Set event callbacks */
+  setCallbacks(callbacks: TTSEventCallbacks): void;
+
+  // Lifecycle
+  /** Clean up resources */
+  dispose(): void;
+}
