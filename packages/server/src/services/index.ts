@@ -13,3 +13,13 @@ export {
 export { ElevenLabsClient } from './elevenlabs/client.js';
 export { ElevenLabsError } from './elevenlabs/types.js';
 export { TTSCacheService } from './cache/tts-cache-service.js';
+
+export {
+  ClaudeCodeCLI,
+  type ClaudeCLIConfig,
+  type AIProvider,
+  type AIRequest,
+  type AIResponse,
+  type AIError,
+  type AIErrorCode,
+} from './ai/index.js';
