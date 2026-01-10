@@ -187,6 +187,25 @@ agents:
 add-agent name:
     gt crew add {{name}}
 
+# Dispatch work to a polecat using the reckoning-work formula
+# This ensures polecats follow the structured workflow and submit to refinery
+# Usage: just dispatch reckoning-xyz
+dispatch issue:
+    @echo "Dispatching {{issue}} with reckoning-work formula..."
+    gt sling reckoning-work --on {{issue}} --var issue={{issue}} reckoning
+
+# List active polecats in the reckoning rig
+polecats:
+    gt polecat list reckoning
+
+# Check refinery merge queue status
+refinery-status:
+    gt refinery status reckoning
+
+# Show convoy dashboard (all active work)
+convoy:
+    gt convoy list
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Git Shortcuts
 # ═══════════════════════════════════════════════════════════════════════════════
