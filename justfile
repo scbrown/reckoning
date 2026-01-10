@@ -216,12 +216,11 @@ claude-build:
     docker build -f Dockerfile.claude -t claude-dev .
 
 # Run Claude dev container interactively
-# Uses named volume for home and node_modules (avoids Windows 9p permission issues)
+# Uses named volume for full home directory persistence
 claude-run:
     docker run -it \
         -v claude-home:/home/admin \
         -v "$(pwd)":/home/admin/workspace/reckoning \
-        -v reckoning-node-modules:/home/admin/workspace/reckoning/node_modules \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -p 3001:3001 \
         -p 5173:5173 \
@@ -235,7 +234,6 @@ claude-start:
     docker run -dit --name claude-dev-container \
         -v claude-home:/home/admin \
         -v "$(pwd)":/home/admin/workspace/reckoning \
-        -v reckoning-node-modules:/home/admin/workspace/reckoning/node_modules \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -p 3001:3001 \
         -p 5173:5173 \
