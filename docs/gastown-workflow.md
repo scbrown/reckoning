@@ -60,6 +60,67 @@ self-review → run-checks → cleanup-workspace → prepare-for-review → subm
 - TTS validation for Phase 1 features
 - Docs linting for markdown changes
 
+## Mayor Dispatch Protocol
+
+**The Mayor MUST use the `just dispatch` recipe for the reckoning rig.**
+
+### Dispatching Work
+
+```bash
+cd ~/gt/reckoning/mayor/rig
+just dispatch <issue-id>     # e.g., just dispatch reckoning-xyz
+```
+
+This recipe runs `gt sling reckoning-work --on <issue> reckoning` which:
+1. Instantiates the `reckoning-work` formula
+2. Spawns a polecat with the structured workflow
+3. Polecat follows defined steps through to MR submission
+
+**DO NOT use bare `gt sling <issue> reckoning`** - polecats won't follow the formula.
+
+### Merge Flow: Refinery Only
+
+```
+Polecat completes work
+    ↓
+Polecat runs: gt done
+    ↓
+MR bead created in merge queue
+    ↓
+Refinery processes MR (rebase, verify, merge)
+    ↓
+Refinery closes the issue bead
+```
+
+**CRITICAL:** The Mayor coordinates but does NOT merge code directly.
+- ✅ Nudge refinery: `gt nudge reckoning/refinery "Process queue"`
+- ✅ Push polecat branches if they forgot
+- ✅ Close beads after refinery merges (if not auto-closed)
+- ❌ NEVER run `git merge` on polecat branches
+- ❌ NEVER bypass the refinery workflow
+
+### Monitoring Commands
+
+```bash
+just polecats          # List active polecats
+just refinery-status   # Check merge queue
+just convoy            # Show convoy dashboard
+bd ready               # Issues ready to dispatch
+bd blocked             # Issues waiting on dependencies
+```
+
+### Known Limitation
+
+The `--on` flag doesn't support `--var`, so the formula's `issue` variable
+must be derived from the hook_bead. The `just dispatch` recipe handles this,
+but if formula instantiation fails, fall back to direct sling:
+
+```bash
+gt sling <issue-id> reckoning/<polecat-name>
+```
+
+---
+
 ## How to Use Formulas
 
 ### Dispatch work with a formula
