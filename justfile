@@ -192,7 +192,7 @@ add-agent name:
 # Usage: just dispatch reckoning-xyz
 dispatch issue:
     @echo "Dispatching {{issue}} with reckoning-work formula..."
-    gt sling reckoning-work --on {{issue}} --var issue={{issue}} reckoning
+    gt sling reckoning-work --on {{issue}} reckoning
 
 # List active polecats in the reckoning rig
 polecats:
