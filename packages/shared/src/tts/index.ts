@@ -134,3 +134,79 @@ export const DEFAULT_VOICE_PRESETS: Record<string, VoiceSettings> = {
   trial_judgment: { stability: 0.8, similarityBoost: 0.9 },
   inner_voice: { stability: 0.6, similarityBoost: 0.85 },
 };
+
+// =============================================================================
+// Client-Side Speak Options
+// =============================================================================
+
+/**
+ * Options for speak() calls on the client TTS service
+ */
+export interface SpeakOptions {
+  /** Direct voice ID to use */
+  voice?: string;
+  /** Preset name for voice settings */
+  preset?: string;
+  /** Priority for queue ordering */
+  priority?: 'high' | 'normal' | 'low';
+  /** Whether to cache the result */
+  cache?: boolean;
+}
+
+// =============================================================================
+// TTS Service Interface
+// =============================================================================
+
+/**
+ * Events emitted by the TTS service
+ */
+export type TTSEvent = 'start' | 'end' | 'error';
+
+/**
+ * Callback for TTS events
+ */
+export type TTSEventCallback<E extends TTSEvent> = E extends 'error'
+  ? (error: TTSError) => void
+  : () => void;
+
+/**
+ * Client-side TTS service interface
+ *
+ * Provides methods for text-to-speech playback, queue management,
+ * and configuration.
+ */
+export interface ITTSService {
+  // Core methods
+  /** Speak text with optional settings */
+  speak(text: string, options?: SpeakOptions): Promise<void>;
+  /** Speak text as a specific voice role */
+  speakAs(role: VoiceRole, text: string): Promise<void>;
+
+  // Playback control
+  /** Pause current playback */
+  pause(): void;
+  /** Resume paused playback */
+  resume(): void;
+  /** Stop playback and clear queue */
+  stop(): void;
+  /** Skip current speech and play next in queue */
+  skip(): void;
+
+  // Queue management
+  /** Add text to the speech queue */
+  queue(text: string, options?: SpeakOptions): void;
+  /** Clear all queued speech */
+  clearQueue(): void;
+
+  // Configuration
+  /** Set playback volume (0-1) */
+  setVolume(level: number): void;
+  /** Map a voice role to a specific voice ID */
+  setVoice(role: VoiceRole, voiceId: string): void;
+
+  // Events
+  /** Subscribe to TTS events */
+  on<E extends TTSEvent>(event: E, callback: TTSEventCallback<E>): void;
+  /** Unsubscribe from TTS events */
+  off<E extends TTSEvent>(event: E, callback: TTSEventCallback<E>): void;
+}
