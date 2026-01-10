@@ -11,6 +11,7 @@ related:
   - ./docs/VISION.md
   - ./docs/plan/README.md
   - ./docs/adr/README.md
+  - ./docs/gastown-workflow.md
 tags:
   - agents
   - guidelines
@@ -204,6 +205,47 @@ pnpm run test         # Test all
 # Filter to package
 pnpm --filter @reckoning/server dev
 pnpm --filter @reckoning/client build
+```
+
+## Gastown Multi-Agent Workflow
+
+Reckoning uses Gastown for multi-agent coordination with custom formulas.
+
+### For Mayor: Dispatching Work
+
+**ALWAYS use the `reckoning-work` formula when slinging work to polecats:**
+
+```bash
+# Preferred: Apply our formula when dispatching
+gt sling reckoning-work --on <issue-id> <rig-name>
+
+# Example
+gt sling reckoning-work --on reckoning-abc reckoning
+```
+
+This ensures agents follow our TypeScript conventions, use `just` tooling, and run proper quality gates.
+
+**Do NOT sling raw issues without the formula** unless the work is trivial or exploratory.
+
+### Formula Details
+
+The `reckoning-work` formula enforces:
+1. Load project context (CLAUDE.md, docs/plan)
+2. Preflight checks with `just check`
+3. TypeScript strict mode (no `any` types)
+4. TTS testing for Phase 1 features
+5. Docs linting for markdown changes
+6. Clean workspace before submission
+
+See `docs/gastown-workflow.md` for full documentation.
+
+### Available Commands
+
+```bash
+gt formula list                    # List formulas
+gt formula show reckoning-work     # Show our workflow
+gt sling <formula> --on <issue>    # Dispatch with formula
+gt mol progress                    # Check step progress
 ```
 
 ## Communication
