@@ -208,6 +208,45 @@ log:
     git log --oneline -10
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# Claude Dev Container
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Build the Claude development container
+claude-build:
+    docker build -f Dockerfile.claude -t claude-dev .
+
+# Run Claude dev container (standalone, clone repos inside)
+# Uses named volume for persistent workspace across sessions
+claude-run:
+    docker run -it --rm \
+        -v claude-workspace:/home/admin/workspace \
+        -v claude-ssh:/home/admin/.ssh \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        --network host \
+        claude-dev
+
+# Run Claude dev container in detached mode
+claude-start:
+    docker run -dit --name claude-dev-container \
+        -v claude-workspace:/home/admin/workspace \
+        -v claude-ssh:/home/admin/.ssh \
+        -v /var/run/docker.sock:/var/run/docker.sock \
+        --network host \
+        claude-dev
+
+# Attach to running Claude dev container
+claude-attach:
+    docker exec -it claude-dev-container bash
+
+# Stop and remove Claude dev container
+claude-stop:
+    docker stop claude-dev-container && docker rm claude-dev-container
+
+# Remove persistent volumes (WARNING: deletes all workspace data and SSH keys)
+claude-clean:
+    docker volume rm claude-workspace claude-ssh || true
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Project Status
 # ═══════════════════════════════════════════════════════════════════════════════
 
