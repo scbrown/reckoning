@@ -25,8 +25,8 @@ This directory contains detailed implementation plans for each development phase
 | Phase | Focus | Status |
 |-------|-------|--------|
 | [Phase 0](./phase-0-project-setup.md) | Project Foundation | Complete |
-| [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Planning |
-| Phase 2 | DM Engine & AI Integration | Not Started |
+| [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Complete |
+| [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Planning |
 | Phase 3 | History & Perspective System | Not Started |
 | Phase 4 | Pattern Engine | Not Started |
 | Phase 5 | Trial System | Not Started |

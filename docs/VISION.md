@@ -8,6 +8,7 @@ authors:
   - human
 related:
   - ./plan/README.md
+  - ./plan/phase-2-dm-engine.md
 tags:
   - vision
   - game-design
@@ -25,15 +26,67 @@ A GenAI-powered tabletop RPG that synthesizes the improvisational freedom of hum
 
 ---
 
+## The Player as Dungeon Master
+
+**The human player takes on the role of Dungeon Master**, guiding the story with AI assistance. This inverts the traditional CRPG model:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                      GAMEPLAY LOOP                           │
+│                                                              │
+│   ┌──────────┐    ┌──────────┐    ┌──────────┐             │
+│   │    AI    │───▶│    DM    │───▶│ Narrator │             │
+│   │ Generates│    │  Edits   │    │ Presents │             │
+│   └──────────┘    └──────────┘    └──────────┘             │
+│        ▲               │               │                    │
+│        │               │               ▼                    │
+│        │          [regenerate]    [TTS plays]              │
+│        │               │               │                    │
+│        └───────────────┴───────────────┘                    │
+│                   (next cycle)                              │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Roles
+
+| Role | Controller | Responsibilities |
+|------|------------|------------------|
+| **Dungeon Master** | Human Player | Reviews AI content, edits/rewrites, approves for presentation |
+| **AI Assistant** | Claude | Generates story, party actions, NPC dialogue, world responses |
+| **Narrator** | TTS Voice | Presents DM-approved content aloud |
+| **Party Members** | Hybrid | AI suggests actions, DM can override or inject |
+
+### The Event Loop
+
+1. **AI Generates**: Story beats, party member actions, NPC responses, environment events
+2. **DM Reviews**: Human reviews in editor panel, can:
+   - Accept as-is
+   - Edit/rewrite (full control)
+   - Request regeneration (with optional feedback)
+   - Inject original content
+3. **DM Submits**: Content becomes canonical, recorded to history
+4. **Narrator Presents**: TTS plays approved content, UI updates
+5. **Loop Continues**: AI generates next content based on new state
+
+### Why This Model?
+
+- **Human creativity preserved**: DM shapes the story, AI assists
+- **Quality control**: Nothing enters the narrative without DM approval
+- **Collaborative storytelling**: Best of human imagination + AI generation
+- **The Four Pillars still apply**: But to the party characters, not the player
+
+---
+
 ## Core Innovation: Why This Game Couldn't Exist Before
 
 Traditional video game RPGs offer branching choices, but they're predetermined. Someone wrote every possible outcome. This fundamentally limits the experience.
 
 This game uses generative AI to create something new:
-- **Infinite action space**: Players can attempt anything describable in words
+- **Infinite action space**: Party members can attempt anything describable in words
 - **Non-deterministic interpretation**: The same history can yield different reactions
 - **Emergent narrative**: NPCs, consequences, and even antagonists arise organically
-- **True judgment**: The game evaluates who you became, not what boxes you checked
+- **True judgment**: The game evaluates who the party became, not what boxes they checked
+- **DM as curator**: Human guides the story, AI handles the generation burden
 
 ---
 
@@ -182,89 +235,80 @@ At key moments (end of arcs, endgame), you face judgment:
 
 ---
 
-## The Dungeon Master Engine
+## The AI Content Engine
 
-The heart of the system: interpreting freeform player actions like a human DM.
+The heart of the system: generating narrative content for the human DM to review and approve.
 
-### Player Input Model
+### Content Generation Types
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  [Attack]  [Defend]  [Talk]  [Examine]  [Something Else] │
-└─────────────────────────────────────────────────────────────┘
-                        │
-                        ▼
-┌─────────────────────────────────────────────────────────────┐
-│  "I pretend to surrender, then throw sand in the        │
-│   guard's eyes while my companion steals his keys"      │
-└─────────────────────────────────────────────────────────────┘
-```
+The AI generates different types of content based on game state:
 
-Pre-selected actions are seeds that can be modified or bypassed entirely.
+| Type | Description | Example |
+|------|-------------|---------|
+| `scene_description` | Setting the scene, atmosphere | "The tavern door creaks open, revealing..." |
+| `party_action` | What party members do | "Kira draws her dagger and moves toward the door" |
+| `party_dialogue` | What party members say | "'Did anyone else hear that?' Kira whispers" |
+| `npc_response` | NPC reactions and speech | "The bartender sets down her glass slowly" |
+| `environment_event` | World events, sounds, weather | "A cold wind rushes through the open door" |
 
-### The DM Pipeline
+### The Generation Pipeline
 
 ```
-INTERPRET → VALIDATE → CLARIFY? → RESOLVE → NARRATE → CAPTURE
+CONTEXT → GENERATE → REVIEW → EDIT? → SUBMIT → NARRATE → CAPTURE
 ```
 
-**Stage 1: Interpret**
-Parse freeform text into structured intent:
-- What are they attempting (may be multiple steps)?
-- What's the emotional subtext?
-- What assumptions are they making?
-- Who/what is involved?
+**Stage 1: Context**
+Gather state for generation:
+- Current scene and location
+- Party member states and positions
+- Recent event history
+- NPC states and dispositions
+- DM guidance (optional hints)
 
-**Stage 2: Validate**
-Not "is this allowed" but "what could happen":
-- Is this physically possible in the world?
-- What skills/capabilities matter?
-- What could go wrong? (failure modes)
-- What could go exceptionally right?
-- How do NPCs and environment factor in?
+**Stage 2: Generate**
+AI produces suggested content:
+- Narrative text for the moment
+- Suggested speaker (for TTS role)
+- Potential follow-up actions
 
-**Stage 3: Clarify (if needed)**
-Sometimes the DM needs more info:
-- "You want to convince him—but what's your approach?"
-- "There's no sand, but there's straw. Proceed?"
+**Stage 3: Review**
+Human DM sees generated content in editor panel.
 
-**Stage 4: Resolve**
-Roll dice (or equivalent), interpret results narratively:
-- Critical success / Strong success / Weak success
-- Weak failure / Strong failure / Critical failure
-- Results affect the story, not just numbers
+**Stage 4: Edit (Optional)**
+DM can:
+- Accept as-is
+- Rewrite partially or completely
+- Request regeneration with feedback
+- Inject entirely original content
 
-**Stage 5: Narrate**
-Cinematic moment-by-moment breakdown:
-- What happens
-- Who perceives it
-- Why it matters
+**Stage 5: Submit**
+DM approves → content becomes canonical.
 
-**Stage 6: Capture**
-Record canonical event + generate all perspectives for history.
+**Stage 6: Narrate**
+TTS narrator speaks the approved content aloud.
+
+**Stage 7: Capture**
+Record canonical event + witnesses for history system.
 
 ---
 
-### Handling Impossible Actions
+### DM Controls
 
-The DM Engine doesn't just say "no"—it redirects creatively:
+The human DM has full editorial control:
 
-**Player:** "I cast fireball at the guard"
-*(Player has no magic)*
-
-**Response:**
 ```
-You don't have arcane training—but you're looking to create chaos with fire?
-
-The torch on the wall is within reach. Straw is everywhere.
-This place would go up fast—though you'd be in it too.
-
-You could:
-- Grab the torch and throw it
-- Kick straw toward the flame
-- Threaten to start a fire (bluff)
-- Something else?
+┌─────────────────────────────────────────────────────────────┐
+│  AI suggests: "Marcus steps forward, hand on his sword     │
+│  hilt. 'I'll check it out,' he says with false bravado."  │
+└─────────────────────────────────────────────────────────────┘
+     │
+     ├── [Accept] → Use as-is
+     ├── [Edit] → Modify in editor, then submit
+     ├── [Regenerate] → Ask AI to try again (with optional feedback)
+     └── [Inject] → Write original content instead
 ```
+
+The DM shapes the story. The AI handles the generation burden.
 
 ---
 
@@ -425,5 +469,5 @@ src/
 
 ---
 
-*Document Version: 0.1 - Initial Design*
+*Document Version: 0.2 - Player as DM Model*
 *Last Updated: January 2026*
