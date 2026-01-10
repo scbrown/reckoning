@@ -9,3 +9,18 @@ export {
   getAvailableVoices,
   findVoiceById,
 } from './voice-registry.js';
+
+export {
+  BroadcastManager,
+  broadcastManager,
+  setupSSEResponse,
+  formatSSEMessage,
+} from './sse/index.js';
+
+export type {
+  SSEClient,
+  SSEEvent,
+  SubscribeOptions,
+  BroadcastManagerOptions,
+  BroadcastStats,
+} from './sse/index.js';
