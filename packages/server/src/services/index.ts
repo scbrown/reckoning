@@ -23,3 +23,18 @@ export {
   type AIError,
   type AIErrorCode,
 } from './ai/index.js';
+
+export {
+  BroadcastManager,
+  broadcastManager,
+  setupSSEResponse,
+  formatSSEMessage,
+} from './sse/index.js';
+
+export type {
+  SSEClient,
+  SSEEvent,
+  SubscribeOptions,
+  BroadcastManagerOptions,
+  BroadcastStats,
+} from './sse/index.js';
