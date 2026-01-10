@@ -216,16 +216,12 @@ claude-build:
     docker build -f Dockerfile.claude -t claude-dev .
 
 # Run Claude dev container interactively
-# Uses named volume for full home directory persistence
-# node_modules volumes avoid Windows 9p filesystem permission issues with pnpm
+# Uses named volume for home and node_modules (avoids Windows 9p permission issues)
 claude-run:
     docker run -it \
         -v claude-home:/home/admin \
         -v "$(pwd)":/home/admin/workspace/reckoning \
         -v reckoning-node-modules:/home/admin/workspace/reckoning/node_modules \
-        -v reckoning-client-modules:/home/admin/workspace/reckoning/packages/client/node_modules \
-        -v reckoning-server-modules:/home/admin/workspace/reckoning/packages/server/node_modules \
-        -v reckoning-shared-modules:/home/admin/workspace/reckoning/packages/shared/node_modules \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -p 3001:3001 \
         -p 5173:5173 \
@@ -240,9 +236,6 @@ claude-start:
         -v claude-home:/home/admin \
         -v "$(pwd)":/home/admin/workspace/reckoning \
         -v reckoning-node-modules:/home/admin/workspace/reckoning/node_modules \
-        -v reckoning-client-modules:/home/admin/workspace/reckoning/packages/client/node_modules \
-        -v reckoning-server-modules:/home/admin/workspace/reckoning/packages/server/node_modules \
-        -v reckoning-shared-modules:/home/admin/workspace/reckoning/packages/shared/node_modules \
         -v /var/run/docker.sock:/var/run/docker.sock \
         -p 3001:3001 \
         -p 5173:5173 \
@@ -268,13 +261,6 @@ claude-rm:
     @echo "Your home directory volume will be preserved."
     @read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled." && exit 1)
     docker rm claude-dev-container
-
-# Clean node_modules volumes (use when deps are corrupted or need fresh install)
-claude-clean-modules:
-    @echo "This will delete all node_modules volumes. You'll need to run 'pnpm install' again."
-    @read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled." && exit 1)
-    docker volume rm reckoning-node-modules reckoning-client-modules reckoning-server-modules reckoning-shared-modules 2>/dev/null || true
-    @echo "Done. Run 'just install' inside the container to reinstall dependencies."
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Project Status
