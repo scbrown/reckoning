@@ -34,3 +34,9 @@ coverage/
 # Runtime
 .server-port
 .pnpm-store/
+
+# Database
+data/
+*.db
+*.db-wal
+*.db-shm
