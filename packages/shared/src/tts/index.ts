@@ -127,10 +127,64 @@ export interface ListVoicesResponse {
 // Default Presets
 // =============================================================================
 
-export const DEFAULT_VOICE_PRESETS: Record<string, VoiceSettings> = {
+/**
+ * Available preset names for voice settings
+ */
+export type PresetName =
+  | 'chronicle'
+  | 'dialogue_calm'
+  | 'dialogue_intense'
+  | 'trial_judgment'
+  | 'inner_voice';
+
+export const DEFAULT_VOICE_PRESETS: Record<PresetName, VoiceSettings> = {
   chronicle: { stability: 0.7, similarityBoost: 0.8 },
   dialogue_calm: { stability: 0.5, similarityBoost: 0.75 },
   dialogue_intense: { stability: 0.3, similarityBoost: 0.7 },
   trial_judgment: { stability: 0.8, similarityBoost: 0.9 },
   inner_voice: { stability: 0.6, similarityBoost: 0.85 },
 };
+
+/**
+ * Get a voice preset by name
+ * @param name - The preset name
+ * @returns The voice settings for the preset, or undefined if not found
+ */
+export function getPreset(name: string): VoiceSettings | undefined {
+  return DEFAULT_VOICE_PRESETS[name as PresetName];
+}
+
+/**
+ * Get all available preset names
+ */
+export function getPresetNames(): PresetName[] {
+  return Object.keys(DEFAULT_VOICE_PRESETS) as PresetName[];
+}
+
+// =============================================================================
+// Voice Configuration API Types
+// =============================================================================
+
+/**
+ * Request to update voice mapping at runtime
+ */
+export interface UpdateVoiceMappingRequest {
+  role: VoiceRole;
+  voiceId: string;
+}
+
+/**
+ * Response from updating voice mapping
+ */
+export interface UpdateVoiceMappingResponse {
+  success: boolean;
+  mapping: VoiceMapping;
+}
+
+/**
+ * Current voice configuration state
+ */
+export interface VoiceConfiguration {
+  mappings: VoiceMapping[];
+  presets: Record<PresetName, VoiceSettings>;
+}
