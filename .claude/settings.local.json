@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:github.com)",
+      "Bash(go version:*)",
+      "Bash(npm --version:*)",
+      "Bash(sudo apt update:*)",
+      "Bash(sudo apt install:*)",
+      "Bash(curl:*)",
+      "Bash(bash -s:*)",
+      "Bash(tree:*)",
+      "Bash(chmod:*)"
+    ]
+  }
+}

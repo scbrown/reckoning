@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>The Reckoning</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: system-ui, -apple-system, sans-serif;
+        background: #0a0a0a;
+        color: #e0e0e0;
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+      #app {
+        text-align: center;
+        padding: 2rem;
+      }
+      h1 {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+      .tagline {
+        font-style: italic;
+        color: #888;
+        margin-bottom: 2rem;
+      }
+      .status {
+        font-size: 0.9rem;
+        color: #666;
+      }
+      .status.connected {
+        color: #4ade80;
+      }
+      .status.error {
+        color: #f87171;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app">
+      <h1>The Reckoning</h1>
+      <p class="tagline">"You are not who you think you are, and you will be judged by who you actually became."</p>
+      <p id="status" class="status">Checking server connection...</p>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,210 @@
+---
+title: AI Agent Guidelines
+type: agent
+status: active
+created: 2026-01-10
+updated: 2026-01-10
+authors:
+  - human
+related:
+  - ./CONTRIBUTING.md
+  - ./docs/VISION.md
+  - ./docs/plan/README.md
+  - ./docs/adr/README.md
+tags:
+  - agents
+  - guidelines
+  - workflow
+---
+
+# AI Agent Guidelines for Reckoning RPG
+
+This document provides instructions for AI coding agents (Claude, Gemini, etc.) working on the Reckoning RPG project.
+
+## Project Overview
+
+**Reckoning** is a GenAI-powered tabletop RPG where every action is remembered and interpreted differently by witnesses. Players face judgment for who they became, not what they intended.
+
+### Architecture
+
+This is a **TypeScript monorepo** with pnpm workspaces:
+
+```
+reckoning/
+├── packages/
+│   ├── client/          # Browser game (Vite + TypeScript)
+│   ├── server/          # API server (Fastify + TypeScript)
+│   └── shared/          # Shared types and utilities
+├── docs/
+│   ├── VISION.md        # Product vision and game design
+│   ├── STANDARDS.md     # Documentation standards
+│   ├── adr/             # Architecture Decision Records
+│   └── plan/            # Phase planning documents
+├── scripts/             # Development tooling
+├── docker-compose.yml   # Local infrastructure (Redis)
+└── justfile             # Command runner
+```
+
+### Key Tools
+
+| Tool | Purpose | Commands |
+|------|---------|----------|
+| **pnpm** | Package manager | `pnpm install`, `pnpm run dev` |
+| **just** | Command runner | `just dev`, `just build`, `just test` |
+| **beads (bd)** | Task tracking | `bd list`, `bd start`, `bd done` |
+| **gastown (gt)** | Multi-agent coordination | `gt crew list` |
+| **Docker** | Infrastructure | `docker compose up -d` |
+
+## Getting Started
+
+```bash
+# 1. Install dependencies
+just install
+
+# 2. Start infrastructure (Redis)
+just infra-up
+
+# 3. Start development servers
+just dev
+
+# 4. Check project health
+just check
+```
+
+## Development Workflow
+
+### Before Starting Work
+
+1. **Check tasks**: `just tasks` or `bd list`
+2. **Pick a task**: `just start-task <id>` or `bd start <id>`
+3. **Check for conflicts**: Review active agents with `gt crew list`
+
+### While Working
+
+1. **Use shared types**: Import from `@reckoning/shared`
+2. **Follow existing patterns**: Check similar code first
+3. **Test changes**: `just test` before committing
+
+### Completing Work
+
+1. **Commit**: `just commit "message"`
+2. **Mark done**: `just done <id>` with summary
+
+## Code Conventions
+
+### TypeScript
+
+- Strict mode enabled - no `any` types
+- Use interfaces over type aliases for objects
+- Export types from `@reckoning/shared` for cross-package use
+
+### File Organization
+
+| Package | Purpose | Example |
+|---------|---------|---------|
+| `@reckoning/shared` | Types, constants | `TTSRequest`, `VoiceRole` |
+| `@reckoning/server` | API routes, services | `/api/tts/speak` |
+| `@reckoning/client` | UI, client services | `TTSPlayer` |
+
+### Naming
+
+- Files: `kebab-case.ts`
+- Types/Interfaces: `PascalCase`
+- Functions/Variables: `camelCase`
+- Constants: `SCREAMING_SNAKE_CASE`
+
+## Documentation
+
+All markdown files require **frontmatter**. See `docs/STANDARDS.md` for format.
+
+### Lint Docs
+
+```bash
+just docs-lint         # Check all docs
+just docs-lint-verbose # Show passing files too
+```
+
+### Document Types
+
+| Type | Location | Purpose |
+|------|----------|---------|
+| `vision` | `docs/VISION.md` | Core game design |
+| `plan` | `docs/plan/` | Phase implementation plans |
+| `adr` | `docs/adr/` | Architecture decisions |
+| `guide` | `docs/` | How-to documentation |
+
+## Architecture Decisions
+
+Major decisions are documented in `docs/adr/`. Check these before making changes:
+
+- [ADR-0001: Monorepo Architecture](docs/adr/0001-monorepo-architecture.md)
+
+## Development Phases
+
+Work is organized into phases. See `docs/plan/README.md` for the roadmap:
+
+- **Phase 0**: Project foundation (complete)
+- **Phase 1**: Text-to-Speech engine
+- **Phase 2+**: Game features
+
+## Quick Reference
+
+### Just Recipes
+
+```bash
+# Development
+just dev              # Start all services
+just dev-client       # Start only client
+just dev-server       # Start only server
+
+# Building
+just build            # Build all packages
+just typecheck        # Run TypeScript checks
+
+# Testing
+just test             # Run all tests
+just lint             # Run ESLint
+
+# Infrastructure
+just infra-up         # Start Redis
+just infra-down       # Stop Redis
+
+# Documentation
+just docs-lint        # Lint markdown files
+
+# Tasks
+just tasks            # List all tasks
+just add-task "desc"  # Add new task
+just done <id>        # Complete task
+```
+
+### Package Scripts
+
+```bash
+# From root
+pnpm run dev          # Start all
+pnpm run build        # Build all
+pnpm run test         # Test all
+
+# Filter to package
+pnpm --filter @reckoning/server dev
+pnpm --filter @reckoning/client build
+```
+
+## Communication
+
+When working with other agents:
+- Check `bd status` before starting
+- Use beads to claim tasks
+- Don't modify files another agent is working on
+- Use clear commit messages referencing task IDs
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| pnpm not found | Install: `npm install -g pnpm` |
+| Port 3001 in use | Check: `lsof -i :3001` |
+| Redis not running | Start: `just infra-up` |
+| TypeScript errors | Run: `just typecheck` |
+| Missing types | Build shared: `pnpm --filter @reckoning/shared build` |

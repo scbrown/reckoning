@@ -1,0 +1,35 @@
+{
+  "name": "reckoning",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GenAI-powered tabletop RPG with persistent consequences",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n client,server -c blue,green \"pnpm --filter @reckoning/client dev\" \"pnpm --filter @reckoning/server dev\"",
+    "dev:client": "pnpm --filter @reckoning/client dev",
+    "dev:server": "pnpm --filter @reckoning/server dev",
+    "build": "pnpm -r build",
+    "build:client": "pnpm --filter @reckoning/client build",
+    "build:server": "pnpm --filter @reckoning/server build",
+    "test": "pnpm -r test",
+    "test:client": "pnpm --filter @reckoning/client test",
+    "test:server": "pnpm --filter @reckoning/server test",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "eslint packages/*/src --ext .ts,.tsx",
+    "format": "prettier --write \"packages/*/src/**/*.{ts,tsx,json}\"",
+    "format:check": "prettier --check \"packages/*/src/**/*.{ts,tsx,json}\"",
+    "clean": "rm -rf packages/*/dist packages/*/node_modules node_modules"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "concurrently": "^8.2.2",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.1",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}
