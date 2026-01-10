@@ -18,7 +18,7 @@ import type {
 import { ElevenLabsError } from './types.js';
 
 const DEFAULT_BASE_URL = 'https://api.elevenlabs.io/v1';
-const DEFAULT_MODEL = 'eleven_monolingual_v1';
+const DEFAULT_MODEL = 'eleven_turbo_v2';  // Free tier compatible
 const DEFAULT_OUTPUT_FORMAT: ElevenLabsOutputFormat = 'mp3_44100_128';
 const DEFAULT_TIMEOUT = 30000;
 const DEFAULT_MAX_RETRIES = 3;

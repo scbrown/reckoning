@@ -144,7 +144,11 @@ Major decisions are documented in `docs/adr/`. Check these before making changes
 Work is organized into phases. See `docs/plan/README.md` for the roadmap:
 
 - **Phase 0**: Project foundation (complete)
-- **Phase 1**: Text-to-Speech engine
+- **Phase 1**: Text-to-Speech engine (in progress)
+  - ElevenLabs integration with streaming
+  - Voice configuration UI
+  - Redis caching (graceful fallback when unavailable)
+  - Dynamic port allocation for multi-agent support
 - **Phase 2+**: Game features
 
 ## Quick Reference
@@ -176,6 +180,17 @@ just docs-lint        # Lint markdown files
 just tasks            # List all tasks
 just add-task "desc"  # Add new task
 just done <id>        # Complete task
+
+# TTS Testing
+just tts-test                    # Test TTS with default text
+just tts-test "Custom text"      # Test with custom text
+just tts-test-role judge "text"  # Test specific role
+just tts-voices                  # List available voices
+just tts-config                  # Show current configuration
+
+# Utilities
+just ports-clean      # Kill processes on dev ports
+just server-port      # Show current server port
 ```
 
 ### Package Scripts
@@ -204,10 +219,18 @@ When working with other agents:
 | Issue | Solution |
 |-------|----------|
 | pnpm not found | Install: `npm install -g pnpm` |
-| Port 3001 in use | Check: `lsof -i :3001` |
-| Redis not running | Start: `just infra-up` |
+| Port in use | Run: `just ports-clean` or server auto-finds next port |
+| Redis not running | Start: `just infra-up` (TTS works without Redis) |
 | TypeScript errors | Run: `just typecheck` |
 | Missing types | Build shared: `pnpm --filter @reckoning/shared build` |
+| Finding server port | Check: `just server-port` or `cat .server-port` |
+
+### Multi-Agent Port Handling
+
+The server automatically finds an available port if the default (3001) is in use:
+- Server writes its port to `.server-port` file
+- Vite client reads this file for proxy configuration
+- Run `just ports-clean` to free up stuck ports
 
 ## Landing the Plane (Session Completion)
 

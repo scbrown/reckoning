@@ -12,13 +12,54 @@ import type {
   VoiceConfiguration,
   ListVoicesResponse,
   VoiceMapping,
+  VoiceSettings,
 } from '@reckoning/shared';
 import { getPreset, getPresetNames } from '@reckoning/shared';
 import {
   voiceRegistry,
   getAvailableVoices,
   findVoiceById,
+  ElevenLabsClient,
+  ElevenLabsError,
+  TTSCacheService,
 } from '../services/index.js';
+
+// =============================================================================
+// TTS Speak Types
+// =============================================================================
+
+interface SpeakRequest {
+  text: string;
+  voiceId?: string;
+  role?: VoiceRole;
+  preset?: string;
+}
+
+// =============================================================================
+// Service Instances (lazily initialized)
+// =============================================================================
+
+let elevenLabsClient: ElevenLabsClient | null = null;
+let cacheService: TTSCacheService | null = null;
+
+function getElevenLabsClient(): ElevenLabsClient {
+  if (!elevenLabsClient) {
+    const apiKey = process.env.ELEVENLABS_API_KEY;
+    if (!apiKey) {
+      throw new Error('ELEVENLABS_API_KEY environment variable is required');
+    }
+    elevenLabsClient = new ElevenLabsClient({ apiKey });
+  }
+  return elevenLabsClient;
+}
+
+async function getCacheService(): Promise<TTSCacheService> {
+  if (!cacheService) {
+    cacheService = new TTSCacheService();
+    await cacheService.connect();
+  }
+  return cacheService;
+}
 
 // =============================================================================
 // Route Schemas
@@ -185,6 +226,129 @@ export async function ttsRoutes(fastify: FastifyInstance) {
           settings: preset,
         },
       });
+    }
+  );
+
+  /**
+   * POST /api/tts/speak
+   * Generate speech from text using ElevenLabs
+   * Returns audio/mpeg stream
+   */
+  fastify.post<{ Body: SpeakRequest }>(
+    '/speak',
+    async (request: FastifyRequest<{ Body: SpeakRequest }>, reply: FastifyReply) => {
+      const { text, voiceId, role, preset } = request.body;
+
+      // Validate text
+      if (!text || typeof text !== 'string' || text.trim().length === 0) {
+        return reply.status(400).send({
+          code: 'INVALID_REQUEST',
+          message: 'Text is required and must be a non-empty string',
+        });
+      }
+
+      // Resolve voiceId from role if not provided directly
+      let resolvedVoiceId = voiceId;
+      let voiceSettings: VoiceSettings | undefined;
+
+      if (!resolvedVoiceId && role) {
+        const mapping = voiceRegistry.getMappingForRole(role);
+        if (mapping) {
+          resolvedVoiceId = mapping.voiceId;
+          voiceSettings = getPreset(preset || mapping.defaultPreset);
+        }
+      }
+
+      if (!resolvedVoiceId) {
+        // Default to narrator voice
+        const narratorMapping = voiceRegistry.getMappingForRole('narrator');
+        resolvedVoiceId = narratorMapping?.voiceId || '21m00Tcm4TlvDq8ikWAM';
+        voiceSettings = getPreset(preset || narratorMapping?.defaultPreset || 'chronicle');
+      }
+
+      // If preset specified but no settings yet, get them
+      if (preset && !voiceSettings) {
+        voiceSettings = getPreset(preset);
+      }
+
+      try {
+        // Try cache first (gracefully handle Redis unavailability)
+        let cache: TTSCacheService | null = null;
+        let cacheKey: string | null = null;
+        try {
+          cache = await getCacheService();
+          cacheKey = cache.generateKey({
+            text: text.trim(),
+            voiceId: resolvedVoiceId,
+            settings: voiceSettings,
+          });
+
+          const cachedAudio = await cache.get(cacheKey);
+          if (cachedAudio) {
+            return reply
+              .header('Content-Type', 'audio/mpeg')
+              .header('X-Cache', 'HIT')
+              .send(cachedAudio);
+          }
+        } catch (cacheError) {
+          // Redis unavailable - continue without caching
+          request.log.warn('Cache unavailable, proceeding without caching');
+        }
+
+        // Generate audio from ElevenLabs
+        const client = getElevenLabsClient();
+        const audioStream = await client.textToSpeechWithSettings(
+          text.trim(),
+          resolvedVoiceId,
+          voiceSettings
+        );
+
+        // Collect chunks
+        const chunks: Uint8Array[] = [];
+        const reader = audioStream.getReader();
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+        }
+
+        const audioBuffer = Buffer.concat(chunks);
+
+        // Try to cache the result (ignore failures)
+        if (cache && cacheKey) {
+          try {
+            const contentType = cache.getContentTypeForRole(role);
+            const ttl = cache.getTTL(contentType);
+            await cache.set(cacheKey, audioBuffer, ttl);
+          } catch {
+            // Ignore cache write failures
+          }
+        }
+
+        return reply
+          .header('Content-Type', 'audio/mpeg')
+          .header('X-Cache', cache ? 'MISS' : 'SKIP')
+          .send(audioBuffer);
+
+      } catch (error) {
+        if (error instanceof ElevenLabsError) {
+          const statusCode = error.statusCode >= 400 && error.statusCode < 600
+            ? error.statusCode
+            : 500;
+          return reply.status(statusCode).send({
+            code: 'TTS_ERROR',
+            message: error.message,
+            retryable: error.retryable,
+          });
+        }
+
+        request.log.error(error, 'TTS speak error');
+        return reply.status(500).send({
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to generate speech',
+        });
+      }
     }
   );
 }

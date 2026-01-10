@@ -30,3 +30,7 @@ coverage/
 # Temp files
 *.tmp
 *~
+
+# Runtime
+.server-port
+.pnpm-store/

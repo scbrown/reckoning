@@ -167,18 +167,60 @@ async function handleApplyClick(): Promise<void> {
   applyBtnEl.textContent = 'Apply';
 }
 
-function handlePreviewClick(): void {
-  if (!voiceSelectEl) return;
+async function handlePreviewClick(): Promise<void> {
+  if (!voiceSelectEl || !previewBtnEl || !roleSelectEl) return;
 
   const voiceId = voiceSelectEl.value;
+  const role = roleSelectEl.value as VoiceRole;
   const voice = availableVoices.find((v) => v.voiceId === voiceId);
 
-  if (voice?.previewUrl) {
-    const audio = new Audio(voice.previewUrl);
-    audio.play().catch((err) => console.error('Failed to play preview:', err));
-  } else {
-    console.log('Preview not available for this voice (would call ElevenLabs API)');
-    alert('Preview: Would play sample from ' + (voice?.name || 'unknown voice'));
+  previewBtnEl.disabled = true;
+  previewBtnEl.textContent = 'Loading...';
+
+  try {
+    // Generate a preview phrase based on the role
+    const previewTexts: Record<VoiceRole, string> = {
+      narrator: 'The tale unfolds before you, each choice a thread in the tapestry of fate.',
+      judge: 'Your actions have consequences. The reckoning approaches.',
+      npc: 'Greetings, traveler. What brings you to these lands?',
+      inner_voice: 'Something feels wrong about this. Should I really trust them?',
+    };
+    const previewText = previewTexts[role] || previewTexts.narrator;
+
+    // Call the TTS speak endpoint
+    const response = await fetch('/api/tts/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: previewText,
+        voiceId,
+        role,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Failed to generate speech');
+    }
+
+    // Get audio blob and play it
+    const audioBlob = await response.blob();
+    const audioUrl = URL.createObjectURL(audioBlob);
+    const audio = new Audio(audioUrl);
+
+    audio.onended = () => {
+      URL.revokeObjectURL(audioUrl);
+    };
+
+    await audio.play();
+    console.log(`Playing preview for ${voice?.name || voiceId} as ${role}`);
+
+  } catch (error) {
+    console.error('Failed to play preview:', error);
+    alert('Preview failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
+  } finally {
+    previewBtnEl.disabled = false;
+    previewBtnEl.textContent = 'Preview';
   }
 }
 

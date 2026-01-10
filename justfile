@@ -261,6 +261,61 @@ claude-rm:
     docker rm claude-dev-container
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# TTS Testing
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Test TTS speak endpoint with sample text
+tts-test text="Hello, this is a test of the text to speech system.":
+    @PORT=$(cat .server-port 2>/dev/null || echo 3001) && \
+    curl -s -X POST "http://localhost:$$PORT/api/tts/speak" \
+        -H "Content-Type: application/json" \
+        -d '{"text": "{{text}}", "role": "narrator"}' \
+        -o /tmp/tts-test.mp3 && \
+    echo "Audio saved to /tmp/tts-test.mp3" && \
+    file /tmp/tts-test.mp3
+
+# Test TTS with specific role
+tts-test-role role text:
+    @PORT=$(cat .server-port 2>/dev/null || echo 3001) && \
+    curl -s -X POST "http://localhost:$$PORT/api/tts/speak" \
+        -H "Content-Type: application/json" \
+        -d '{"text": "{{text}}", "role": "{{role}}"}' \
+        -o /tmp/tts-test.mp3 && \
+    echo "Audio saved to /tmp/tts-test.mp3" && \
+    file /tmp/tts-test.mp3
+
+# List available TTS voices
+tts-voices:
+    @PORT=$(cat .server-port 2>/dev/null || echo 3001) && \
+    curl -s "http://localhost:$$PORT/api/tts/voices" | jq .
+
+# Show TTS configuration
+tts-config:
+    @PORT=$(cat .server-port 2>/dev/null || echo 3001) && \
+    curl -s "http://localhost:$$PORT/api/tts/config" | jq .
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Utilities
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Kill processes on common dev ports (useful for multi-agent cleanup)
+ports-clean:
+    @echo "Cleaning up development ports..."
+    -fuser -k 3001/tcp 2>/dev/null
+    -fuser -k 3002/tcp 2>/dev/null
+    -fuser -k 3003/tcp 2>/dev/null
+    -fuser -k 5173/tcp 2>/dev/null
+    -fuser -k 5174/tcp 2>/dev/null
+    -fuser -k 5175/tcp 2>/dev/null
+    -fuser -k 5176/tcp 2>/dev/null
+    -fuser -k 5177/tcp 2>/dev/null
+    @echo "Ports cleaned"
+
+# Show current server port
+server-port:
+    @cat .server-port 2>/dev/null || echo "Server not running (no .server-port file)"
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Project Status
 # ═══════════════════════════════════════════════════════════════════════════════
 
