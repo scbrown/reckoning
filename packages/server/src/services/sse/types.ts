@@ -50,7 +50,13 @@ export interface GameState {
  */
 export type SSEEvent =
   | { type: 'generation_started'; contentType: string }
-  | { type: 'generation_complete'; generationId: string; content: string }
+  | {
+      type: 'generation_complete';
+      generationId: string;
+      content: string;
+      eventType: string;
+      metadata?: { speaker?: string; suggestedActions?: string[] };
+    }
   | { type: 'generation_error'; error: string }
   | { type: 'state_changed'; state: GameState }
   | { type: 'tts_started'; eventId: string }

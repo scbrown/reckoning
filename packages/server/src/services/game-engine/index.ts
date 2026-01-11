@@ -237,11 +237,13 @@ export class GameEngine {
       status: 'editing',
     });
 
-    // Broadcast generation complete
+    // Broadcast generation complete with eventType and metadata
     this.broadcaster.broadcast(gameId, {
       type: 'generation_complete',
       generationId: result.value.id,
-      content: result.value.content,  // Just the text content
+      content: result.value.content,
+      eventType: result.value.eventType,
+      metadata: result.value.metadata,
     });
   }
 

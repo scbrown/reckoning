@@ -29,6 +29,13 @@ export interface GenerationCompleteEvent extends BaseSSEEvent {
   generationId: string;
   /** Generated content */
   content: string;
+  /** Event type classification */
+  eventType: string;
+  /** Additional metadata (speaker, suggested actions, etc.) */
+  metadata?: {
+    speaker?: string;
+    suggestedActions?: string[];
+  };
 }
 
 export interface GenerationErrorEvent extends BaseSSEEvent {
