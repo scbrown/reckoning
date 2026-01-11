@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS players (
   created_at TEXT DEFAULT (datetime('now'))
 );
 
--- Party members table
+-- Party members table (legacy)
 CREATE TABLE IF NOT EXISTS party_members (
   id TEXT PRIMARY KEY,
   game_id TEXT NOT NULL REFERENCES games(id),
@@ -29,6 +29,31 @@ CREATE TABLE IF NOT EXISTS party_members (
   class TEXT,
   created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- Parties table
+CREATE TABLE IF NOT EXISTS parties (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id),
+  name TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_parties_game ON parties(game_id);
+
+-- Characters table
+CREATE TABLE IF NOT EXISTS characters (
+  id TEXT PRIMARY KEY,
+  party_id TEXT NOT NULL REFERENCES parties(id),
+  name TEXT NOT NULL,
+  description TEXT,
+  class TEXT,
+  role TEXT NOT NULL CHECK (role IN ('player', 'member', 'companion')),
+  stats TEXT,  -- JSON blob
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_characters_party ON characters(party_id);
+CREATE INDEX IF NOT EXISTS idx_characters_role ON characters(party_id, role);
 
 -- Areas table
 CREATE TABLE IF NOT EXISTS areas (
