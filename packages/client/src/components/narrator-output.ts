@@ -49,7 +49,7 @@ export class NarratorOutput {
             <span>Auto-scroll</span>
           </label>
         </div>
-        <div class="narrator-entries"></div>
+        <div class="narrator-entries" role="log" aria-live="polite" aria-label="Narrative history"></div>
       </div>
     `;
 
@@ -171,10 +171,10 @@ export class NarratorOutput {
     const hasSpeaker = entry.speaker && this.isDialogueType(entry.type);
 
     return `
-      <div class="narrative-entry ${typeClass}" data-entry-id="${entry.id}">
+      <div class="narrative-entry ${typeClass}" data-entry-id="${entry.id}" role="article">
         ${hasSpeaker ? `<span class="entry-speaker">${this.escapeHtml(entry.speaker!)}:</span>` : ''}
         <span class="entry-content">${this.escapeHtml(entry.content)}</span>
-        <span class="tts-indicator ${entry.isTTSPlaying ? 'playing' : ''}">${entry.isTTSPlaying ? '🔊' : ''}</span>
+        <span class="tts-indicator ${entry.isTTSPlaying ? 'playing' : ''}" aria-hidden="true">${entry.isTTSPlaying ? '🔊' : ''}</span>
       </div>
     `;
   }
