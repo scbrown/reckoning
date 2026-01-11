@@ -8,6 +8,8 @@ import type { Character, CharacterStats } from '@reckoning/shared';
 
 export interface PartyPanelConfig {
   containerId: string;
+  /** ID of the player character to visually distinguish them */
+  playerId?: string;
 }
 
 /**
@@ -52,6 +54,7 @@ const MOCK_PARTY: Character[] = [
 export class PartyPanel {
   private container: HTMLElement;
   private members: Character[];
+  private playerId: string | undefined;
 
   constructor(config: PartyPanelConfig) {
     const container = document.getElementById(config.containerId);
@@ -60,6 +63,7 @@ export class PartyPanel {
     }
     this.container = container;
     this.members = MOCK_PARTY;
+    this.playerId = config.playerId;
     this.injectStyles();
   }
 
@@ -99,6 +103,21 @@ export class PartyPanel {
   }
 
   /**
+   * Set the player character ID for visual distinction
+   */
+  setPlayerId(playerId: string | undefined): void {
+    this.playerId = playerId;
+    this.render();
+  }
+
+  /**
+   * Get the current player character ID
+   */
+  getPlayerId(): string | undefined {
+    return this.playerId;
+  }
+
+  /**
    * Cleanup
    */
   destroy(): void {
@@ -112,14 +131,22 @@ export class PartyPanel {
   private renderCharacterCard(character: Character): string {
     const healthPercent = this.calculateHealthPercent(character.stats);
     const healthClass = this.getHealthClass(healthPercent);
+    const isPlayer = character.id === this.playerId;
+    const playerClass = isPlayer ? 'character-card--player' : '';
+    const playerBadge = isPlayer
+      ? '<span class="player-badge" aria-label="Player character">YOU</span>'
+      : '';
 
     return `
-      <div class="character-card" data-character-id="${character.id}" role="listitem" tabindex="0" aria-label="${this.escapeHtml(character.name)}, ${this.escapeHtml(character.class)}, ${character.stats.health} of ${character.stats.maxHealth} health">
+      <div class="character-card ${playerClass}" data-character-id="${character.id}" role="listitem" tabindex="0" aria-label="${this.escapeHtml(character.name)}, ${this.escapeHtml(character.class)}, ${character.stats.health} of ${character.stats.maxHealth} health${isPlayer ? ', player character' : ''}">
         <div class="character-avatar" aria-hidden="true">
           <div class="avatar-placeholder">${this.getInitials(character.name)}</div>
         </div>
         <div class="character-info">
-          <div class="character-name">${this.escapeHtml(character.name)}</div>
+          <div class="character-name-row">
+            <span class="character-name">${this.escapeHtml(character.name)}</span>
+            ${playerBadge}
+          </div>
           <div class="character-role">${this.escapeHtml(character.class)}</div>
           <div class="character-health">
             <div class="health-bar" role="progressbar" aria-valuenow="${character.stats.health}" aria-valuemin="0" aria-valuemax="${character.stats.maxHealth}" aria-label="Health">
@@ -306,6 +333,37 @@ export class PartyPanel {
         color: #666;
         min-width: 45px;
         text-align: right;
+      }
+
+      .character-name-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
+      .character-card--player {
+        border-color: #667eea;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+      }
+
+      .character-card--player:hover {
+        border-color: #8b9cf5;
+        background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
+      }
+
+      .character-card--player .avatar-placeholder {
+        box-shadow: 0 0 0 2px #667eea, 0 0 8px rgba(102, 126, 234, 0.5);
+      }
+
+      .player-badge {
+        font-size: 0.6rem;
+        font-weight: 700;
+        color: #fff;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        padding: 0.15rem 0.4rem;
+        border-radius: 3px;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
       }
     `;
     document.head.appendChild(styles);

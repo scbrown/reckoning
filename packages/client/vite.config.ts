@@ -51,6 +51,7 @@ export default defineConfig({
     sourcemap: true,
   },
   test: {
+    environment: 'jsdom',
     exclude: [
       '**/node_modules/**',
       '**/dist/**',
