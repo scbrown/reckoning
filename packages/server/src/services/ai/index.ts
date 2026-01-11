@@ -15,7 +15,14 @@ export type {
 
 export { ClaudeCodeCLI, type ClaudeCLIConfig } from './claude-cli.js';
 
-export { GAME_CONTENT_SCHEMA } from './schemas.js';
+export { GAME_CONTENT_SCHEMA, WORLD_GENERATION_SCHEMA } from './schemas.js';
+
+export {
+  WorldGenerator,
+  type WorldGenerationOptions,
+  type GeneratedWorld,
+  type WorldGenerationError,
+} from './world-generator.js';
 
 export {
   createContextBuilder,

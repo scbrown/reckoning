@@ -126,6 +126,165 @@ export const BEAT_SEQUENCE_SCHEMA: OutputSchema = {
   },
 };
 
+/**
+ * Schema for world generation output
+ *
+ * The AI must respond with a complete world structure including:
+ * - worldName: Name of the generated world
+ * - worldDescription: Brief description of theme/atmosphere
+ * - startingAreaId: ID of the area where players begin
+ * - areas: Array of area definitions with exits, objects, and NPCs
+ */
+export const WORLD_GENERATION_SCHEMA: OutputSchema = {
+  name: 'world_generation',
+  schema: {
+    type: 'object',
+    properties: {
+      worldName: {
+        type: 'string',
+        description: 'Name of the generated world or setting',
+      },
+      worldDescription: {
+        type: 'string',
+        description: 'Brief description of the world theme and atmosphere',
+      },
+      startingAreaId: {
+        type: 'string',
+        description: 'ID of the area where the party begins their adventure',
+      },
+      areas: {
+        type: 'array',
+        description: 'All areas in the generated world',
+        minItems: 1,
+        maxItems: 5,
+        items: {
+          type: 'object',
+          properties: {
+            id: {
+              type: 'string',
+              description: 'Unique identifier for this area',
+            },
+            name: {
+              type: 'string',
+              description: 'Display name of the area',
+            },
+            description: {
+              type: 'string',
+              description: 'Narrative description shown to players',
+            },
+            exits: {
+              type: 'array',
+              description: 'Available exits from this area',
+              items: {
+                type: 'object',
+                properties: {
+                  direction: {
+                    type: 'string',
+                    description: 'Direction or description (e.g., "north", "through the door")',
+                  },
+                  targetAreaId: {
+                    type: 'string',
+                    description: 'ID of the destination area',
+                  },
+                  description: {
+                    type: 'string',
+                    description: 'Description of the exit',
+                  },
+                  locked: {
+                    type: 'boolean',
+                    description: 'Whether the exit is currently locked',
+                  },
+                },
+                required: ['direction', 'targetAreaId', 'description'],
+                additionalProperties: false,
+              },
+            },
+            objects: {
+              type: 'array',
+              description: 'Interactable objects in this area',
+              items: {
+                type: 'object',
+                properties: {
+                  id: {
+                    type: 'string',
+                    description: 'Unique identifier for this object',
+                  },
+                  name: {
+                    type: 'string',
+                    description: 'Display name of the object',
+                  },
+                  description: {
+                    type: 'string',
+                    description: 'Description when examined',
+                  },
+                  interactable: {
+                    type: 'boolean',
+                    description: 'Whether the player can interact with this object',
+                  },
+                  tags: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Searchable tags for categorization',
+                  },
+                },
+                required: ['id', 'name', 'description', 'interactable', 'tags'],
+                additionalProperties: false,
+              },
+            },
+            npcs: {
+              type: 'array',
+              description: 'NPCs in this area',
+              items: {
+                type: 'object',
+                properties: {
+                  id: {
+                    type: 'string',
+                    description: 'Unique identifier for this NPC',
+                  },
+                  name: {
+                    type: 'string',
+                    description: "NPC's name",
+                  },
+                  description: {
+                    type: 'string',
+                    description: "NPC's appearance and personality",
+                  },
+                  disposition: {
+                    type: 'string',
+                    enum: ['hostile', 'unfriendly', 'neutral', 'friendly', 'allied'],
+                    description: "NPC's attitude toward the party",
+                  },
+                  tags: {
+                    type: 'array',
+                    items: { type: 'string' },
+                    description: 'Searchable tags for categorization',
+                  },
+                },
+                required: ['id', 'name', 'description', 'disposition', 'tags'],
+                additionalProperties: false,
+              },
+            },
+            tags: {
+              type: 'array',
+              items: { type: 'string' },
+              description: 'Searchable tags for categorization',
+            },
+          },
+          required: ['id', 'name', 'description', 'exits', 'objects', 'npcs', 'tags'],
+          additionalProperties: false,
+        },
+      },
+      storyHooks: {
+        type: 'array',
+        description: 'Optional story hooks for the DM to use',
+        items: { type: 'string' },
+      },
+    },
+    required: ['worldName', 'worldDescription', 'startingAreaId', 'areas'],
+    additionalProperties: false,
+  },
+};
+
 // =============================================================================
 // Zod Schemas for World Generation
 // =============================================================================
@@ -224,6 +383,8 @@ export const WorldGenerationOutputSchema = z.object({
   startingAreaId: z.string().min(1),
   /** All areas in the generated world */
   areas: z.array(AreaSchema).min(1),
+  /** Optional story hooks for the DM */
+  storyHooks: z.array(z.string()).optional(),
 });
 
 // =============================================================================

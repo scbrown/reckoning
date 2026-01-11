@@ -27,6 +27,12 @@ export {
   type EnvironmentTrigger,
 } from './environment.js';
 export { formatRecentEvents } from './utils.js';
+export {
+  buildWorldPrompt,
+  buildWorldGenerationPrompt,
+  WORLD_GENERATION_SYSTEM_PROMPT,
+  type WorldGenerationContext,
+} from './world.js';
 
 /**
  * Extended context for prompt building that includes type-specific data.

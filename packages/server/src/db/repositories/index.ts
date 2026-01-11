@@ -6,7 +6,13 @@
 
 export { GameRepository } from './game-repository.js';
 export { EventRepository } from './event-repository.js';
-export { AreaRepository } from './area-repository.js';
+export {
+  AreaRepository,
+  type CreateAreaInput,
+  type CreateAreaExitInput,
+  type CreateAreaObjectInput,
+  type CreateNPCInput,
+} from './area-repository.js';
 export { PartyRepository } from './party-repository.js';
 export { SaveRepository, type SaveSlot } from './save-repository.js';
 export { EditorStateRepository } from './editor-state-repository.js';
