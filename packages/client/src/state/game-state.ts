@@ -576,8 +576,8 @@ export class GameStateManager {
       id: event.id,
       type: event.eventType,
       content: event.content,
-      speaker: event.speaker,
       timestamp: new Date(event.timestamp),
+      ...(event.speaker ? { speaker: event.speaker } : {}),
     };
 
     this.updateState({

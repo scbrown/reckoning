@@ -1,276 +1,424 @@
 /**
  * Reckoning Client Entry Point
+ *
+ * Main integration point that brings all client components together.
  */
 
-import type {
-  HealthStatus,
-  AvailableVoice,
-  VoiceMapping,
-  VoiceRole,
-  ListVoicesResponse,
-  VoiceConfiguration,
-  UpdateVoiceMappingResponse,
-} from '@reckoning/shared';
+import type { PlaybackMode } from '@reckoning/shared';
+
+// Services
+import { SSEService } from './services/sse/index.js';
+import { GameService } from './services/game/index.js';
+import { TTSService } from './services/tts/index.js';
+
+// State Management
+import { createGameStateManager, type GameStateManager } from './state/index.js';
+
+// UI Components
+import { DMEditor } from './components/dm-editor.js';
+import { Controls } from './components/controls.js';
+import { NarratorOutput } from './components/narrator-output.js';
+import { PlaybackControls } from './components/playback-controls.js';
+import { SaveLoadModal, createSaveLoadModal } from './components/save-load-modal.js';
 
 // =============================================================================
-// DOM Elements
+// Services
 // =============================================================================
 
-const statusEl = document.getElementById('status');
-const voiceTesterEl = document.getElementById('voice-tester');
-const voiceSelectEl = document.getElementById('voice-select') as HTMLSelectElement;
-const roleSelectEl = document.getElementById('role-select') as HTMLSelectElement;
-const applyBtnEl = document.getElementById('apply-btn') as HTMLButtonElement;
-const previewBtnEl = document.getElementById('preview-btn') as HTMLButtonElement;
-const mappingsTableEl = document.getElementById('mappings-table') as HTMLTableSectionElement;
+const sseService = new SSEService();
+const gameService = new GameService();
+const ttsService = new TTSService({ autoPlay: true });
 
 // =============================================================================
 // State
 // =============================================================================
 
-let availableVoices: AvailableVoice[] = [];
-let currentMappings: VoiceMapping[] = [];
+let stateManager: GameStateManager | null = null;
 
 // =============================================================================
-// API Functions
+// UI Components
 // =============================================================================
 
-async function checkServerHealth(): Promise<boolean> {
-  try {
-    const response = await fetch('/api/health');
-    const health: HealthStatus = await response.json();
+let dmEditor: DMEditor | null = null;
+let controls: Controls | null = null;
+let narratorOutput: NarratorOutput | null = null;
+let playbackControls: PlaybackControls | null = null;
+let saveLoadModal: SaveLoadModal | null = null;
 
-    if (statusEl) {
-      if (health.status === 'healthy') {
-        statusEl.textContent = `Server connected (uptime: ${Math.floor(health.uptime / 1000)}s)`;
-        statusEl.className = 'status connected';
-        return true;
-      } else {
-        statusEl.textContent = `Server status: ${health.status}`;
-        statusEl.className = 'status error';
-        return false;
-      }
+// =============================================================================
+// DOM Elements
+// =============================================================================
+
+const welcomeScreen = document.getElementById('welcome-screen');
+const gameUI = document.getElementById('game-ui');
+const loadingOverlay = document.getElementById('loading-overlay');
+const errorToast = document.getElementById('error-toast');
+const connectionStatus = document.getElementById('connection-status');
+
+// Welcome screen buttons
+const newGameBtn = document.getElementById('new-game-btn');
+const loadGameBtn = document.getElementById('load-game-btn');
+
+// Header buttons
+const saveBtn = document.getElementById('save-btn');
+const loadBtn = document.getElementById('load-btn');
+const menuBtn = document.getElementById('menu-btn');
+
+// =============================================================================
+// UI Helpers
+// =============================================================================
+
+function showLoading(show: boolean): void {
+  if (loadingOverlay) {
+    loadingOverlay.classList.toggle('active', show);
+  }
+}
+
+function showError(message: string): void {
+  if (errorToast) {
+    errorToast.textContent = message;
+    errorToast.classList.add('active');
+    setTimeout(() => {
+      errorToast.classList.remove('active');
+    }, 5000);
+  }
+}
+
+function updateConnectionStatus(state: 'connected' | 'disconnected' | 'connecting'): void {
+  if (connectionStatus) {
+    connectionStatus.className = `connection-status ${state}`;
+    connectionStatus.textContent = state.charAt(0).toUpperCase() + state.slice(1);
+  }
+}
+
+function showGameUI(): void {
+  if (welcomeScreen) {
+    welcomeScreen.classList.add('hidden');
+  }
+  if (gameUI) {
+    gameUI.classList.add('active');
+  }
+}
+
+function showWelcomeScreen(): void {
+  if (gameUI) {
+    gameUI.classList.remove('active');
+  }
+  if (welcomeScreen) {
+    welcomeScreen.classList.remove('hidden');
+  }
+}
+
+// =============================================================================
+// Initialize UI Components
+// =============================================================================
+
+function initializeUIComponents(): void {
+  if (!stateManager) {
+    throw new Error('State manager not initialized');
+  }
+
+  // DM Editor
+  dmEditor = new DMEditor(
+    { containerId: 'dm-editor' },
+    stateManager
+  );
+  dmEditor.render();
+
+  // Narrator Output
+  narratorOutput = new NarratorOutput(
+    { containerId: 'narrator-output' },
+    stateManager
+  );
+  narratorOutput.render();
+
+  // Controls
+  controls = new Controls(
+    { containerId: 'controls' },
+    {
+      onAccept: handleAccept,
+      onEdit: handleEdit,
+      onRegenerate: handleRegenerate,
+      onInject: handleInject,
     }
-    return health.status === 'healthy';
-  } catch (error) {
-    if (statusEl) {
-      statusEl.textContent = 'Server not available. Run: just dev-server';
-      statusEl.className = 'status error';
+  );
+  controls.render();
+
+  // Playback Controls
+  playbackControls = new PlaybackControls(
+    { containerId: 'playback-controls' },
+    handlePlaybackModeChange
+  );
+  playbackControls.render();
+
+  // Save/Load Modal
+  saveLoadModal = createSaveLoadModal({
+    onSave: (slot) => {
+      console.log('[Main] Game saved:', slot.name);
+    },
+    onLoad: (slot) => {
+      console.log('[Main] Game loaded:', slot.name);
+      handleGameLoaded();
+    },
+    onNewGame: () => {
+      console.log('[Main] New game started from modal');
+      handleGameStarted();
+    },
+    onClose: () => {
+      console.log('[Main] Modal closed');
+    },
+    onDelete: (slotId) => {
+      console.log('[Main] Save deleted:', slotId);
+    },
+  });
+}
+
+function destroyUIComponents(): void {
+  dmEditor?.destroy();
+  controls?.destroy();
+  narratorOutput?.destroy();
+  playbackControls?.destroy();
+  saveLoadModal?.unmount();
+
+  dmEditor = null;
+  controls = null;
+  narratorOutput = null;
+  playbackControls = null;
+  saveLoadModal = null;
+}
+
+// =============================================================================
+// Game Lifecycle Handlers
+// =============================================================================
+
+async function handleNewGame(): Promise<void> {
+  saveLoadModal?.openNewGame();
+}
+
+async function handleLoadGame(): Promise<void> {
+  saveLoadModal?.openLoad();
+}
+
+async function handleGameStarted(): Promise<void> {
+  showGameUI();
+
+  // Update connection status based on SSE state
+  setInterval(() => {
+    const state = sseService.getConnectionState();
+    updateConnectionStatus(state === 'connected' ? 'connected' : state === 'connecting' ? 'connecting' : 'disconnected');
+  }, 1000);
+
+  // Subscribe to state changes
+  stateManager?.subscribe((state) => {
+    // Update controls based on pending content
+    if (controls) {
+      const hasPending = !!state.pendingContent || !!state.editorState?.pending;
+      controls.setAllEnabled(hasPending && !state.isLoading);
     }
-    return false;
-  }
-}
 
-async function fetchVoices(): Promise<AvailableVoice[]> {
+    // Update loading overlay
+    showLoading(state.isLoading);
+
+    // Show errors
+    if (state.error) {
+      showError(state.error);
+    }
+  });
+
+  // Trigger first generation
   try {
-    const response = await fetch('/api/tts/voices');
-    const data: ListVoicesResponse = await response.json();
-    return data.voices;
+    const gameId = stateManager?.getState().gameId;
+    if (gameId) {
+      await gameService.next(gameId);
+    }
   } catch (error) {
-    console.error('Failed to fetch voices:', error);
-    return [];
+    console.error('[Main] Failed to trigger first generation:', error);
   }
 }
 
-async function fetchConfiguration(): Promise<VoiceConfiguration | null> {
-  try {
-    const response = await fetch('/api/tts/config');
-    return await response.json();
-  } catch (error) {
-    console.error('Failed to fetch configuration:', error);
-    return null;
+async function handleGameLoaded(): Promise<void> {
+  showGameUI();
+
+  // Update save modal with new game ID
+  const gameId = stateManager?.getState().gameId;
+  if (gameId) {
+    saveLoadModal?.setGameId(gameId);
   }
+
+  // Subscribe to state changes
+  stateManager?.subscribe((state) => {
+    if (controls) {
+      const hasPending = !!state.pendingContent || !!state.editorState?.pending;
+      controls.setAllEnabled(hasPending && !state.isLoading);
+    }
+    showLoading(state.isLoading);
+    if (state.error) {
+      showError(state.error);
+    }
+  });
 }
 
-async function updateVoiceMapping(
-  role: VoiceRole,
-  voiceId: string
-): Promise<UpdateVoiceMappingResponse | null> {
+// =============================================================================
+// Control Event Handlers
+// =============================================================================
+
+async function handleAccept(): Promise<void> {
+  if (!stateManager) return;
+
   try {
-    const response = await fetch('/api/tts/config/voice', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role, voiceId }),
+    await stateManager.submitContent({
+      type: 'ACCEPT',
     });
-    return await response.json();
+    dmEditor?.resetEditingState();
   } catch (error) {
-    console.error('Failed to update voice mapping:', error);
-    return null;
+    console.error('[Main] Accept failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to accept content');
   }
 }
 
-// =============================================================================
-// UI Functions
-// =============================================================================
+async function handleEdit(): Promise<void> {
+  if (!stateManager || !dmEditor) return;
 
-function populateVoiceDropdown(voices: AvailableVoice[]): void {
-  if (!voiceSelectEl) return;
-
-  voiceSelectEl.innerHTML = '';
-  for (const voice of voices) {
-    const option = document.createElement('option');
-    option.value = voice.voiceId;
-    option.textContent = `${voice.name} - ${voice.description || voice.category}`;
-    voiceSelectEl.appendChild(option);
-  }
-}
-
-function updateMappingsTable(mappings: VoiceMapping[]): void {
-  if (!mappingsTableEl) return;
-
-  mappingsTableEl.innerHTML = '';
-  for (const mapping of mappings) {
-    const row = document.createElement('tr');
-    row.innerHTML = `
-      <td>${mapping.role}</td>
-      <td>${mapping.voiceName}</td>
-      <td>${mapping.defaultPreset}</td>
-    `;
-    mappingsTableEl.appendChild(row);
-  }
-}
-
-function syncVoiceSelectWithRole(): void {
-  if (!roleSelectEl || !voiceSelectEl) return;
-
-  const role = roleSelectEl.value as VoiceRole;
-  const mapping = currentMappings.find((m) => m.role === role);
-
-  if (mapping) {
-    voiceSelectEl.value = mapping.voiceId;
-  }
-}
-
-async function handleApplyClick(): Promise<void> {
-  if (!roleSelectEl || !voiceSelectEl || !applyBtnEl) return;
-
-  const role = roleSelectEl.value as VoiceRole;
-  const voiceId = voiceSelectEl.value;
-
-  applyBtnEl.disabled = true;
-  applyBtnEl.textContent = 'Applying...';
-
-  const result = await updateVoiceMapping(role, voiceId);
-
-  if (result?.success) {
-    // Update local state
-    const index = currentMappings.findIndex((m) => m.role === role);
-    if (index >= 0) {
-      currentMappings[index] = result.mapping;
-    } else {
-      currentMappings.push(result.mapping);
-    }
-    updateMappingsTable(currentMappings);
-  }
-
-  applyBtnEl.disabled = false;
-  applyBtnEl.textContent = 'Apply';
-}
-
-async function handlePreviewClick(): Promise<void> {
-  if (!voiceSelectEl || !previewBtnEl || !roleSelectEl) return;
-
-  const voiceId = voiceSelectEl.value;
-  const role = roleSelectEl.value as VoiceRole;
-  const voice = availableVoices.find((v) => v.voiceId === voiceId);
-
-  previewBtnEl.disabled = true;
-  previewBtnEl.textContent = 'Loading...';
+  const content = dmEditor.getContent();
 
   try {
-    // Generate a preview phrase based on the role
-    const previewTexts: Record<VoiceRole, string> = {
-      narrator: 'The tale unfolds before you, each choice a thread in the tapestry of fate.',
-      judge: 'Your actions have consequences. The reckoning approaches.',
-      npc: 'Greetings, traveler. What brings you to these lands?',
-      inner_voice: 'Something feels wrong about this. Should I really trust them?',
-    };
-    const previewText = previewTexts[role] || previewTexts.narrator;
-
-    // Call the TTS speak endpoint
-    const response = await fetch('/api/tts/speak', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: previewText,
-        voiceId,
-        role,
-      }),
+    await stateManager.submitContent({
+      type: 'EDIT',
+      content,
     });
-
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to generate speech');
-    }
-
-    // Get audio blob and play it
-    const audioBlob = await response.blob();
-    const audioUrl = URL.createObjectURL(audioBlob);
-    const audio = new Audio(audioUrl);
-
-    audio.onended = () => {
-      URL.revokeObjectURL(audioUrl);
-    };
-
-    await audio.play();
-    console.log(`Playing preview for ${voice?.name || voiceId} as ${role}`);
-
+    dmEditor.resetEditingState();
   } catch (error) {
-    console.error('Failed to play preview:', error);
-    alert('Preview failed: ' + (error instanceof Error ? error.message : 'Unknown error'));
-  } finally {
-    previewBtnEl.disabled = false;
-    previewBtnEl.textContent = 'Preview';
+    console.error('[Main] Edit failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to submit edit');
   }
+}
+
+async function handleRegenerate(feedback?: string): Promise<void> {
+  if (!stateManager) return;
+
+  try {
+    await stateManager.regenerateContent(feedback);
+  } catch (error) {
+    console.error('[Main] Regenerate failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to regenerate');
+  }
+}
+
+async function handleInject(): Promise<void> {
+  if (!stateManager || !dmEditor) return;
+
+  const content = dmEditor.getContent();
+  if (!content.trim()) {
+    showError('Please enter content to inject');
+    return;
+  }
+
+  try {
+    await stateManager.injectContent(content, 'narration');
+    dmEditor.resetEditingState();
+  } catch (error) {
+    console.error('[Main] Inject failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to inject content');
+  }
+}
+
+async function handlePlaybackModeChange(mode: PlaybackMode): Promise<void> {
+  if (!stateManager) return;
+
+  try {
+    await stateManager.setPlaybackMode(mode);
+  } catch (error) {
+    console.error('[Main] Playback mode change failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to change playback mode');
+  }
+}
+
+// =============================================================================
+// Header Button Handlers
+// =============================================================================
+
+function handleSaveClick(): void {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) {
+    showError('No active game to save');
+    return;
+  }
+  saveLoadModal?.setGameId(gameId);
+  saveLoadModal?.openSave();
+}
+
+function handleLoadClick(): void {
+  saveLoadModal?.openLoad();
+}
+
+function handleMenuClick(): void {
+  // Return to welcome screen
+  stateManager?.clearGame();
+  destroyUIComponents();
+  showWelcomeScreen();
+  updateConnectionStatus('disconnected');
+}
+
+// =============================================================================
+// TTS Integration
+// =============================================================================
+
+function setupTTSIntegration(): void {
+  ttsService.setCallbacks({
+    onStart: (item) => {
+      console.log('[TTS] Started playing:', item.id);
+    },
+    onEnd: (item) => {
+      console.log('[TTS] Finished playing:', item.id);
+    },
+    onError: (item, error) => {
+      console.error('[TTS] Error:', item.id, error);
+    },
+    onQueueChange: (status) => {
+      console.log('[TTS] Queue status:', status.playbackState, 'items:', status.totalItems);
+    },
+  });
+
+  // Listen for TTS events from SSE
+  sseService.on('tts_started', (event) => {
+    console.log('[SSE] TTS started:', event.requestId);
+  });
+
+  sseService.on('tts_complete', (event) => {
+    console.log('[SSE] TTS complete:', event.requestId);
+  });
 }
 
 // =============================================================================
 // Initialization
 // =============================================================================
 
-async function initializeVoiceTester(): Promise<void> {
-  // Fetch voices and configuration
-  const [voices, config] = await Promise.all([fetchVoices(), fetchConfiguration()]);
-
-  availableVoices = voices;
-  if (config) {
-    currentMappings = config.mappings;
-  }
-
-  // Populate UI
-  populateVoiceDropdown(availableVoices);
-  updateMappingsTable(currentMappings);
-  syncVoiceSelectWithRole();
-
-  // Show the voice tester
-  if (voiceTesterEl) {
-    voiceTesterEl.style.display = 'block';
-  }
-
-  // Set up event listeners
-  if (roleSelectEl) {
-    roleSelectEl.addEventListener('change', syncVoiceSelectWithRole);
-  }
-  if (applyBtnEl) {
-    applyBtnEl.addEventListener('click', handleApplyClick);
-  }
-  if (previewBtnEl) {
-    previewBtnEl.addEventListener('click', handlePreviewClick);
-  }
-}
-
 async function initialize(): Promise<void> {
-  const serverHealthy = await checkServerHealth();
+  console.log('[Main] Initializing The Reckoning client...');
 
-  if (serverHealthy) {
-    await initializeVoiceTester();
-  }
+  // Create state manager
+  stateManager = createGameStateManager(sseService, gameService);
 
-  // Periodically recheck health
-  setInterval(checkServerHealth, 10000);
+  // Set up TTS integration
+  setupTTSIntegration();
+
+  // Initialize UI components
+  initializeUIComponents();
+
+  // Set up welcome screen event listeners
+  newGameBtn?.addEventListener('click', handleNewGame);
+  loadGameBtn?.addEventListener('click', handleLoadGame);
+
+  // Set up header button event listeners
+  saveBtn?.addEventListener('click', handleSaveClick);
+  loadBtn?.addEventListener('click', handleLoadClick);
+  menuBtn?.addEventListener('click', handleMenuClick);
+
+  console.log('[Main] Initialization complete');
 }
 
 // Start the application
-initialize();
-
-console.log('The Reckoning - Client initialized');
+initialize().catch((error) => {
+  console.error('[Main] Initialization failed:', error);
+  showError('Failed to initialize application');
+});
