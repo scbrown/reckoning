@@ -54,7 +54,20 @@ export async function mockTTSInstant(page: Page): Promise<void> {
  * Wait for loading overlay to disappear
  */
 export async function waitForLoadingComplete(page: Page): Promise<void> {
-  await page.waitForSelector('#loading-overlay:not(.active)', { timeout: 60000 });
+  // Wait for loading overlay to either be hidden or not have the active class
+  await page.waitForFunction(
+    () => {
+      const overlay = document.getElementById('loading-overlay');
+      if (!overlay) return true;
+      // Check if it's hidden or doesn't have the active class
+      const isHidden = getComputedStyle(overlay).display === 'none' ||
+                       getComputedStyle(overlay).visibility === 'hidden' ||
+                       getComputedStyle(overlay).opacity === '0';
+      const isNotActive = !overlay.classList.contains('active');
+      return isHidden || isNotActive;
+    },
+    { timeout: 60000 }
+  );
 }
 
 /**
@@ -78,7 +91,66 @@ export async function waitForGeneration(page: Page): Promise<void> {
 }
 
 /**
+ * Mock the Game API endpoints for testing
+ * Since tests run against real backend, this mocks specific responses
+ */
+export async function mockGameAPI(
+  page: Page,
+  options: {
+    party?: Array<{
+      id: string;
+      name: string;
+      description: string;
+      class: string;
+      stats: { health: number; maxHealth: number };
+    }>;
+  } = {}
+): Promise<void> {
+  // Mock party endpoint if party data provided
+  if (options.party) {
+    await page.route('**/api/game/*/party', async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ party: options.party }),
+      });
+    });
+  }
+}
+
+/**
+ * Mock SSE events endpoint
+ * Uses the correct route: /api/game/:id/events
+ */
+export async function mockSSEEvents(
+  page: Page,
+  events: Array<{
+    type: string;
+    data: Record<string, unknown>;
+  }>
+): Promise<void> {
+  // Mock the SSE endpoint - note: it's /api/game/:id/events, not /api/events
+  await page.route('**/api/game/*/events', async (route) => {
+    // Build SSE response format
+    const sseData = events
+      .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`)
+      .join('');
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+      body: sseData,
+    });
+  });
+}
+
+/**
  * Complete the new game wizard with a character name
+ * Wizard steps: Character -> Party -> World -> Review
  */
 export async function completeNewGameWizard(page: Page, playerName = 'Test Hero'): Promise<void> {
   // Click new game button
@@ -87,23 +159,34 @@ export async function completeNewGameWizard(page: Page, playerName = 'Test Hero'
   // Wait for modal
   await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
 
-  // Fill character name
+  // Step 1: Character - Fill in name and click Next
   const nameInput = page.locator('input[placeholder*="name" i]').first();
-  await nameInput.fill(playerName);
-
-  // Navigate through wizard steps
-  let hasMoreSteps = true;
-  while (hasMoreSteps) {
-    const nextBtn = page.locator('button:has-text("Next")');
-    if (await nextBtn.isVisible({ timeout: 1000 })) {
-      await nextBtn.click();
-      await page.waitForTimeout(300);
-    } else {
-      hasMoreSteps = false;
-    }
+  if (await nameInput.isVisible({ timeout: 2000 })) {
+    await nameInput.fill(playerName);
   }
 
-  // Click final button to start game
+  // Click Next to go to Step 2 (Party)
+  const nextBtn1 = page.locator('button:has-text("Next")');
+  if (await nextBtn1.isVisible({ timeout: 2000 })) {
+    await nextBtn1.click();
+    await page.waitForTimeout(300);
+  }
+
+  // Step 2: Party - Click Next to go to Step 3 (World)
+  const nextBtn2 = page.locator('button:has-text("Next")');
+  if (await nextBtn2.isVisible({ timeout: 2000 })) {
+    await nextBtn2.click();
+    await page.waitForTimeout(300);
+  }
+
+  // Step 3: World - Click "Generate World" to go to Step 4 (Review)
+  const generateWorldBtn = page.locator('button:has-text("Generate World")');
+  if (await generateWorldBtn.isVisible({ timeout: 2000 })) {
+    await generateWorldBtn.click();
+    await page.waitForTimeout(300);
+  }
+
+  // Step 4: Review - Click "Begin Adventure" to start the game
   const startButtons = [
     'button:has-text("Begin Adventure")',
     'button:has-text("Begin")',
@@ -114,7 +197,7 @@ export async function completeNewGameWizard(page: Page, playerName = 'Test Hero'
 
   for (const selector of startButtons) {
     const btn = page.locator(selector);
-    if (await btn.isVisible({ timeout: 500 })) {
+    if (await btn.isVisible({ timeout: 2000 })) {
       await btn.click();
       break;
     }

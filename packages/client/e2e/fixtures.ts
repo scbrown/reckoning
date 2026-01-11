@@ -61,15 +61,15 @@ export const test = base.extend<ReckoningFixtures>({
         await page.waitForTimeout(300);
       }
 
-      // Step 3 -> Step 4 (Review)
-      const nextBtn3 = page.locator('button:has-text("Next")');
-      if (await nextBtn3.isVisible({ timeout: 2000 })) {
-        await nextBtn3.click();
+      // Step 3: World - Click "Generate World" to go to Step 4 (Review)
+      const generateWorldBtn = page.locator('button:has-text("Generate World")');
+      if (await generateWorldBtn.isVisible({ timeout: 2000 })) {
+        await generateWorldBtn.click();
         await page.waitForTimeout(300);
       }
 
-      // Final step - Click Begin Adventure or similar
-      const beginBtn = page.locator('button:has-text("Begin"), button:has-text("Start"), button:has-text("Create")');
+      // Step 4: Review - Click Begin Adventure or similar
+      const beginBtn = page.locator('button:has-text("Begin Adventure"), button:has-text("Begin"), button:has-text("Start"), button:has-text("Create")');
       if (await beginBtn.isVisible({ timeout: 2000 })) {
         await beginBtn.click();
       }
