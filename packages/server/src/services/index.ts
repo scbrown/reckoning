@@ -12,6 +12,7 @@ export {
   getVoiceForCharacter,
   getPartyVoicePool,
 } from './voice-registry.js';
+export type { CharacterVoiceMapping } from './voice-registry.js';
 
 export { ElevenLabsClient } from './elevenlabs/client.js';
 export { ElevenLabsError } from './elevenlabs/types.js';

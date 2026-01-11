@@ -56,6 +56,24 @@ const PARTY_MEMBER_VOICE_POOL: string[] = [
 ];
 
 // =============================================================================
+// Character Voice Mapping
+// =============================================================================
+
+/**
+ * Maps character names to voice IDs for speaker-specific TTS
+ */
+export interface CharacterVoiceMapping {
+  characterName: string;
+  voiceId: string;
+  voiceName?: string;
+}
+
+// Default character voice mappings (can be extended at runtime)
+const DEFAULT_CHARACTER_VOICES: Record<string, string> = {
+  // Example: 'Stiwi': 'iKa6KVAfDE7NBkGe3dJo'
+};
+
+// =============================================================================
 // Voice Registry Class
 // =============================================================================
 
@@ -64,10 +82,13 @@ const PARTY_MEMBER_VOICE_POOL: string[] = [
  */
 class VoiceRegistry {
   private mappings: Map<VoiceRole, VoiceMapping>;
+  private characterVoices: Map<string, CharacterVoiceMapping>;
 
   constructor() {
     this.mappings = new Map();
+    this.characterVoices = new Map();
     this.initializeDefaultMappings();
+    this.initializeCharacterVoices();
   }
 
   private initializeDefaultMappings(): void {
@@ -80,6 +101,20 @@ class VoiceRegistry {
         voiceName: DEFAULT_VOICE_NAMES[role],
         defaultPreset: DEFAULT_PRESETS_FOR_ROLE[role],
       });
+    }
+  }
+
+  private initializeCharacterVoices(): void {
+    for (const [name, voiceId] of Object.entries(DEFAULT_CHARACTER_VOICES)) {
+      const voice = MOCK_VOICES.find((v) => v.voiceId === voiceId);
+      const mapping: CharacterVoiceMapping = {
+        characterName: name,
+        voiceId,
+      };
+      if (voice?.name) {
+        mapping.voiceName = voice.name;
+      }
+      this.characterVoices.set(name.toLowerCase(), mapping);
     }
   }
 
@@ -158,6 +193,68 @@ class VoiceRegistry {
       mappings: this.getAllMappings(),
       presets: DEFAULT_VOICE_PRESETS,
     };
+  }
+
+  // ===========================================================================
+  // Character Voice Methods
+  // ===========================================================================
+
+  /**
+   * Get voice ID for a character by name (case-insensitive)
+   * @returns Voice ID if character has a mapped voice, undefined otherwise
+   */
+  getVoiceForCharacterName(characterName: string): string | undefined {
+    const mapping = this.characterVoices.get(characterName.toLowerCase());
+    return mapping?.voiceId;
+  }
+
+  /**
+   * Get full character voice mapping by name (case-insensitive)
+   */
+  getCharacterVoiceMapping(characterName: string): CharacterVoiceMapping | undefined {
+    return this.characterVoices.get(characterName.toLowerCase());
+  }
+
+  /**
+   * Set or update a character's voice mapping
+   */
+  setCharacterVoice(
+    characterName: string,
+    voiceId: string,
+    voiceName?: string
+  ): CharacterVoiceMapping {
+    const mapping: CharacterVoiceMapping = {
+      characterName,
+      voiceId,
+    };
+    if (voiceName) {
+      mapping.voiceName = voiceName;
+    }
+    this.characterVoices.set(characterName.toLowerCase(), mapping);
+    return mapping;
+  }
+
+  /**
+   * Remove a character's voice mapping
+   * @returns true if the mapping was removed, false if it didn't exist
+   */
+  removeCharacterVoice(characterName: string): boolean {
+    return this.characterVoices.delete(characterName.toLowerCase());
+  }
+
+  /**
+   * Get all character voice mappings
+   */
+  getAllCharacterVoices(): CharacterVoiceMapping[] {
+    return Array.from(this.characterVoices.values());
+  }
+
+  /**
+   * Reset all character voice mappings to defaults
+   */
+  resetCharacterVoicesToDefaults(): void {
+    this.characterVoices.clear();
+    this.initializeCharacterVoices();
   }
 }
 

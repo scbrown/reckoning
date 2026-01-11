@@ -36,6 +36,8 @@ interface SpeakRequest {
   voiceId?: string;
   role?: VoiceRole;
   preset?: string;
+  /** Speaker name for character-specific voice lookup (case-insensitive) */
+  speakerName?: string;
   /** Character ID for party member voice resolution */
   characterId?: string;
   /** Party index for default voice selection (when characterId has no voiceId) */
@@ -236,6 +238,110 @@ export async function ttsRoutes(fastify: FastifyInstance) {
     }
   );
 
+  // ===========================================================================
+  // Character Voice Routes
+  // ===========================================================================
+
+  /**
+   * GET /api/tts/characters
+   * List all character-specific voice mappings
+   */
+  fastify.get('/characters', async (_request: FastifyRequest, reply: FastifyReply) => {
+    const characters = voiceRegistry.getAllCharacterVoices();
+    return reply.send({ characters });
+  });
+
+  /**
+   * GET /api/tts/characters/:name
+   * Get a specific character's voice mapping
+   */
+  fastify.get<{ Params: { name: string } }>(
+    '/characters/:name',
+    async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+      const { name } = request.params;
+      const mapping = voiceRegistry.getCharacterVoiceMapping(name);
+
+      if (!mapping) {
+        return reply.status(404).send({
+          error: {
+            code: 'CHARACTER_NOT_FOUND',
+            message: `No voice mapping found for character: ${name}`,
+          },
+        });
+      }
+
+      return reply.send(mapping);
+    }
+  );
+
+  /**
+   * POST /api/tts/characters
+   * Set or update a character's voice mapping
+   */
+  fastify.post<{ Body: { characterName: string; voiceId: string; voiceName?: string } }>(
+    '/characters',
+    async (
+      request: FastifyRequest<{ Body: { characterName: string; voiceId: string; voiceName?: string } }>,
+      reply: FastifyReply
+    ) => {
+      const { characterName, voiceId, voiceName } = request.body;
+
+      if (!characterName || typeof characterName !== 'string') {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'characterName is required',
+          },
+        });
+      }
+
+      if (!voiceId || typeof voiceId !== 'string') {
+        return reply.status(400).send({
+          error: {
+            code: 'INVALID_REQUEST',
+            message: 'voiceId is required',
+          },
+        });
+      }
+
+      // Look up voice name if not provided
+      const resolvedVoiceName = voiceName || findVoiceById(voiceId)?.name;
+
+      const mapping = voiceRegistry.setCharacterVoice(characterName, voiceId, resolvedVoiceName);
+
+      return reply.status(201).send({
+        success: true,
+        mapping,
+      });
+    }
+  );
+
+  /**
+   * DELETE /api/tts/characters/:name
+   * Remove a character's voice mapping
+   */
+  fastify.delete<{ Params: { name: string } }>(
+    '/characters/:name',
+    async (request: FastifyRequest<{ Params: { name: string } }>, reply: FastifyReply) => {
+      const { name } = request.params;
+      const removed = voiceRegistry.removeCharacterVoice(name);
+
+      if (!removed) {
+        return reply.status(404).send({
+          error: {
+            code: 'CHARACTER_NOT_FOUND',
+            message: `No voice mapping found for character: ${name}`,
+          },
+        });
+      }
+
+      return reply.send({
+        success: true,
+        message: `Voice mapping removed for character: ${name}`,
+      });
+    }
+  );
+
   /**
    * POST /api/tts/speak
    * Generate speech from text using ElevenLabs
@@ -244,7 +350,7 @@ export async function ttsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: SpeakRequest }>(
     '/speak',
     async (request: FastifyRequest<{ Body: SpeakRequest }>, reply: FastifyReply) => {
-      const { text, voiceId, role, preset, characterId, partyIndex } = request.body;
+      const { text, voiceId, role, preset, speakerName, characterId, partyIndex } = request.body;
 
       // Validate text
       if (!text || typeof text !== 'string' || text.trim().length === 0) {
@@ -254,11 +360,20 @@ export async function ttsRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Resolve voiceId - priority: voiceId > characterId > role > default
+      // Resolve voiceId - priority: voiceId > speakerName > characterId > role > default
       let resolvedVoiceId = voiceId;
       let voiceSettings: VoiceSettings | undefined;
 
-      // If characterId provided, look up character's voice
+      // If speakerName provided, look up character-specific voice
+      if (!resolvedVoiceId && speakerName) {
+        const characterVoice = voiceRegistry.getVoiceForCharacterName(speakerName);
+        if (characterVoice) {
+          resolvedVoiceId = characterVoice;
+          voiceSettings = getPreset(preset || 'dialogue_calm');
+        }
+      }
+
+      // If characterId provided, look up character's voice from database
       if (!resolvedVoiceId && characterId) {
         const db = getDatabase();
         const characterRepo = new CharacterRepository(db);
