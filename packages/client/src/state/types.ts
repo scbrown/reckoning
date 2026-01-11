@@ -11,6 +11,7 @@ import type {
   SystemStatus,
   GameObservation,
   EventType,
+  Party,
 } from '@reckoning/shared';
 
 // =============================================================================
@@ -59,6 +60,8 @@ export interface ClientGameState {
   editorState: DMEditorState | null;
   /** Content pending DM review */
   pendingContent: GeneratedContent | null;
+  /** The current party */
+  party: Party | null;
 
   // System status
   /** Current status of system components */
@@ -100,6 +103,7 @@ export function createInitialState(): ClientGameState {
     session: null,
     editorState: null,
     pendingContent: null,
+    party: null,
     systemStatus: null,
     observation: null,
     isLoading: false,

@@ -93,6 +93,16 @@ export interface EditorStateEvent extends BaseSSEEvent {
 }
 
 // =============================================================================
+// Party Events
+// =============================================================================
+
+export interface PartyChangedEvent extends BaseSSEEvent {
+  type: 'party_changed';
+  /** The updated party */
+  party: import('../game/types.js').Party;
+}
+
+// =============================================================================
 // System Events
 // =============================================================================
 
@@ -115,6 +125,7 @@ export type SSEEvent =
   | TTSStartedEvent
   | TTSCompleteEvent
   | EditorStateEvent
+  | PartyChangedEvent
   | HeartbeatEvent;
 
 /**
