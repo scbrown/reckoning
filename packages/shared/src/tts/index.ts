@@ -67,6 +67,8 @@ export interface TTSRequest {
   priority?: 'high' | 'normal' | 'low';
   /** Whether to cache the result */
   cache?: boolean;
+  /** Speaker name for speech bubble attribution */
+  speaker?: string;
 }
 
 /**
