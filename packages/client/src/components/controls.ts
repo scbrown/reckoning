@@ -44,21 +44,50 @@ export class Controls {
   render(): void {
     this.container.innerHTML = `
       <div class="controls-wrapper">
-        <div class="controls">
-          <button class="btn btn-accept" title="Submit as-is">Accept</button>
-          <button class="btn btn-edit" title="Edit and submit">Edit</button>
-          <button class="btn btn-regenerate" title="Ask AI to try again">Regenerate</button>
-          <button class="btn btn-inject" title="Write your own">Inject</button>
+        <div class="controls" role="toolbar" aria-label="DM action controls">
+          <button
+            class="btn btn-accept"
+            title="Submit as-is"
+            aria-label="Accept content as-is"
+            data-control="accept"
+            tabindex="0"
+          >Accept</button>
+          <button
+            class="btn btn-edit"
+            title="Edit and submit"
+            aria-label="Edit content before submitting"
+            data-control="edit"
+            tabindex="-1"
+          >Edit</button>
+          <button
+            class="btn btn-regenerate"
+            title="Ask AI to try again"
+            aria-label="Regenerate content with AI"
+            data-control="regenerate"
+            tabindex="-1"
+          >Regenerate</button>
+          <button
+            class="btn btn-inject"
+            title="Write your own"
+            aria-label="Inject your own content"
+            data-control="inject"
+            tabindex="-1"
+          >Inject</button>
         </div>
-        <div class="regenerate-feedback" style="display: none;">
-          <input type="text" placeholder="Feedback for AI (optional)..." />
-          <button class="btn-small">Submit</button>
-          <button class="btn-small btn-cancel">Cancel</button>
+        <div class="regenerate-feedback" style="display: none;" role="group" aria-label="Regeneration feedback">
+          <input
+            type="text"
+            placeholder="Feedback for AI (optional)..."
+            aria-label="Feedback for AI regeneration"
+          />
+          <button class="btn-small" aria-label="Submit regeneration request">Submit</button>
+          <button class="btn-small btn-cancel" aria-label="Cancel regeneration">Cancel</button>
         </div>
       </div>
     `;
 
     this.attachEventListeners();
+    this.attachKeyboardNavigation();
   }
 
   /**
@@ -167,6 +196,60 @@ export class Controls {
     });
   }
 
+  /**
+   * Set up keyboard navigation for toolbar (arrow keys)
+   */
+  private attachKeyboardNavigation(): void {
+    const toolbar = this.container.querySelector('.controls[role="toolbar"]');
+    if (!toolbar) return;
+
+    const buttons = Array.from(toolbar.querySelectorAll('.btn')) as HTMLButtonElement[];
+    if (buttons.length === 0) return;
+
+    toolbar.addEventListener('keydown', (e) => {
+      const event = e as KeyboardEvent;
+      const currentButton = document.activeElement as HTMLButtonElement;
+      const currentIndex = buttons.indexOf(currentButton);
+
+      if (currentIndex === -1) return;
+
+      let nextIndex: number | null = null;
+
+      switch (event.key) {
+        case 'ArrowRight':
+        case 'ArrowDown':
+          // Move to next button, wrap around
+          nextIndex = (currentIndex + 1) % buttons.length;
+          break;
+        case 'ArrowLeft':
+        case 'ArrowUp':
+          // Move to previous button, wrap around
+          nextIndex = (currentIndex - 1 + buttons.length) % buttons.length;
+          break;
+        case 'Home':
+          // Move to first button
+          nextIndex = 0;
+          break;
+        case 'End':
+          // Move to last button
+          nextIndex = buttons.length - 1;
+          break;
+      }
+
+      if (nextIndex !== null) {
+        const targetButton = buttons[nextIndex];
+        if (targetButton) {
+          event.preventDefault();
+          // Update tabindex for roving tabindex pattern
+          buttons.forEach((btn, i) => {
+            btn.tabIndex = i === nextIndex ? 0 : -1;
+          });
+          targetButton.focus();
+        }
+      }
+    });
+  }
+
   private injectStyles(): void {
     if (document.getElementById('controls-styles')) return;
 
@@ -209,6 +292,20 @@ export class Controls {
       .controls .btn:disabled {
         opacity: 0.5;
         cursor: not-allowed;
+      }
+
+      .controls .btn:focus {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
+      }
+
+      .controls .btn:focus:not(:focus-visible) {
+        outline: none;
+      }
+
+      .controls .btn:focus-visible {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
       }
 
       .controls .btn-accept {
