@@ -76,7 +76,7 @@ export class PartyPanel {
         <div class="party-panel-header">
           <h3>Party</h3>
         </div>
-        <div class="party-panel-members">
+        <div class="party-panel-members" role="list" aria-label="Party members">
           ${this.members.map((member) => this.renderCharacterCard(member)).join('')}
         </div>
       </div>
@@ -114,18 +114,18 @@ export class PartyPanel {
     const healthClass = this.getHealthClass(healthPercent);
 
     return `
-      <div class="character-card" data-character-id="${character.id}">
-        <div class="character-avatar">
+      <div class="character-card" data-character-id="${character.id}" role="listitem" tabindex="0" aria-label="${this.escapeHtml(character.name)}, ${this.escapeHtml(character.class)}, ${character.stats.health} of ${character.stats.maxHealth} health">
+        <div class="character-avatar" aria-hidden="true">
           <div class="avatar-placeholder">${this.getInitials(character.name)}</div>
         </div>
         <div class="character-info">
           <div class="character-name">${this.escapeHtml(character.name)}</div>
           <div class="character-role">${this.escapeHtml(character.class)}</div>
           <div class="character-health">
-            <div class="health-bar">
+            <div class="health-bar" role="progressbar" aria-valuenow="${character.stats.health}" aria-valuemin="0" aria-valuemax="${character.stats.maxHealth}" aria-label="Health">
               <div class="health-fill ${healthClass}" style="width: ${healthPercent}%"></div>
             </div>
-            <span class="health-text">${character.stats.health}/${character.stats.maxHealth}</span>
+            <span class="health-text" aria-hidden="true">${character.stats.health}/${character.stats.maxHealth}</span>
           </div>
         </div>
       </div>
@@ -213,6 +213,18 @@ export class PartyPanel {
       .character-card:hover {
         border-color: #444;
         background: #222;
+      }
+
+      .character-card:focus {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
+        border-color: #667eea;
+        background: #222;
+      }
+
+      .character-card:focus-visible {
+        outline: 2px solid #667eea;
+        outline-offset: 2px;
       }
 
       .character-avatar {
