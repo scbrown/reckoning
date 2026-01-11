@@ -1,0 +1,301 @@
+/**
+ * Party Panel Component
+ *
+ * Displays the party members with character cards showing name, role, and health.
+ */
+
+import type { Character, CharacterStats } from '@reckoning/shared';
+
+export interface PartyPanelConfig {
+  containerId: string;
+}
+
+/**
+ * Mock party data for initial development
+ */
+const MOCK_PARTY: Character[] = [
+  {
+    id: 'char-1',
+    name: 'Aldric the Bold',
+    description: 'A weathered warrior with a scarred face and determined eyes.',
+    class: 'Warrior',
+    stats: {
+      health: 85,
+      maxHealth: 100,
+    },
+  },
+  {
+    id: 'char-2',
+    name: 'Lyra Shadowmend',
+    description: 'A mysterious healer wrapped in dark robes.',
+    class: 'Healer',
+    stats: {
+      health: 45,
+      maxHealth: 60,
+    },
+  },
+  {
+    id: 'char-3',
+    name: 'Finn Quickfingers',
+    description: 'A nimble rogue with a mischievous grin.',
+    class: 'Rogue',
+    stats: {
+      health: 30,
+      maxHealth: 50,
+    },
+  },
+];
+
+/**
+ * Party Panel component for displaying party members
+ */
+export class PartyPanel {
+  private container: HTMLElement;
+  private members: Character[];
+
+  constructor(config: PartyPanelConfig) {
+    const container = document.getElementById(config.containerId);
+    if (!container) {
+      throw new Error(`Container element #${config.containerId} not found`);
+    }
+    this.container = container;
+    this.members = MOCK_PARTY;
+    this.injectStyles();
+  }
+
+  // ===========================================================================
+  // Public API
+  // ===========================================================================
+
+  /**
+   * Render the component
+   */
+  render(): void {
+    this.container.innerHTML = `
+      <div class="party-panel">
+        <div class="party-panel-header">
+          <h3>Party</h3>
+        </div>
+        <div class="party-panel-members">
+          ${this.members.map((member) => this.renderCharacterCard(member)).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Update party members
+   */
+  setMembers(members: Character[]): void {
+    this.members = members;
+    this.render();
+  }
+
+  /**
+   * Get current party members
+   */
+  getMembers(): Character[] {
+    return [...this.members];
+  }
+
+  /**
+   * Cleanup
+   */
+  destroy(): void {
+    this.container.innerHTML = '';
+  }
+
+  // ===========================================================================
+  // Private Methods
+  // ===========================================================================
+
+  private renderCharacterCard(character: Character): string {
+    const healthPercent = this.calculateHealthPercent(character.stats);
+    const healthClass = this.getHealthClass(healthPercent);
+
+    return `
+      <div class="character-card" data-character-id="${character.id}">
+        <div class="character-avatar">
+          <div class="avatar-placeholder">${this.getInitials(character.name)}</div>
+        </div>
+        <div class="character-info">
+          <div class="character-name">${this.escapeHtml(character.name)}</div>
+          <div class="character-role">${this.escapeHtml(character.class)}</div>
+          <div class="character-health">
+            <div class="health-bar">
+              <div class="health-fill ${healthClass}" style="width: ${healthPercent}%"></div>
+            </div>
+            <span class="health-text">${character.stats.health}/${character.stats.maxHealth}</span>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private calculateHealthPercent(stats: CharacterStats): number {
+    if (stats.maxHealth <= 0) return 0;
+    return Math.min(100, Math.max(0, (stats.health / stats.maxHealth) * 100));
+  }
+
+  private getHealthClass(percent: number): string {
+    if (percent <= 25) return 'health-critical';
+    if (percent <= 50) return 'health-low';
+    return 'health-good';
+  }
+
+  private getInitials(name: string): string {
+    return name
+      .split(' ')
+      .map((word) => word[0])
+      .join('')
+      .toUpperCase()
+      .slice(0, 2);
+  }
+
+  private escapeHtml(text: string): string {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  private injectStyles(): void {
+    if (document.getElementById('party-panel-styles')) return;
+
+    const styles = document.createElement('style');
+    styles.id = 'party-panel-styles';
+    styles.textContent = `
+      .party-panel {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        background: #111;
+        border: 1px solid #333;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .party-panel-header {
+        padding: 0.75rem 1rem;
+        background: #1a1a1a;
+        border-bottom: 1px solid #333;
+      }
+
+      .party-panel-header h3 {
+        margin: 0;
+        font-size: 1rem;
+        font-weight: 600;
+        color: #e0e0e0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+      }
+
+      .party-panel-members {
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        overflow-y: auto;
+        flex: 1;
+      }
+
+      .character-card {
+        display: flex;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        background: #1a1a1a;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        transition: all 0.2s;
+      }
+
+      .character-card:hover {
+        border-color: #444;
+        background: #222;
+      }
+
+      .character-avatar {
+        flex-shrink: 0;
+      }
+
+      .avatar-placeholder {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: white;
+      }
+
+      .character-info {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+      }
+
+      .character-name {
+        font-size: 0.9rem;
+        font-weight: 500;
+        color: #e0e0e0;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .character-role {
+        font-size: 0.75rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+
+      .character-health {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.25rem;
+      }
+
+      .health-bar {
+        flex: 1;
+        height: 6px;
+        background: #2a2a2a;
+        border-radius: 3px;
+        overflow: hidden;
+      }
+
+      .health-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.3s ease;
+      }
+
+      .health-good {
+        background: linear-gradient(90deg, #16a34a 0%, #22c55e 100%);
+      }
+
+      .health-low {
+        background: linear-gradient(90deg, #f59e0b 0%, #fbbf24 100%);
+      }
+
+      .health-critical {
+        background: linear-gradient(90deg, #dc2626 0%, #f87171 100%);
+      }
+
+      .health-text {
+        font-size: 0.7rem;
+        color: #666;
+        min-width: 45px;
+        text-align: right;
+      }
+    `;
+    document.head.appendChild(styles);
+  }
+}
