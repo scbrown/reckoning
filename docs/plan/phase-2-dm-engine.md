@@ -798,7 +798,7 @@ Current status:
 - Uses `claude --model haiku --output-format json --json-schema <schema> -p "<prompt>"`
 - Output schema enforces consistent JSON responses
 - `stdio: ['ignore', 'pipe', 'pipe']` - stdin must be closed
-- Full path: `/home/admin/.npm-global/bin/claude`
+- Uses `claude` from PATH (works with any install method)
 - 30 second timeout, 20 second early bailout
 
 ### Client-Server API Mismatches ✅ FIXED

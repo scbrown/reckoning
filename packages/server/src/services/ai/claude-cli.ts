@@ -5,9 +5,51 @@
  * Spawns `claude -p "prompt"` to execute prompts.
  */
 
-import { spawn } from 'child_process';
+import { spawn, execSync } from 'child_process';
+import { existsSync } from 'fs';
 import { Result, Ok, Err } from '@reckoning/shared';
 import type { AIProvider, AIRequest, AIResponse, AIError, OutputSchema } from './types.js';
+
+// =============================================================================
+// Path Detection
+// =============================================================================
+
+/**
+ * Find the claude CLI binary by checking common install locations
+ */
+function findClaudeCLI(): string {
+  const home = process.env.HOME || '/home/admin';
+
+  // Common installation paths in order of preference
+  const searchPaths = [
+    `${home}/.local/bin/claude`,      // Bash installer (official)
+    `${home}/.npm-global/bin/claude`, // npm global
+    '/usr/local/bin/claude',          // System-wide
+  ];
+
+  // Check each path
+  for (const path of searchPaths) {
+    if (existsSync(path)) {
+      console.log(`[ClaudeCLI] Found CLI at: ${path}`);
+      return path;
+    }
+  }
+
+  // Try `which claude` as fallback
+  try {
+    const result = execSync('which claude', { encoding: 'utf-8' }).trim();
+    if (result) {
+      console.log(`[ClaudeCLI] Found CLI via which: ${result}`);
+      return result;
+    }
+  } catch {
+    // which failed, continue to default
+  }
+
+  // Fall back to PATH resolution
+  console.log('[ClaudeCLI] CLI not found in common paths, falling back to PATH resolution');
+  return 'claude';
+}
 
 // =============================================================================
 // Configuration
@@ -21,7 +63,7 @@ export interface ClaudeCLIConfig {
   timeout?: number;
   /** Maximum output length before truncation (default: 50000) */
   maxOutputLength?: number;
-  /** CLI command to execute (default: 'claude') */
+  /** CLI command to execute (auto-detected if not provided) */
   cliCommand?: string;
   /** Model to use (default: 'haiku' for speed) */
   model?: string;
@@ -34,10 +76,13 @@ interface RequiredConfig {
   model: string;
 }
 
+// Detect CLI path once at module load
+const detectedCliPath = findClaudeCLI();
+
 const DEFAULT_CONFIG: RequiredConfig = {
   timeout: 30000, // 30 seconds - haiku is fast
   maxOutputLength: 50000,
-  cliCommand: '/home/admin/.npm-global/bin/claude',
+  cliCommand: detectedCliPath,
   model: 'haiku', // Fast model for generation
 };
 
@@ -207,7 +252,7 @@ export class ClaudeCodeCLI implements AIProvider {
 
       const schemaInfo = outputSchema ? ` with schema "${outputSchema.name}"` : '';
       console.log(`[ClaudeCLI] Spawning: ${this.config.cliCommand} --model ${this.config.model}${schemaInfo} -p "<prompt>"`);
-      console.log(`[ClaudeCLI] CWD: ${process.cwd()}, PATH includes npm-global: ${process.env.PATH?.includes('.npm-global') ?? false}`);
+      console.log(`[ClaudeCLI] CWD: ${process.cwd()}, command: ${this.config.cliCommand}`);
 
       const proc = spawn(this.config.cliCommand, args, {
         env: { ...process.env },
