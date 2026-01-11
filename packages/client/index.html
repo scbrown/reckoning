@@ -95,47 +95,49 @@
         border-bottom: 1px solid #333;
       }
 
-      /* Left Panel - Area Info & Narrator Output */
+      /* Left Panel - Party */
       .left-panel {
+        width: 280px;
+        min-width: 240px;
+        max-width: 320px;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        border-right: 1px solid #333;
+        gap: 1rem;
+        flex-shrink: 0;
+      }
+
+      #party-panel {
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /* Center Panel - Narrator Output & DM Editor */
+      .center-panel {
         flex: 1;
         display: flex;
         flex-direction: column;
         padding: 1rem;
-        min-width: 300px;
+        min-width: 400px;
         gap: 1rem;
       }
 
       #area-panel {
         flex-shrink: 0;
-        max-height: 300px;
+        max-height: 200px;
         overflow: hidden;
       }
 
       #narrator-output {
         flex: 1;
         overflow: hidden;
-      }
-
-      /* Right Panel - Party, Editor & Controls */
-      .right-panel {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        padding: 1rem;
-        border-left: 1px solid #333;
-        min-width: 400px;
-        max-width: 600px;
-        gap: 1rem;
-      }
-
-      #party-panel {
-        flex-shrink: 0;
-        max-height: 250px;
-        overflow: hidden;
+        min-height: 200px;
       }
 
       #dm-editor {
-        flex: 1;
+        flex-shrink: 0;
+        max-height: 300px;
         overflow: hidden;
       }
 
@@ -145,12 +147,87 @@
         overflow: hidden;
       }
 
+      /* Right Panel - Controls */
+      .right-panel {
+        width: 260px;
+        min-width: 220px;
+        max-width: 300px;
+        display: flex;
+        flex-direction: column;
+        padding: 1rem;
+        border-left: 1px solid #333;
+        gap: 1rem;
+        flex-shrink: 0;
+      }
+
       #playback-controls {
         flex-shrink: 0;
       }
 
       #controls {
         flex-shrink: 0;
+      }
+
+      /* Responsive Layout - Stack on smaller screens */
+      @media (max-width: 1024px) {
+        .app-main {
+          flex-direction: column;
+        }
+
+        .left-panel,
+        .right-panel {
+          width: 100%;
+          max-width: none;
+          min-width: auto;
+          border: none;
+          border-bottom: 1px solid #333;
+        }
+
+        .left-panel {
+          max-height: 250px;
+        }
+
+        .center-panel {
+          min-width: auto;
+        }
+
+        .right-panel {
+          border-bottom: none;
+          border-top: 1px solid #333;
+        }
+      }
+
+      @media (max-width: 768px) {
+        .left-panel {
+          max-height: 200px;
+          padding: 0.75rem;
+        }
+
+        .center-panel {
+          padding: 0.75rem;
+        }
+
+        .right-panel {
+          padding: 0.75rem;
+        }
+
+        #party-panel {
+          max-height: 180px;
+        }
+      }
+
+      @media (max-width: 375px) {
+        .left-panel {
+          padding: 0.5rem;
+        }
+
+        .center-panel {
+          padding: 0.5rem;
+        }
+
+        .right-panel {
+          padding: 0.5rem;
+        }
       }
 
       /* Welcome Screen */
@@ -327,17 +404,21 @@
 
         <!-- Main Content -->
         <main class="app-main">
-          <!-- Left Panel: Area Info & Narrator Output -->
+          <!-- Left Panel: Party -->
           <section class="left-panel">
-            <div id="area-panel"></div>
-            <div id="narrator-output"></div>
+            <div id="party-panel"></div>
           </section>
 
-          <!-- Right Panel: Party, Editor & Controls -->
-          <section class="right-panel">
-            <div id="party-panel"></div>
+          <!-- Center Panel: Narrator Output & DM Editor -->
+          <section class="center-panel">
+            <div id="area-panel"></div>
+            <div id="narrator-output"></div>
             <div id="dm-editor"></div>
             <div id="beat-editor"></div>
+          </section>
+
+          <!-- Right Panel: Controls -->
+          <section class="right-panel">
             <div id="playback-controls"></div>
             <div id="controls"></div>
           </section>

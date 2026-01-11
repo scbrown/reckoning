@@ -212,8 +212,8 @@ function initializeUIComponents(): void {
     },
   });
 
-  // Party Panel
-  partyPanel = new PartyPanel({ containerId: 'party-panel' });
+  // Party Panel - with state manager for reactive updates
+  partyPanel = new PartyPanel({ containerId: 'party-panel' }, stateManager);
   partyPanel.render();
 
   // Area Panel

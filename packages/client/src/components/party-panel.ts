@@ -2,9 +2,11 @@
  * Party Panel Component
  *
  * Displays the party members with character cards showing name, role, and health.
+ * Integrates with GameStateManager to update when party state changes.
  */
 
 import type { Character, CharacterStats } from '@reckoning/shared';
+import type { GameStateManager } from '../state/game-state.js';
 
 export interface PartyPanelConfig {
   containerId: string;
@@ -13,21 +15,11 @@ export interface PartyPanelConfig {
 }
 
 /**
- * Mock party data for initial development
+ * Mock party members for initial development (used when no real party data exists)
  */
-const MOCK_PARTY: Character[] = [
+const MOCK_PARTY_MEMBERS: Character[] = [
   {
-    id: 'char-1',
-    name: 'Aldric the Bold',
-    description: 'A weathered warrior with a scarred face and determined eyes.',
-    class: 'Warrior',
-    stats: {
-      health: 85,
-      maxHealth: 100,
-    },
-  },
-  {
-    id: 'char-2',
+    id: 'mock-char-2',
     name: 'Lyra Shadowmend',
     description: 'A mysterious healer wrapped in dark robes.',
     class: 'Healer',
@@ -37,7 +29,7 @@ const MOCK_PARTY: Character[] = [
     },
   },
   {
-    id: 'char-3',
+    id: 'mock-char-3',
     name: 'Finn Quickfingers',
     description: 'A nimble rogue with a mischievous grin.',
     class: 'Rogue',
@@ -55,16 +47,75 @@ export class PartyPanel {
   private container: HTMLElement;
   private members: Character[];
   private playerId: string | undefined;
+  private stateManager: GameStateManager | null;
+  private unsubscribe: (() => void) | null = null;
 
-  constructor(config: PartyPanelConfig) {
+  constructor(config: PartyPanelConfig, stateManager?: GameStateManager) {
     const container = document.getElementById(config.containerId);
     if (!container) {
       throw new Error(`Container element #${config.containerId} not found`);
     }
     this.container = container;
-    this.members = MOCK_PARTY;
+    this.members = [];
     this.playerId = config.playerId;
+    this.stateManager = stateManager || null;
     this.injectStyles();
+
+    // Subscribe to state changes if stateManager provided
+    if (this.stateManager) {
+      this.unsubscribe = this.stateManager.subscribe((state) => {
+        this.handleStateChange(state);
+      });
+
+      // Initialize with current state
+      const initialState = this.stateManager.getState();
+      this.handleStateChange(initialState);
+    }
+  }
+
+  /**
+   * Handle state changes from GameStateManager
+   */
+  private handleStateChange(state: ReturnType<GameStateManager['getState']>): void {
+    const newMembers: Character[] = [];
+
+    // Add player character from session if available
+    if (state.session?.player) {
+      newMembers.push(state.session.player);
+    }
+
+    // Add mock party members for now (until full party system is implemented)
+    // This ensures the panel always shows some content for visual testing
+    if (newMembers.length > 0) {
+      // Only add mock members if we have a real player
+      newMembers.push(...MOCK_PARTY_MEMBERS);
+    }
+
+    // Only re-render if members changed
+    if (this.membersChanged(newMembers)) {
+      this.members = newMembers;
+      this.render();
+    }
+  }
+
+  /**
+   * Check if party members have changed
+   */
+  private membersChanged(newMembers: Character[]): boolean {
+    if (this.members.length !== newMembers.length) return true;
+    for (let i = 0; i < this.members.length; i++) {
+      const member = this.members[i];
+      const newMember = newMembers[i];
+      if (!member || !newMember) return true;
+      if (
+        member.id !== newMember.id ||
+        member.stats.health !== newMember.stats.health ||
+        member.stats.maxHealth !== newMember.stats.maxHealth
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ===========================================================================
@@ -75,13 +126,20 @@ export class PartyPanel {
    * Render the component
    */
   render(): void {
+    const membersContent = this.members.length > 0
+      ? this.members.map((member, index) => this.renderCharacterCard(member, index === 0)).join('')
+      : `<div class="party-panel-empty">
+          <p>No party members yet.</p>
+          <p class="empty-hint">Start a new game to create your character.</p>
+        </div>`;
+
     this.container.innerHTML = `
       <div class="party-panel">
         <div class="party-panel-header">
           <h3>Party</h3>
         </div>
         <div class="party-panel-members" role="list" aria-label="Party members">
-          ${this.members.map((member) => this.renderCharacterCard(member)).join('')}
+          ${membersContent}
         </div>
       </div>
     `;
@@ -121,6 +179,11 @@ export class PartyPanel {
    * Cleanup
    */
   destroy(): void {
+    // Unsubscribe from state manager
+    if (this.unsubscribe) {
+      this.unsubscribe();
+      this.unsubscribe = null;
+    }
     this.container.innerHTML = '';
   }
 
@@ -128,10 +191,9 @@ export class PartyPanel {
   // Private Methods
   // ===========================================================================
 
-  private renderCharacterCard(character: Character): string {
+  private renderCharacterCard(character: Character, isPlayer: boolean = false): string {
     const healthPercent = this.calculateHealthPercent(character.stats);
     const healthClass = this.getHealthClass(healthPercent);
-    const isPlayer = character.id === this.playerId;
     const playerClass = isPlayer ? 'character-card--player' : '';
     const playerBadge = isPlayer
       ? '<span class="player-badge" aria-label="Player character">YOU</span>'
@@ -279,6 +341,12 @@ export class PartyPanel {
         gap: 0.25rem;
       }
 
+      .character-name-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+
       .character-name {
         font-size: 0.9rem;
         font-weight: 500;
@@ -286,6 +354,49 @@ export class PartyPanel {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+      }
+
+      .character-badge {
+        font-size: 0.65rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+        font-weight: 600;
+        flex-shrink: 0;
+      }
+
+      .player-badge {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+      }
+
+      .player-character {
+        border-color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+      }
+
+      .player-character:hover {
+        border-color: #764ba2;
+        background: rgba(102, 126, 234, 0.15);
+      }
+
+      .party-panel-empty {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 2rem 1rem;
+        text-align: center;
+        color: #666;
+      }
+
+      .party-panel-empty p {
+        margin: 0;
+      }
+
+      .party-panel-empty .empty-hint {
+        font-size: 0.8rem;
+        margin-top: 0.5rem;
+        opacity: 0.7;
       }
 
       .character-role {
