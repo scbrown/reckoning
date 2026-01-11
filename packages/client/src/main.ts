@@ -20,6 +20,11 @@ import { Controls } from './components/controls.js';
 import { NarratorOutput } from './components/narrator-output.js';
 import { PlaybackControls } from './components/playback-controls.js';
 import { SaveLoadModal, createSaveLoadModal } from './components/save-load-modal.js';
+import { PartyPanel } from './components/party-panel.js';
+import { AreaPanel } from './components/area-panel.js';
+import { StatusBar } from './components/status-bar.js';
+import { BeatEditor } from './components/beat-editor.js';
+import { SpeechBubble } from './components/speech-bubble.js';
 
 // =============================================================================
 // Services
@@ -44,6 +49,11 @@ let controls: Controls | null = null;
 let narratorOutput: NarratorOutput | null = null;
 let playbackControls: PlaybackControls | null = null;
 let saveLoadModal: SaveLoadModal | null = null;
+let partyPanel: PartyPanel | null = null;
+let areaPanel: AreaPanel | null = null;
+let statusBar: StatusBar | null = null;
+let beatEditor: BeatEditor | null = null;
+let speechBubble: SpeechBubble | null = null;
 
 // =============================================================================
 // DOM Elements
@@ -201,6 +211,25 @@ function initializeUIComponents(): void {
       console.log('[Main] Save deleted:', slotId);
     },
   });
+
+  // Party Panel
+  partyPanel = new PartyPanel({ containerId: 'party-panel' });
+  partyPanel.render();
+
+  // Area Panel
+  areaPanel = new AreaPanel({ containerId: 'area-panel' });
+  areaPanel.render();
+
+  // Status Bar
+  statusBar = new StatusBar({ containerId: 'status-bar' });
+  statusBar.render();
+
+  // Beat Editor
+  beatEditor = new BeatEditor({ containerId: 'beat-editor' }, stateManager);
+  beatEditor.render();
+
+  // Speech Bubble (no container needed - creates bubbles dynamically)
+  speechBubble = new SpeechBubble();
 }
 
 function destroyUIComponents(): void {
@@ -209,12 +238,22 @@ function destroyUIComponents(): void {
   narratorOutput?.destroy();
   playbackControls?.destroy();
   saveLoadModal?.unmount();
+  partyPanel?.destroy();
+  areaPanel?.destroy();
+  statusBar?.destroy();
+  beatEditor?.destroy();
+  speechBubble?.destroy();
 
   dmEditor = null;
   controls = null;
   narratorOutput = null;
   playbackControls = null;
   saveLoadModal = null;
+  partyPanel = null;
+  areaPanel = null;
+  statusBar = null;
+  beatEditor = null;
+  speechBubble = null;
 }
 
 // =============================================================================

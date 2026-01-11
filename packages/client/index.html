@@ -89,13 +89,26 @@
         overflow: hidden;
       }
 
-      /* Left Panel - Narrator Output */
+      /* Status Bar */
+      #status-bar {
+        flex-shrink: 0;
+        border-bottom: 1px solid #333;
+      }
+
+      /* Left Panel - Area Info & Narrator Output */
       .left-panel {
         flex: 1;
         display: flex;
         flex-direction: column;
         padding: 1rem;
         min-width: 300px;
+        gap: 1rem;
+      }
+
+      #area-panel {
+        flex-shrink: 0;
+        max-height: 300px;
+        overflow: hidden;
       }
 
       #narrator-output {
@@ -103,7 +116,7 @@
         overflow: hidden;
       }
 
-      /* Right Panel - DM Editor & Controls */
+      /* Right Panel - Party, Editor & Controls */
       .right-panel {
         flex: 1;
         display: flex;
@@ -112,16 +125,28 @@
         border-left: 1px solid #333;
         min-width: 400px;
         max-width: 600px;
+        gap: 1rem;
+      }
+
+      #party-panel {
+        flex-shrink: 0;
+        max-height: 250px;
+        overflow: hidden;
       }
 
       #dm-editor {
         flex: 1;
         overflow: hidden;
-        margin-bottom: 1rem;
+      }
+
+      #beat-editor {
+        flex-shrink: 0;
+        max-height: 200px;
+        overflow: hidden;
       }
 
       #playback-controls {
-        margin-bottom: 1rem;
+        flex-shrink: 0;
       }
 
       #controls {
@@ -297,16 +322,22 @@
           </div>
         </header>
 
+        <!-- Status Bar -->
+        <div id="status-bar"></div>
+
         <!-- Main Content -->
         <main class="app-main">
-          <!-- Left Panel: Narrator Output -->
+          <!-- Left Panel: Area Info & Narrator Output -->
           <section class="left-panel">
+            <div id="area-panel"></div>
             <div id="narrator-output"></div>
           </section>
 
-          <!-- Right Panel: DM Editor & Controls -->
+          <!-- Right Panel: Party, Editor & Controls -->
           <section class="right-panel">
+            <div id="party-panel"></div>
             <div id="dm-editor"></div>
+            <div id="beat-editor"></div>
             <div id="playback-controls"></div>
             <div id="controls"></div>
           </section>
