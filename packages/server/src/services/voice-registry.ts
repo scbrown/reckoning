@@ -19,14 +19,14 @@ import { DEFAULT_VOICE_PRESETS } from '@reckoning/shared';
 
 // Default ElevenLabs voice IDs (can be overridden by environment variables)
 const DEFAULT_VOICE_IDS: Record<VoiceRole, string> = {
-  narrator: process.env.VOICE_ID_NARRATOR || '21m00Tcm4TlvDq8ikWAM', // Rachel
+  narrator: process.env.VOICE_ID_NARRATOR || 'EC45bTQTXqWg2aqlp4ch', // Custom Narrator
   judge: process.env.VOICE_ID_JUDGE || 'AZnzlk1XvdvUeBnXmlld', // Domi
   npc: process.env.VOICE_ID_NPC || 'EXAVITQu4vr4xnSDxMaL', // Bella
   inner_voice: process.env.VOICE_ID_INNER_VOICE || 'MF3mGyEYCl7XYWbV9V6O', // Elli
 };
 
 const DEFAULT_VOICE_NAMES: Record<VoiceRole, string> = {
-  narrator: 'Rachel',
+  narrator: 'Narrator',
   judge: 'Domi',
   npc: 'Bella',
   inner_voice: 'Elli',
@@ -153,6 +153,18 @@ export const voiceRegistry = new VoiceRegistry();
 // =============================================================================
 
 const MOCK_VOICES: AvailableVoice[] = [
+  {
+    voiceId: 'EC45bTQTXqWg2aqlp4ch',
+    name: 'Narrator',
+    category: 'cloned',
+    description: 'Custom narrator voice for main storytelling',
+  },
+  {
+    voiceId: 'iKa6KVAfDE7NBkGe3dJo',
+    name: 'Stiwi',
+    category: 'cloned',
+    description: 'Voice for the character Stiwi',
+  },
   {
     voiceId: '21m00Tcm4TlvDq8ikWAM',
     name: 'Rachel',

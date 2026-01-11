@@ -50,10 +50,17 @@ The game uses four voice roles:
 
 | Role | Purpose | Default Voice |
 |------|---------|---------------|
-| `narrator` | Story narration and descriptions | Rachel |
+| `narrator` | Story narration and descriptions | Narrator (custom) |
 | `judge` | The cosmic judge at trial | Domi |
 | `npc` | Non-player characters | Bella |
 | `inner_voice` | Player's internal thoughts | Elli |
+
+## Custom Voices
+
+| Voice | Voice ID | Purpose |
+|-------|----------|---------|
+| Narrator | `EC45bTQTXqWg2aqlp4ch` | Custom narrator for main storytelling |
+| Stiwi | `iKa6KVAfDE7NBkGe3dJo` | Voice for the character Stiwi |
 
 ## Voice Presets
 
@@ -87,7 +94,7 @@ Configure default voice IDs via environment variables:
 
 ```bash
 # .env or environment
-VOICE_ID_NARRATOR=21m00Tcm4TlvDq8ikWAM    # Rachel
+VOICE_ID_NARRATOR=EC45bTQTXqWg2aqlp4ch    # Custom Narrator
 VOICE_ID_JUDGE=AZnzlk1XvdvUeBnXmlld       # Domi
 VOICE_ID_NPC=EXAVITQu4vr4xnSDxMaL         # Bella
 VOICE_ID_INNER_VOICE=MF3mGyEYCl7XYWbV9V6O # Elli
