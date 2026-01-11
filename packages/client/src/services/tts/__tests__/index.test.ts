@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { TTSService } from '../index.js';
-import type { TTSRequest, TTSEventCallbacks } from '@reckoning/shared';
+import type { TTSRequest, TTSEventCallbacks, NarrativeBeat } from '@reckoning/shared';
 
 // Mock global fetch
 const mockFetch = vi.fn();
@@ -902,6 +902,265 @@ describe('TTSService', () => {
       expect(() => service.resume()).toThrow('TTSService has been disposed');
       expect(() => service.skip()).toThrow('TTSService has been disposed');
       expect(() => service.stop()).toThrow('TTSService has been disposed');
+    });
+  });
+
+  // ===========================================================================
+  // speakSequence Tests
+  // ===========================================================================
+
+  describe('speakSequence', () => {
+    it('should queue all beats for playback', async () => {
+      const svc = new TTSService({ autoPlay: false });
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'The adventure begins.' },
+        { id: '2', type: 'dialogue', content: 'Hello there!', speaker: 'Guard' },
+        { id: '3', type: 'action', content: 'You draw your sword.' },
+      ];
+
+      const queueIds = await svc.speakSequence(beats);
+
+      expect(queueIds).toHaveLength(3);
+      // Queue should have 3 beats + 2 pauses between them = 5 items total
+      const status = svc.getQueueStatus();
+      expect(status.totalItems).toBe(5);
+
+      svc.dispose();
+    });
+
+    it('should skip empty beats by default', async () => {
+      const svc = new TTSService({ autoPlay: false });
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'First beat.' },
+        { id: '2', type: 'narration', content: '   ' }, // Empty
+        { id: '3', type: 'narration', content: '' }, // Empty
+        { id: '4', type: 'narration', content: 'Last beat.' },
+      ];
+
+      const queueIds = await svc.speakSequence(beats);
+
+      // Only non-empty beats should be queued
+      expect(queueIds).toHaveLength(2);
+
+      svc.dispose();
+    });
+
+    it('should include empty beats when skipEmpty is false', async () => {
+      const svc = new TTSService({ autoPlay: false });
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'First beat.' },
+        { id: '2', type: 'narration', content: '' },
+        { id: '3', type: 'narration', content: 'Last beat.' },
+      ];
+
+      const queueIds = await svc.speakSequence(beats, { skipEmpty: false });
+
+      expect(queueIds).toHaveLength(3);
+
+      svc.dispose();
+    });
+
+    it('should use narrator voice for narration beats', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'A narrative passage.' },
+      ];
+
+      await svc.speakSequence(beats);
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.role).toBe('narrator');
+
+      svc.dispose();
+    });
+
+    it('should use npc voice for dialogue beats with speaker', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'dialogue', content: 'Greetings, traveler!', speaker: 'Innkeeper' },
+      ];
+
+      await svc.speakSequence(beats);
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.role).toBe('npc');
+      expect(requestBody.speaker).toBe('Innkeeper');
+
+      svc.dispose();
+    });
+
+    it('should use inner_voice for thought beats with speaker', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'thought', content: 'I wonder what awaits...', speaker: 'Hero' },
+      ];
+
+      await svc.speakSequence(beats);
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.role).toBe('inner_voice');
+
+      svc.dispose();
+    });
+
+    it('should call onBeatStart callback when beat starts', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const onBeatStart = vi.fn();
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'Test beat.' },
+      ];
+
+      await svc.speakSequence(beats, { onBeatStart });
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(audioInstances.length).toBeGreaterThan(0);
+      });
+
+      // Trigger onplay
+      await new Promise((r) => setTimeout(r, 50));
+
+      expect(onBeatStart).toHaveBeenCalledWith(
+        expect.objectContaining({ id: '1', content: 'Test beat.' }),
+        0
+      );
+
+      svc.dispose();
+    });
+
+    it('should call onBeatEnd callback when beat ends', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const onBeatEnd = vi.fn();
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'Test beat.' },
+      ];
+
+      await svc.speakSequence(beats, { onBeatEnd });
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(audioInstances.length).toBeGreaterThan(0);
+      });
+
+      // Simulate audio ended
+      audioInstances[0]!._simulateEnded();
+
+      expect(onBeatEnd).toHaveBeenCalledWith(
+        expect.objectContaining({ id: '1', content: 'Test beat.' }),
+        0
+      );
+
+      svc.dispose();
+    });
+
+    it('should use metadata pauseAfter if provided', async () => {
+      const svc = new TTSService({ autoPlay: false });
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'First.', metadata: { pauseAfter: 1000 } },
+        { id: '2', type: 'narration', content: 'Second.' },
+      ];
+
+      await svc.speakSequence(beats);
+
+      // Queue should have: beat1, pause(1000ms), beat2
+      const status = svc.getQueueStatus();
+      expect(status.totalItems).toBe(3);
+
+      svc.dispose();
+    });
+
+    it('should throw if service is disposed', async () => {
+      service.dispose();
+
+      await expect(
+        service.speakSequence([{ id: '1', type: 'narration', content: 'Test' }])
+      ).rejects.toThrow('TTSService has been disposed');
+    });
+
+    it('should auto-play when idle and autoPlay is enabled', async () => {
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'Test beat.' },
+      ];
+
+      await service.speakSequence(beats);
+
+      // Should auto-play since default service has autoPlay: true
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+    });
+
+    it('should apply emotion preset for intense emotions', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'dialogue', content: 'Stop right there!', metadata: { emotion: 'angry' } },
+      ];
+
+      await svc.speakSequence(beats);
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.preset).toBe('dialogue_intense');
+
+      svc.dispose();
+    });
+
+    it('should apply emotion preset for calm emotions', async () => {
+      const svc = new TTSService({ autoPlay: false });
+      mockFetch.mockResolvedValue(createMockResponse(200, createAudioBlob()));
+
+      const beats: NarrativeBeat[] = [
+        { id: '1', type: 'narration', content: 'Peace settled over the land.', metadata: { emotion: 'calm' } },
+      ];
+
+      await svc.speakSequence(beats);
+      svc.play();
+
+      await vi.waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+
+      const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(requestBody.preset).toBe('dialogue_calm');
+
+      svc.dispose();
     });
   });
 
