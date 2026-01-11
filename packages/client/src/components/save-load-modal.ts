@@ -53,6 +53,8 @@ export class SaveLoadModal {
   private pendingDeleteSlot: SaveSlot | null = null;
   private callbacks: SaveLoadModalCallbacks;
   private gameId: string | null = null;
+  private previouslyFocusedElement: HTMLElement | null = null;
+  private boundKeydownHandler: (e: KeyboardEvent) => void;
   private wizardState: NewGameWizardState = {
     playerName: '',
     playerDescription: '',
@@ -68,6 +70,7 @@ export class SaveLoadModal {
 
   constructor(callbacks: SaveLoadModalCallbacks = {}) {
     this.callbacks = callbacks;
+    this.boundKeydownHandler = this.handleKeydown.bind(this);
     this.container = this.createContainer();
     this.overlay = this.createOverlay();
     this.modal = this.createModal();
@@ -160,6 +163,9 @@ export class SaveLoadModal {
   private createModal(): HTMLElement {
     const modal = document.createElement('div');
     modal.className = 'save-load-modal';
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-labelledby', 'save-load-modal-title');
     modal.addEventListener('click', (e) => e.stopPropagation());
     return modal;
   }
@@ -535,7 +541,7 @@ export class SaveLoadModal {
 
   private renderSaveView(): void {
     this.modal.innerHTML = `
-      <h2>Save Game</h2>
+      <h2 id="save-load-modal-title">Save Game</h2>
       <div class="modal-section">
         <label for="save-name-input">Save Name</label>
         <input type="text" id="save-name-input" placeholder="Enter a name for your save..." autofocus />
@@ -569,7 +575,7 @@ export class SaveLoadModal {
       : '<div class="empty-message">No saved games found</div>';
 
     this.modal.innerHTML = `
-      <h2>Load Game</h2>
+      <h2 id="save-load-modal-title">Load Game</h2>
       <div class="saves-list">
         ${savesHtml}
       </div>
@@ -622,7 +628,7 @@ export class SaveLoadModal {
 
     const save = this.pendingDeleteSlot;
     this.modal.innerHTML = `
-      <h2>Delete Save</h2>
+      <h2 id="save-load-modal-title">Delete Save</h2>
       <p class="confirm-message">Are you sure you want to delete this save?</p>
       <p class="confirm-details">"${this.escapeHtml(save.name)}" - Turn ${save.turn} at ${this.escapeHtml(save.location)}</p>
       <div class="button-row">
@@ -644,7 +650,7 @@ export class SaveLoadModal {
 
   private renderNewGameView(): void {
     this.modal.innerHTML = `
-      <h2>New Game - Create Character</h2>
+      <h2 id="save-load-modal-title">New Game - Create Character</h2>
       <div class="wizard-progress">
         <span class="wizard-step active">1. Character</span>
         <span class="wizard-step">2. Party</span>
@@ -721,7 +727,7 @@ export class SaveLoadModal {
       : '<div class="empty-message">No party members added yet (optional)</div>';
 
     this.modal.innerHTML = `
-      <h2>New Game - Add Party</h2>
+      <h2 id="save-load-modal-title">New Game - Add Party</h2>
       <div class="wizard-progress">
         <span class="wizard-step completed">1. Character</span>
         <span class="wizard-step active">2. Party</span>
@@ -793,7 +799,7 @@ export class SaveLoadModal {
     const isGenerating = this.wizardState.isGenerating;
 
     this.modal.innerHTML = `
-      <h2>New Game - Generate World</h2>
+      <h2 id="save-load-modal-title">New Game - Generate World</h2>
       <div class="wizard-progress">
         <span class="wizard-step completed">1. Character</span>
         <span class="wizard-step completed">2. Party</span>
@@ -912,7 +918,7 @@ export class SaveLoadModal {
       : 'Solo adventure';
 
     this.modal.innerHTML = `
-      <h2>New Game - DM Review</h2>
+      <h2 id="save-load-modal-title">New Game - DM Review</h2>
       <div class="wizard-progress">
         <span class="wizard-step completed">1. Character</span>
         <span class="wizard-step completed">2. Party</span>
@@ -1096,11 +1102,94 @@ export class SaveLoadModal {
   }
 
   private show(): void {
+    // Store the currently focused element to restore later
+    this.previouslyFocusedElement = document.activeElement as HTMLElement;
+
     this.container.style.display = 'flex';
+
+    // Add keyboard event listener for focus trap and escape key
+    document.addEventListener('keydown', this.boundKeydownHandler);
+
+    // Focus the first focusable element in the modal
+    requestAnimationFrame(() => {
+      this.focusFirstElement();
+    });
   }
 
   private hide(): void {
     this.container.style.display = 'none';
+
+    // Remove keyboard event listener
+    document.removeEventListener('keydown', this.boundKeydownHandler);
+
+    // Restore focus to the previously focused element
+    if (this.previouslyFocusedElement && this.previouslyFocusedElement.focus) {
+      this.previouslyFocusedElement.focus();
+    }
+    this.previouslyFocusedElement = null;
+  }
+
+  private handleKeydown(e: KeyboardEvent): void {
+    // Close on Escape key
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      this.close();
+      return;
+    }
+
+    // Focus trap on Tab key
+    if (e.key === 'Tab') {
+      this.trapFocus(e);
+    }
+  }
+
+  private getFocusableElements(): HTMLElement[] {
+    const focusableSelectors = [
+      'button:not([disabled])',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      'a[href]',
+      '[tabindex]:not([tabindex="-1"])',
+    ].join(', ');
+
+    return Array.from(this.modal.querySelectorAll<HTMLElement>(focusableSelectors));
+  }
+
+  private focusFirstElement(): void {
+    const focusableElements = this.getFocusableElements();
+    const firstElement = focusableElements[0];
+    if (firstElement) {
+      firstElement.focus();
+    } else {
+      // If no focusable elements, focus the modal itself
+      this.modal.setAttribute('tabindex', '-1');
+      this.modal.focus();
+    }
+  }
+
+  private trapFocus(e: KeyboardEvent): void {
+    const focusableElements = this.getFocusableElements();
+    if (focusableElements.length === 0) return;
+
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    if (!firstElement || !lastElement) return;
+
+    if (e.shiftKey) {
+      // Shift + Tab: if on first element, go to last
+      if (document.activeElement === firstElement) {
+        e.preventDefault();
+        lastElement.focus();
+      }
+    } else {
+      // Tab: if on last element, go to first
+      if (document.activeElement === lastElement) {
+        e.preventDefault();
+        firstElement.focus();
+      }
+    }
   }
 
   private escapeHtml(text: string): string {
