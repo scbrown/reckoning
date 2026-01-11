@@ -78,6 +78,28 @@ const menuBtn = document.getElementById('menu-btn');
 // UI Helpers
 // =============================================================================
 
+/**
+ * Find a character's ID by their speaker name
+ *
+ * Searches character cards in the party panel to locate the character
+ * matching the given speaker name. Used for positioning speech bubbles.
+ *
+ * @param speakerName - The name of the speaking character
+ * @returns The character ID if found, null otherwise
+ */
+function findCharacterByName(speakerName: string): string | null {
+  const cards = document.querySelectorAll('.character-card');
+
+  for (const card of cards) {
+    const nameEl = card.querySelector('.character-name');
+    if (nameEl && nameEl.textContent?.trim() === speakerName.trim()) {
+      return card.getAttribute('data-character-id');
+    }
+  }
+
+  return null;
+}
+
 function showLoading(show: boolean, main?: string, detail?: string): void {
   if (loadingOverlay) {
     loadingOverlay.classList.toggle('active', show);
