@@ -78,6 +78,31 @@ format-check:
     pnpm run format:check
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# E2E Testing (Playwright)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Run E2E tests (starts servers automatically)
+e2e:
+    pnpm --filter @reckoning/client exec playwright test
+
+# Run E2E tests in UI mode
+e2e-ui:
+    pnpm --filter @reckoning/client exec playwright test --ui
+
+# Run E2E tests in headed mode (visible browser)
+e2e-headed:
+    pnpm --filter @reckoning/client exec playwright test --headed
+
+# Run E2E tests for a specific browser
+e2e-browser browser:
+    pnpm --filter @reckoning/client exec playwright test --project={{browser}}
+
+# Install Playwright browsers and dependencies
+e2e-install:
+    pnpm --filter @reckoning/client exec playwright install
+    pnpm --filter @reckoning/client exec playwright install-deps
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # Infrastructure
 # ═══════════════════════════════════════════════════════════════════════════════
 

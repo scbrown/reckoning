@@ -5,6 +5,9 @@ import { defineConfig, devices } from '@playwright/test';
  *
  * Run with: pnpm run test:e2e
  * UI mode: pnpm run test:e2e:ui
+ *
+ * Tests run against the real backend - only external services
+ * (AI generation, ElevenLabs TTS) are mocked.
  */
 export default defineConfig({
   testDir: './e2e',
@@ -34,11 +37,21 @@ export default defineConfig({
     },
   ],
 
-  /* Run local dev server before starting the tests */
-  webServer: {
-    command: 'pnpm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: !process.env.CI,
-    timeout: 120000,
-  },
+  /* Run both client and server before starting the tests */
+  webServer: [
+    {
+      command: 'pnpm --filter @reckoning/server dev',
+      url: 'http://localhost:3001/health',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120000,
+      cwd: '../..',
+    },
+    {
+      command: 'pnpm --filter @reckoning/client dev',
+      url: 'http://localhost:5173',
+      reuseExistingServer: !process.env.CI,
+      timeout: 120000,
+      cwd: '../..',
+    },
+  ],
 });

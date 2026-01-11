@@ -1,191 +1,27 @@
 /**
  * Mock Helpers for E2E Tests
  *
- * Utilities for mocking API responses and game state in tests.
+ * Utilities for mocking EXTERNAL services only (AI, TTS).
+ * The real backend handles all game logic.
  */
 
 import type { Page } from '@playwright/test';
 
 /**
- * Mock game state data
- */
-export interface MockGameState {
-  gameId: string;
-  playerId: string;
-  currentAreaId: string;
-  turn: number;
-}
-
-/**
- * Mock area data
- */
-export interface MockArea {
-  id: string;
-  name: string;
-  description: string;
-  exits: Array<{
-    direction: string;
-    targetAreaId: string;
-    description: string;
-    locked?: boolean;
-  }>;
-  npcs: Array<{
-    id: string;
-    name: string;
-    description: string;
-    disposition: 'hostile' | 'unfriendly' | 'neutral' | 'friendly' | 'allied';
-  }>;
-}
-
-/**
- * Mock character data
- */
-export interface MockCharacter {
-  id: string;
-  name: string;
-  description: string;
-  class: string;
-  stats: {
-    health: number;
-    maxHealth: number;
-  };
-}
-
-/**
- * Default mock data
- */
-export const DEFAULT_MOCK_GAME: MockGameState = {
-  gameId: 'test-game-123',
-  playerId: 'test-player-456',
-  currentAreaId: 'area-tavern',
-  turn: 1,
-};
-
-export const DEFAULT_MOCK_AREA: MockArea = {
-  id: 'area-tavern',
-  name: 'The Crossroads Tavern',
-  description: 'A weathered stone building with a crooked chimney.',
-  exits: [
-    { direction: 'North', targetAreaId: 'area-road', description: 'A cobblestone road.' },
-    { direction: 'East', targetAreaId: 'area-forest', description: 'A dark forest path.' },
-  ],
-  npcs: [
-    {
-      id: 'npc-innkeeper',
-      name: 'Marta the Innkeeper',
-      description: 'A stout woman with kind eyes.',
-      disposition: 'friendly',
-    },
-  ],
-};
-
-export const DEFAULT_MOCK_PARTY: MockCharacter[] = [
-  {
-    id: 'char-player',
-    name: 'Test Hero',
-    description: 'A brave adventurer.',
-    class: 'Warrior',
-    stats: { health: 100, maxHealth: 100 },
-  },
-  {
-    id: 'char-companion',
-    name: 'Luna',
-    description: 'A mysterious mage.',
-    class: 'Mage',
-    stats: { health: 60, maxHealth: 60 },
-  },
-];
-
-/**
- * Mock API responses for a specific game state
- */
-export async function mockGameAPI(
-  page: Page,
-  options: {
-    game?: Partial<MockGameState>;
-    area?: Partial<MockArea>;
-    party?: MockCharacter[];
-    generatedContent?: string;
-  } = {}
-): Promise<void> {
-  const game = { ...DEFAULT_MOCK_GAME, ...options.game };
-  const area = { ...DEFAULT_MOCK_AREA, ...options.area };
-  const party = options.party ?? DEFAULT_MOCK_PARTY;
-  const content = options.generatedContent ?? 'The scene unfolds before you...';
-
-  // Mock game state endpoint
-  await page.route(`**/api/game/${game.gameId}`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        ...game,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      }),
-    });
-  });
-
-  // Mock area endpoint
-  await page.route(`**/api/area/${area.id}`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(area),
-    });
-  });
-
-  // Mock party endpoint
-  await page.route('**/api/party', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({ members: party }),
-    });
-  });
-
-  // Mock generation endpoint
-  await page.route(`**/api/game/${game.gameId}/next`, async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        content,
-        turn: game.turn + 1,
-      }),
-    });
-  });
-}
-
-/**
- * Mock SSE events
- */
-export async function mockSSEEvents(
-  page: Page,
-  events: Array<{ type: string; data: Record<string, unknown> }>
-): Promise<void> {
-  const eventStream = events
-    .map((e) => `event: ${e.type}\ndata: ${JSON.stringify(e.data)}\n\n`)
-    .join('');
-
-  await page.route('**/api/events', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'text/event-stream',
-      body: `data: {"type":"connected"}\n\n${eventStream}`,
-    });
-  });
-}
-
-/**
  * Mock TTS to return instantly (for faster tests)
+ * This mocks the client-side TTS API endpoint
  */
 export async function mockTTSInstant(page: Page): Promise<void> {
   await page.route('**/api/tts/**', async (route) => {
+    // Return a minimal valid MP3 audio response (silent)
+    const silentMp3 = Buffer.from([
+      0xff, 0xfb, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00,
+      0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    ]);
     await route.fulfill({
       status: 200,
       contentType: 'audio/mpeg',
-      body: Buffer.from([]),
+      body: silentMp3,
     });
   });
 }
@@ -194,13 +30,72 @@ export async function mockTTSInstant(page: Page): Promise<void> {
  * Wait for loading overlay to disappear
  */
 export async function waitForLoadingComplete(page: Page): Promise<void> {
-  await page.waitForSelector('#loading-overlay:not(.active)', { timeout: 30000 });
+  await page.waitForSelector('#loading-overlay:not(.active)', { timeout: 60000 });
 }
 
 /**
  * Get text content from narrator output
  */
 export async function getNarratorText(page: Page): Promise<string> {
-  const narrator = page.locator('#narrator-output');
-  return await narrator.textContent() ?? '';
+  const narrator = page.locator('.narrator-entries');
+  return (await narrator.textContent()) ?? '';
+}
+
+/**
+ * Wait for generation to complete
+ * Watches for the editor status to change from generating to editing
+ */
+export async function waitForGeneration(page: Page): Promise<void> {
+  // Wait for loading overlay to hide
+  await waitForLoadingComplete(page);
+
+  // Wait for editor to show content
+  await page.waitForSelector('.dm-editor-textarea:not(:empty)', { timeout: 60000 });
+}
+
+/**
+ * Complete the new game wizard with a character name
+ */
+export async function completeNewGameWizard(page: Page, playerName = 'Test Hero'): Promise<void> {
+  // Click new game button
+  await page.click('#new-game-btn');
+
+  // Wait for modal
+  await page.waitForSelector('[role="dialog"]', { timeout: 5000 });
+
+  // Fill character name
+  const nameInput = page.locator('input[placeholder*="name" i]').first();
+  await nameInput.fill(playerName);
+
+  // Navigate through wizard steps
+  let hasMoreSteps = true;
+  while (hasMoreSteps) {
+    const nextBtn = page.locator('button:has-text("Next")');
+    if (await nextBtn.isVisible({ timeout: 1000 })) {
+      await nextBtn.click();
+      await page.waitForTimeout(300);
+    } else {
+      hasMoreSteps = false;
+    }
+  }
+
+  // Click final button to start game
+  const startButtons = [
+    'button:has-text("Begin Adventure")',
+    'button:has-text("Begin")',
+    'button:has-text("Start Game")',
+    'button:has-text("Start")',
+    'button:has-text("Create")',
+  ];
+
+  for (const selector of startButtons) {
+    const btn = page.locator(selector);
+    if (await btn.isVisible({ timeout: 500 })) {
+      await btn.click();
+      break;
+    }
+  }
+
+  // Wait for game UI
+  await page.waitForSelector('#game-ui.active', { timeout: 60000 });
 }

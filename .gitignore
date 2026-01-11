@@ -27,6 +27,10 @@ npm-debug.log*
 # Test coverage
 coverage/
 
+# Playwright E2E test outputs
+playwright-report/
+test-results/
+
 # Temp files
 *.tmp
 *~
