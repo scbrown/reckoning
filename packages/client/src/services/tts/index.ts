@@ -174,7 +174,7 @@ export class TTSService implements ITTSService {
       const request: TTSRequest = {
         text: beat.content,
         role: getVoiceRoleForBeat(beat) ?? 'narrator',
-        ...(preset && { preset }),
+        ...(preset !== undefined && { preset }),
         priority: 'normal',
         cache: true,
       };
