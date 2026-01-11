@@ -144,40 +144,43 @@ docs-check file:
     bash scripts/lint-docs.sh "{{file}}"
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# Beads Task Management
+# Beads Task Management (uses gastown beads as source of truth)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Initialize beads for the project
-init-beads:
-    bd init
+# Gastown beads database path
+beads_db := "/home/admin/gt/reckoning/.beads/beads.db"
 
 # List all beads tasks
 tasks:
-    bd list
+    bd --db {{beads_db}} list
 
 # Show tasks ready for work
 ready:
-    bd ready
+    bd --db {{beads_db}} ready
 
 # Add a new task (usage: just add-task "task description")
 add-task description:
-    bd add "{{description}}"
+    bd --db {{beads_db}} create "{{description}}" && bd --db {{beads_db}} sync
 
-# Show task details (usage: just task-info bd-xxxx)
+# Show task details (usage: just task-info reckoning-xxxx)
 task-info id:
-    bd show {{id}}
+    bd --db {{beads_db}} show {{id}}
 
-# Start a task (usage: just start-task bd-xxxx)
+# Start a task (usage: just start-task reckoning-xxxx)
 start-task id:
-    bd start {{id}}
+    bd --db {{beads_db}} start {{id}}
 
-# Mark a task as done (usage: just done bd-xxxx)
+# Mark a task as done (usage: just done reckoning-xxxx)
 done id:
-    bd done {{id}}
+    bd --db {{beads_db}} close {{id}}
 
 # Show beads status
 beads-status:
-    bd status
+    bd --db {{beads_db}} status
+
+# Sync beads with remote
+beads-sync:
+    bd --db {{beads_db}} sync
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # Gastown Multi-Agent Coordination
@@ -378,4 +381,4 @@ check:
     @docker compose ps 2>/dev/null || echo "Docker not available"
     @echo ""
     @echo "=== Beads Status ==="
-    @bd status 2>/dev/null || echo "Beads not initialized - run: just init-beads"
+    @bd --db {{beads_db}} status 2>/dev/null || echo "Beads not available"
