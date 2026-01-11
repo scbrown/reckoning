@@ -10,7 +10,7 @@
 
 import { gameService, type SaveSlot } from '../services/game/index.js';
 
-export type ModalView = 'closed' | 'save' | 'load' | 'confirm-delete' | 'new-game';
+export type ModalView = 'closed' | 'save' | 'load' | 'confirm-delete' | 'new-game' | 'add-party' | 'generate-world' | 'dm-review';
 
 export interface SaveLoadModalCallbacks {
   onSave?: (slot: SaveSlot) => void;
@@ -23,6 +23,27 @@ export interface SaveLoadModalCallbacks {
 /**
  * Save/Load Modal Component
  */
+interface PartyMember {
+  name: string;
+  description: string;
+  class: string;
+}
+
+interface WorldSettings {
+  theme: string;
+  tone: string;
+  startingLocation: string;
+}
+
+interface NewGameWizardState {
+  playerName: string;
+  playerDescription: string;
+  partyMembers: PartyMember[];
+  worldSettings: WorldSettings;
+  generatedWorldPreview: string | null;
+  isGenerating: boolean;
+}
+
 export class SaveLoadModal {
   private container: HTMLElement;
   private overlay: HTMLElement;
@@ -32,6 +53,18 @@ export class SaveLoadModal {
   private pendingDeleteSlot: SaveSlot | null = null;
   private callbacks: SaveLoadModalCallbacks;
   private gameId: string | null = null;
+  private wizardState: NewGameWizardState = {
+    playerName: '',
+    playerDescription: '',
+    partyMembers: [],
+    worldSettings: {
+      theme: 'fantasy',
+      tone: 'balanced',
+      startingLocation: '',
+    },
+    generatedWorldPreview: null,
+    isGenerating: false,
+  };
 
   constructor(callbacks: SaveLoadModalCallbacks = {}) {
     this.callbacks = callbacks;
@@ -326,6 +359,144 @@ export class SaveLoadModal {
         font-size: 0.9rem;
         margin-top: 0.5rem;
       }
+
+      /* Wizard Progress Indicator */
+      .save-load-modal .wizard-progress {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 1.5rem;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid #333;
+      }
+
+      .save-load-modal .wizard-step {
+        font-size: 0.75rem;
+        color: #555;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        background: #222;
+      }
+
+      .save-load-modal .wizard-step.active {
+        color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+        border: 1px solid #667eea;
+      }
+
+      .save-load-modal .wizard-step.completed {
+        color: #16a34a;
+        background: rgba(22, 163, 74, 0.1);
+      }
+
+      /* Party Member List */
+      .save-load-modal .party-list {
+        max-height: 150px;
+        overflow-y: auto;
+        margin-bottom: 1rem;
+      }
+
+      .save-load-modal .party-member-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem;
+        background: #222;
+        border: 1px solid #333;
+        border-radius: 4px;
+        margin-bottom: 0.5rem;
+      }
+
+      .save-load-modal .party-member-info {
+        flex: 1;
+      }
+
+      .save-load-modal .party-member-name {
+        font-size: 0.9rem;
+        color: #e0e0e0;
+      }
+
+      .save-load-modal .party-member-details {
+        font-size: 0.75rem;
+        color: #666;
+      }
+
+      .save-load-modal .btn-small {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.75rem;
+      }
+
+      /* Add Member Form */
+      .save-load-modal .add-member-form {
+        background: #222;
+        padding: 0.75rem;
+        border-radius: 4px;
+        border: 1px solid #333;
+      }
+
+      .save-load-modal .form-row {
+        display: flex;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .save-load-modal .form-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .save-load-modal .form-row input {
+        flex: 1;
+      }
+
+      .save-load-modal .help-text {
+        font-size: 0.8rem;
+        color: #666;
+        margin-bottom: 0.75rem;
+      }
+
+      /* Select Inputs */
+      .save-load-modal select {
+        width: 100%;
+        padding: 0.75rem;
+        background: #222;
+        border: 1px solid #444;
+        border-radius: 4px;
+        color: #e0e0e0;
+        font-size: 1rem;
+        cursor: pointer;
+      }
+
+      .save-load-modal select:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      /* Review Section */
+      .save-load-modal .review-section {
+        background: #222;
+        padding: 0.75rem;
+        border-radius: 4px;
+        margin-bottom: 0.75rem;
+      }
+
+      .save-load-modal .review-section label {
+        font-size: 0.75rem;
+        color: #667eea;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        margin-bottom: 0.25rem;
+      }
+
+      .save-load-modal .review-value {
+        font-size: 0.9rem;
+        color: #e0e0e0;
+      }
+
+      .save-load-modal .review-preview {
+        font-size: 0.9rem;
+        color: #e0e0e0;
+        font-style: italic;
+        line-height: 1.5;
+      }
     `;
     document.head.appendChild(styles);
   }
@@ -347,6 +518,15 @@ export class SaveLoadModal {
         break;
       case 'new-game':
         this.renderNewGameView();
+        break;
+      case 'add-party':
+        this.renderAddPartyView();
+        break;
+      case 'generate-world':
+        this.renderGenerateWorldView();
+        break;
+      case 'dm-review':
+        this.renderDMReviewView();
         break;
       default:
         this.modal.innerHTML = '';
@@ -464,7 +644,13 @@ export class SaveLoadModal {
 
   private renderNewGameView(): void {
     this.modal.innerHTML = `
-      <h2>New Game</h2>
+      <h2>New Game - Create Character</h2>
+      <div class="wizard-progress">
+        <span class="wizard-step active">1. Character</span>
+        <span class="wizard-step">2. Party</span>
+        <span class="wizard-step">3. World</span>
+        <span class="wizard-step">4. Review</span>
+      </div>
       <div class="modal-section">
         <label for="player-name-input">Character Name</label>
         <input type="text" id="player-name-input" placeholder="Enter your character's name..." autofocus />
@@ -476,24 +662,335 @@ export class SaveLoadModal {
       </div>
       <div class="button-row">
         <button class="btn-secondary" id="new-game-cancel-btn">Cancel</button>
-        <button class="btn-success" id="new-game-start-btn">Start Game</button>
+        <button class="btn-primary" id="new-game-next-btn">Next: Add Party</button>
       </div>
     `;
 
     const nameInput = this.modal.querySelector('#player-name-input') as HTMLInputElement;
     const descInput = this.modal.querySelector('#player-desc-input') as HTMLInputElement;
     const cancelBtn = this.modal.querySelector('#new-game-cancel-btn') as HTMLButtonElement;
-    const startBtn = this.modal.querySelector('#new-game-start-btn') as HTMLButtonElement;
+    const nextBtn = this.modal.querySelector('#new-game-next-btn') as HTMLButtonElement;
 
-    cancelBtn.addEventListener('click', () => this.close());
-    startBtn.addEventListener('click', () => this.handleStartNewGame(nameInput.value.trim(), descInput.value.trim()));
+    // Restore previous values if going back
+    nameInput.value = this.wizardState.playerName;
+    descInput.value = this.wizardState.playerDescription;
+
+    cancelBtn.addEventListener('click', () => {
+      this.resetWizardState();
+      this.close();
+    });
+    nextBtn.addEventListener('click', () => this.handleCharacterNext(nameInput.value.trim(), descInput.value.trim()));
     nameInput.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') {
-        this.handleStartNewGame(nameInput.value.trim(), descInput.value.trim());
+        this.handleCharacterNext(nameInput.value.trim(), descInput.value.trim());
       }
     });
 
     setTimeout(() => nameInput.focus(), 50);
+  }
+
+  private handleCharacterNext(name: string, description: string): void {
+    const errorEl = this.modal.querySelector('#new-game-error') as HTMLElement;
+
+    if (!name) {
+      errorEl.textContent = 'Please enter a character name';
+      errorEl.style.display = 'block';
+      return;
+    }
+
+    // Save to wizard state
+    this.wizardState.playerName = name;
+    this.wizardState.playerDescription = description;
+
+    // Proceed to party step
+    this.currentView = 'add-party';
+    this.render();
+  }
+
+  private renderAddPartyView(): void {
+    const partyHtml = this.wizardState.partyMembers.length > 0
+      ? this.wizardState.partyMembers.map((member, idx) => `
+        <div class="party-member-item">
+          <div class="party-member-info">
+            <div class="party-member-name">${this.escapeHtml(member.name)}</div>
+            <div class="party-member-details">${this.escapeHtml(member.class)} - ${this.escapeHtml(member.description || 'No description')}</div>
+          </div>
+          <button class="btn-danger btn-small" data-remove-idx="${idx}">Remove</button>
+        </div>
+      `).join('')
+      : '<div class="empty-message">No party members added yet (optional)</div>';
+
+    this.modal.innerHTML = `
+      <h2>New Game - Add Party</h2>
+      <div class="wizard-progress">
+        <span class="wizard-step completed">1. Character</span>
+        <span class="wizard-step active">2. Party</span>
+        <span class="wizard-step">3. World</span>
+        <span class="wizard-step">4. Review</span>
+      </div>
+      <div class="modal-section">
+        <label>Party Members (Optional)</label>
+        <p class="help-text">Add companions to join your adventure. You can skip this step to adventure alone.</p>
+        <div class="party-list">${partyHtml}</div>
+      </div>
+      <div class="modal-section add-member-form">
+        <div class="form-row">
+          <input type="text" id="member-name-input" placeholder="Member name..." />
+          <input type="text" id="member-class-input" placeholder="Class..." />
+        </div>
+        <div class="form-row">
+          <input type="text" id="member-desc-input" placeholder="Description (optional)..." style="flex: 1;" />
+          <button class="btn-secondary" id="add-member-btn">Add</button>
+        </div>
+      </div>
+      <div class="button-row">
+        <button class="btn-secondary" id="party-back-btn">Back</button>
+        <button class="btn-primary" id="party-next-btn">Next: Generate World</button>
+      </div>
+    `;
+
+    // Attach remove handlers
+    this.wizardState.partyMembers.forEach((_, idx) => {
+      const removeBtn = this.modal.querySelector(`[data-remove-idx="${idx}"]`) as HTMLButtonElement;
+      removeBtn?.addEventListener('click', () => {
+        this.wizardState.partyMembers.splice(idx, 1);
+        this.render();
+      });
+    });
+
+    const nameInput = this.modal.querySelector('#member-name-input') as HTMLInputElement;
+    const classInput = this.modal.querySelector('#member-class-input') as HTMLInputElement;
+    const descInput = this.modal.querySelector('#member-desc-input') as HTMLInputElement;
+    const addBtn = this.modal.querySelector('#add-member-btn') as HTMLButtonElement;
+    const backBtn = this.modal.querySelector('#party-back-btn') as HTMLButtonElement;
+    const nextBtn = this.modal.querySelector('#party-next-btn') as HTMLButtonElement;
+
+    addBtn.addEventListener('click', () => {
+      const name = nameInput.value.trim();
+      const memberClass = classInput.value.trim();
+      const desc = descInput.value.trim();
+
+      if (name && memberClass) {
+        this.wizardState.partyMembers.push({ name, class: memberClass, description: desc });
+        this.render();
+      }
+    });
+
+    backBtn.addEventListener('click', () => {
+      this.currentView = 'new-game';
+      this.render();
+    });
+
+    nextBtn.addEventListener('click', () => {
+      this.currentView = 'generate-world';
+      this.render();
+    });
+
+    setTimeout(() => nameInput.focus(), 50);
+  }
+
+  private renderGenerateWorldView(): void {
+    const isGenerating = this.wizardState.isGenerating;
+
+    this.modal.innerHTML = `
+      <h2>New Game - Generate World</h2>
+      <div class="wizard-progress">
+        <span class="wizard-step completed">1. Character</span>
+        <span class="wizard-step completed">2. Party</span>
+        <span class="wizard-step active">3. World</span>
+        <span class="wizard-step">4. Review</span>
+      </div>
+      <div class="modal-section">
+        <label for="world-theme-select">World Theme</label>
+        <select id="world-theme-select">
+          <option value="fantasy" ${this.wizardState.worldSettings.theme === 'fantasy' ? 'selected' : ''}>Fantasy</option>
+          <option value="dark-fantasy" ${this.wizardState.worldSettings.theme === 'dark-fantasy' ? 'selected' : ''}>Dark Fantasy</option>
+          <option value="horror" ${this.wizardState.worldSettings.theme === 'horror' ? 'selected' : ''}>Horror</option>
+          <option value="sci-fi" ${this.wizardState.worldSettings.theme === 'sci-fi' ? 'selected' : ''}>Science Fiction</option>
+          <option value="post-apocalyptic" ${this.wizardState.worldSettings.theme === 'post-apocalyptic' ? 'selected' : ''}>Post-Apocalyptic</option>
+        </select>
+      </div>
+      <div class="modal-section">
+        <label for="world-tone-select">Narrative Tone</label>
+        <select id="world-tone-select">
+          <option value="heroic" ${this.wizardState.worldSettings.tone === 'heroic' ? 'selected' : ''}>Heroic</option>
+          <option value="balanced" ${this.wizardState.worldSettings.tone === 'balanced' ? 'selected' : ''}>Balanced</option>
+          <option value="gritty" ${this.wizardState.worldSettings.tone === 'gritty' ? 'selected' : ''}>Gritty</option>
+          <option value="comedic" ${this.wizardState.worldSettings.tone === 'comedic' ? 'selected' : ''}>Comedic</option>
+        </select>
+      </div>
+      <div class="modal-section">
+        <label for="starting-location-input">Starting Location (optional)</label>
+        <input type="text" id="starting-location-input" placeholder="e.g., A tavern in a small village..." value="${this.escapeHtml(this.wizardState.worldSettings.startingLocation)}" />
+      </div>
+      <div id="world-error" class="error-message" style="display: none;"></div>
+      <div class="button-row">
+        <button class="btn-secondary" id="world-back-btn" ${isGenerating ? 'disabled' : ''}>Back</button>
+        <button class="btn-primary" id="world-generate-btn" ${isGenerating ? 'disabled' : ''}>
+          ${isGenerating ? 'Generating...' : 'Generate World'}
+        </button>
+      </div>
+    `;
+
+    const themeSelect = this.modal.querySelector('#world-theme-select') as HTMLSelectElement;
+    const toneSelect = this.modal.querySelector('#world-tone-select') as HTMLSelectElement;
+    const locationInput = this.modal.querySelector('#starting-location-input') as HTMLInputElement;
+    const backBtn = this.modal.querySelector('#world-back-btn') as HTMLButtonElement;
+    const generateBtn = this.modal.querySelector('#world-generate-btn') as HTMLButtonElement;
+
+    themeSelect.addEventListener('change', () => {
+      this.wizardState.worldSettings.theme = themeSelect.value;
+    });
+
+    toneSelect.addEventListener('change', () => {
+      this.wizardState.worldSettings.tone = toneSelect.value;
+    });
+
+    locationInput.addEventListener('input', () => {
+      this.wizardState.worldSettings.startingLocation = locationInput.value;
+    });
+
+    backBtn.addEventListener('click', () => {
+      this.currentView = 'add-party';
+      this.render();
+    });
+
+    generateBtn.addEventListener('click', () => this.handleGenerateWorld());
+  }
+
+  private async handleGenerateWorld(): Promise<void> {
+    const errorEl = this.modal.querySelector('#world-error') as HTMLElement;
+    const generateBtn = this.modal.querySelector('#world-generate-btn') as HTMLButtonElement;
+
+    this.wizardState.isGenerating = true;
+    generateBtn.disabled = true;
+    generateBtn.textContent = 'Generating...';
+
+    try {
+      // Generate world preview based on settings
+      const { theme, tone, startingLocation } = this.wizardState.worldSettings;
+      const preview = this.generateWorldPreview(theme, tone, startingLocation);
+      this.wizardState.generatedWorldPreview = preview;
+
+      // Proceed to DM review
+      this.wizardState.isGenerating = false;
+      this.currentView = 'dm-review';
+      this.render();
+    } catch (error) {
+      errorEl.textContent = error instanceof Error ? error.message : 'Failed to generate world';
+      errorEl.style.display = 'block';
+      this.wizardState.isGenerating = false;
+      generateBtn.disabled = false;
+      generateBtn.textContent = 'Generate World';
+    }
+  }
+
+  private generateWorldPreview(theme: string, tone: string, startingLocation: string): string {
+    const themeDescriptions: Record<string, string> = {
+      'fantasy': 'a world of magic, mythical creatures, and ancient kingdoms',
+      'dark-fantasy': 'a grim world where darkness lurks and hope is scarce',
+      'horror': 'a world of supernatural terror and unspeakable horrors',
+      'sci-fi': 'a universe of advanced technology and interstellar exploration',
+      'post-apocalyptic': 'the remnants of a fallen civilization struggling to survive',
+    };
+
+    const toneDescriptions: Record<string, string> = {
+      'heroic': 'where heroes rise to meet great challenges',
+      'balanced': 'where both triumph and tragedy await',
+      'gritty': 'where survival comes at a cost',
+      'comedic': 'where adventure is seasoned with humor',
+    };
+
+    const location = startingLocation || 'an unknown location';
+    return `Your adventure begins in ${themeDescriptions[theme] || theme}, ${toneDescriptions[tone] || tone}. You find yourself at ${location}, ready to forge your destiny.`;
+  }
+
+  private renderDMReviewView(): void {
+    const playerInfo = `${this.wizardState.playerName}${this.wizardState.playerDescription ? ` - ${this.wizardState.playerDescription}` : ''}`;
+    const partyInfo = this.wizardState.partyMembers.length > 0
+      ? this.wizardState.partyMembers.map(m => `${m.name} (${m.class})`).join(', ')
+      : 'Solo adventure';
+
+    this.modal.innerHTML = `
+      <h2>New Game - DM Review</h2>
+      <div class="wizard-progress">
+        <span class="wizard-step completed">1. Character</span>
+        <span class="wizard-step completed">2. Party</span>
+        <span class="wizard-step completed">3. World</span>
+        <span class="wizard-step active">4. Review</span>
+      </div>
+      <div class="modal-section review-section">
+        <label>Your Character</label>
+        <div class="review-value">${this.escapeHtml(playerInfo)}</div>
+      </div>
+      <div class="modal-section review-section">
+        <label>Party</label>
+        <div class="review-value">${this.escapeHtml(partyInfo)}</div>
+      </div>
+      <div class="modal-section review-section">
+        <label>World Settings</label>
+        <div class="review-value">Theme: ${this.escapeHtml(this.wizardState.worldSettings.theme)} | Tone: ${this.escapeHtml(this.wizardState.worldSettings.tone)}</div>
+      </div>
+      <div class="modal-section review-section">
+        <label>World Preview</label>
+        <div class="review-preview">${this.escapeHtml(this.wizardState.generatedWorldPreview || '')}</div>
+      </div>
+      <div id="dm-review-error" class="error-message" style="display: none;"></div>
+      <div class="button-row">
+        <button class="btn-secondary" id="review-back-btn">Back</button>
+        <button class="btn-success" id="review-begin-btn">Begin Adventure</button>
+      </div>
+    `;
+
+    const backBtn = this.modal.querySelector('#review-back-btn') as HTMLButtonElement;
+    const beginBtn = this.modal.querySelector('#review-begin-btn') as HTMLButtonElement;
+
+    backBtn.addEventListener('click', () => {
+      this.currentView = 'generate-world';
+      this.render();
+    });
+
+    beginBtn.addEventListener('click', () => this.handleBeginAdventure());
+  }
+
+  private async handleBeginAdventure(): Promise<void> {
+    const errorEl = this.modal.querySelector('#dm-review-error') as HTMLElement;
+    const beginBtn = this.modal.querySelector('#review-begin-btn') as HTMLButtonElement;
+
+    beginBtn.disabled = true;
+    beginBtn.textContent = 'Starting...';
+
+    try {
+      // Create the game with all the wizard state
+      await gameService.newGame(
+        this.wizardState.playerName,
+        this.wizardState.playerDescription || undefined
+      );
+
+      this.callbacks.onNewGame?.();
+      this.resetWizardState();
+      this.close();
+    } catch (error) {
+      errorEl.textContent = error instanceof Error ? error.message : 'Failed to start game';
+      errorEl.style.display = 'block';
+      beginBtn.disabled = false;
+      beginBtn.textContent = 'Begin Adventure';
+    }
+  }
+
+  private resetWizardState(): void {
+    this.wizardState = {
+      playerName: '',
+      playerDescription: '',
+      partyMembers: [],
+      worldSettings: {
+        theme: 'fantasy',
+        tone: 'balanced',
+        startingLocation: '',
+      },
+      generatedWorldPreview: null,
+      isGenerating: false,
+    };
   }
 
   // ===========================================================================
@@ -580,33 +1077,9 @@ export class SaveLoadModal {
   }
 
   private handleNewGameClick(): void {
+    this.resetWizardState();
     this.currentView = 'new-game';
     this.render();
-  }
-
-  private async handleStartNewGame(name: string, description: string): Promise<void> {
-    const errorEl = this.modal.querySelector('#new-game-error') as HTMLElement;
-    const startBtn = this.modal.querySelector('#new-game-start-btn') as HTMLButtonElement;
-
-    if (!name) {
-      errorEl.textContent = 'Please enter a character name';
-      errorEl.style.display = 'block';
-      return;
-    }
-
-    startBtn.disabled = true;
-    startBtn.textContent = 'Starting...';
-
-    try {
-      await gameService.newGame(name, description || undefined);
-      this.callbacks.onNewGame?.();
-      this.close();
-    } catch (error) {
-      errorEl.textContent = error instanceof Error ? error.message : 'Failed to start new game';
-      errorEl.style.display = 'block';
-      startBtn.disabled = false;
-      startBtn.textContent = 'Start Game';
-    }
   }
 
   // ===========================================================================
