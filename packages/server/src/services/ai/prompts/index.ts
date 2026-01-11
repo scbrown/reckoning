@@ -7,7 +7,7 @@
 
 import type { GenerationContext } from '@reckoning/shared';
 
-import { DM_SYSTEM_PROMPT } from './system.js';
+import { DM_SYSTEM_PROMPT, BEAT_SEQUENCE_SYSTEM_PROMPT } from './system.js';
 import { buildScenePrompt, type SceneContext } from './scene.js';
 import { buildPartyPrompt, type PartyContext } from './party.js';
 import { buildNPCPrompt, type NPCContext } from './npc.js';
@@ -17,7 +17,7 @@ import {
 } from './environment.js';
 
 // Re-export all prompt builders and types
-export { DM_SYSTEM_PROMPT } from './system.js';
+export { DM_SYSTEM_PROMPT, BEAT_SEQUENCE_SYSTEM_PROMPT } from './system.js';
 export { buildScenePrompt, type SceneContext } from './scene.js';
 export { buildPartyPrompt, type PartyContext } from './party.js';
 export { buildNPCPrompt, type NPCContext } from './npc.js';
@@ -113,6 +113,72 @@ export function buildPrompt(context: PromptBuildContext): BuiltPrompt {
   return {
     systemPrompt,
     userPrompt,
+    combined,
+  };
+}
+
+/**
+ * Build a complete prompt for beat sequence generation.
+ *
+ * Uses the same routing as buildPrompt but with the beat sequence system prompt,
+ * instructing the AI to output structured beats instead of single content blocks.
+ *
+ * @param context - The generation context including type and game state
+ * @returns The built prompt with beat sequence system prompt
+ */
+export function buildBeatPrompt(context: PromptBuildContext): BuiltPrompt {
+  const systemPrompt = BEAT_SEQUENCE_SYSTEM_PROMPT;
+  let userPrompt: string;
+
+  switch (context.type) {
+    case 'narration':
+      if (!context.sceneContext) {
+        throw new Error('Scene context required for narration generation');
+      }
+      userPrompt = buildScenePrompt(context.sceneContext);
+      break;
+
+    case 'npc_response':
+      if (!context.npcContext) {
+        throw new Error('NPC context required for npc_response generation');
+      }
+      userPrompt = buildNPCPrompt(context.npcContext);
+      break;
+
+    case 'environment_reaction':
+      if (!context.environmentContext) {
+        throw new Error(
+          'Environment context required for environment_reaction generation'
+        );
+      }
+      userPrompt = buildEnvironmentPrompt(context.environmentContext);
+      break;
+
+    case 'dm_continuation':
+      if (!context.partyContext) {
+        throw new Error('Party context required for dm_continuation generation');
+      }
+      userPrompt = buildPartyPrompt(context.partyContext);
+      break;
+
+    default:
+      throw new Error(`Unknown generation type: ${context.type}`);
+  }
+
+  // Add beat-specific instructions to the user prompt
+  const beatInstructions = `
+Generate your response as a sequence of 3-8 narrative beats.
+Each beat should be short (1-3 sentences) and focused on a single narrative element.
+Vary the beat types (narration, dialogue, action, etc.) to create engaging flow.
+Include speaker names for dialogue, action, and thought beats.
+Add TTS hints (emotion, volume, pace) for dramatic moments.`;
+
+  const enhancedUserPrompt = `${userPrompt}\n\n${beatInstructions}`;
+  const combined = `${systemPrompt}\n\n---\n\n${enhancedUserPrompt}`;
+
+  return {
+    systemPrompt,
+    userPrompt: enhancedUserPrompt,
     combined,
   };
 }

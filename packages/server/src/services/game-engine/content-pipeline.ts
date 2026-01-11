@@ -10,6 +10,9 @@ import type {
   GenerationType,
   EventType,
   Result,
+  NarrativeBeat,
+  BeatSequence,
+  BeatType,
 } from '@reckoning/shared';
 import { Ok, Err } from '@reckoning/shared';
 import type {
@@ -17,9 +20,15 @@ import type {
   ExtendedGenerationContext,
 } from '../ai/context-builder.js';
 import type { AIProvider } from '../ai/types.js';
-import { GAME_CONTENT_SCHEMA } from '../ai/schemas.js';
+import {
+  GAME_CONTENT_SCHEMA,
+  BEAT_SEQUENCE_SCHEMA,
+  safeParseBeatSequenceOutput,
+  type AIBeatOutput,
+} from '../ai/schemas.js';
 import {
   buildPrompt,
+  buildBeatPrompt,
   type PromptBuildContext,
   type SceneContext,
   type PartyContext,
@@ -140,6 +149,102 @@ export class ContentPipeline {
     console.log(`[ContentPipeline] Generation complete for ${type}`);
 
     return Ok(generatedContent);
+  }
+
+  /**
+   * Generate a beat sequence for a game
+   *
+   * This method generates content as a sequence of narrative beats,
+   * each representing an atomic unit suitable for TTS playback.
+   *
+   * @param gameId - ID of the game
+   * @param type - Type of content to generate
+   * @param options - Generation options
+   * @returns Result with BeatSequence on success, PipelineError on failure
+   */
+  async generateBeats(
+    gameId: string,
+    type: GenerationType,
+    options?: GenerateOptions
+  ): Promise<Result<BeatSequence, PipelineError>> {
+    console.log(`[ContentPipeline] Starting beat sequence generation for game ${gameId}`);
+    const startTime = Date.now();
+
+    // Build context - only pass options if dmGuidance is defined
+    let context: ExtendedGenerationContext;
+    try {
+      console.log('[ContentPipeline] Building context for beats...');
+      const buildOptions = options?.dmGuidance !== undefined
+        ? { dmGuidance: options.dmGuidance }
+        : undefined;
+      context = await this.contextBuilder.build(gameId, type, buildOptions);
+      console.log('[ContentPipeline] Context built successfully');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      if (message.includes('Game not found')) {
+        return Err({
+          code: 'GAME_NOT_FOUND',
+          message,
+          retryable: false,
+        });
+      }
+      if (message.includes('Area not found')) {
+        return Err({
+          code: 'AREA_NOT_FOUND',
+          message,
+          retryable: false,
+        });
+      }
+      return Err({
+        code: 'AI_ERROR',
+        message,
+        retryable: false,
+      });
+    }
+
+    // Build prompt with type-specific context using beat prompt builder
+    console.log('[ContentPipeline] Building beat prompt...');
+    const promptContext = this.buildPromptContext(context, type);
+    const prompt = buildBeatPrompt(promptContext);
+    console.log(`[ContentPipeline] Beat prompt ready (${prompt.combined.length} chars)`);
+
+    // Execute AI generation with beat sequence schema
+    console.log('[ContentPipeline] Calling AI provider with beat sequence schema...');
+    const aiResult = await this.aiProvider.execute({
+      prompt: prompt.combined,
+      outputSchema: BEAT_SEQUENCE_SCHEMA,
+    });
+
+    if (!aiResult.ok) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[ContentPipeline] AI error after ${elapsed}ms: ${aiResult.error.message}`);
+      return Err({
+        code: 'AI_ERROR',
+        message: aiResult.error.message,
+        retryable: aiResult.error.retryable,
+      });
+    }
+
+    // Parse response into BeatSequence
+    const elapsed = Date.now() - startTime;
+    console.log(`[ContentPipeline] AI response received after ${elapsed}ms (${aiResult.value.content.length} chars)`);
+
+    const beatSequence = this.parseBeatResponse(
+      aiResult.value.content,
+      gameId,
+      context.gameState.turn
+    );
+
+    if (!beatSequence) {
+      return Err({
+        code: 'PARSE_ERROR',
+        message: 'Failed to parse beat sequence from AI response',
+        retryable: true,
+      });
+    }
+
+    console.log(`[ContentPipeline] Beat sequence generation complete with ${beatSequence.beats.length} beats`);
+    return Ok(beatSequence);
   }
 
   /**
@@ -467,5 +572,114 @@ export class ContentPipeline {
     cleaned = cleaned.replace(/^---[\s\S]*?---\n/g, '');
 
     return cleaned;
+  }
+
+  /**
+   * Parse AI response into a BeatSequence
+   *
+   * Handles various edge cases:
+   * - Claude CLI wrapper format with structured_output field
+   * - JSON wrapped in markdown code blocks
+   * - Validates beat types and content
+   *
+   * @param response - Raw AI response string
+   * @param gameId - ID of the game
+   * @param turn - Current turn number
+   * @returns Parsed BeatSequence or null if parsing fails
+   */
+  private parseBeatResponse(
+    response: string,
+    gameId: string,
+    turn: number
+  ): BeatSequence | null {
+    const trimmed = response.trim();
+
+    // Try to extract JSON from markdown code blocks
+    let jsonStr = trimmed;
+    const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      jsonStr = codeBlockMatch[1].trim();
+    } else {
+      // Try to find JSON object in the response
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+      if (jsonMatch && jsonMatch[0]) {
+        jsonStr = jsonMatch[0];
+      }
+    }
+
+    try {
+      let parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+
+      // Handle Claude CLI wrapper format: { type: "result", structured_output: {...} }
+      if (
+        parsed.type === 'result' &&
+        typeof parsed.structured_output === 'object' &&
+        parsed.structured_output !== null
+      ) {
+        console.log('[ContentPipeline] Detected CLI wrapper format for beats, extracting structured_output');
+        parsed = parsed.structured_output as Record<string, unknown>;
+      }
+
+      // Use Zod schema for validation
+      const validationResult = safeParseBeatSequenceOutput(parsed);
+      if (!validationResult) {
+        console.log('[ContentPipeline] Beat sequence validation failed');
+        return null;
+      }
+
+      // Convert AIBeatOutput to NarrativeBeat
+      const narrativeBeats: NarrativeBeat[] = validationResult.beats.map(
+        (aiBeat: AIBeatOutput) => this.convertToBeat(aiBeat)
+      );
+
+      const beatSequence: BeatSequence = {
+        id: randomUUID(),
+        beats: narrativeBeats,
+        gameId,
+        turn,
+        generatedAt: new Date().toISOString(),
+        status: 'pending',
+      };
+
+      console.log(`[ContentPipeline] Successfully parsed ${beatSequence.beats.length} beats`);
+      return beatSequence;
+    } catch (e) {
+      console.log(
+        `[ContentPipeline] Beat sequence parse error: ${e instanceof Error ? e.message : 'Unknown'}`
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Convert an AI beat output to a NarrativeBeat
+   */
+  private convertToBeat(aiBeat: AIBeatOutput): NarrativeBeat {
+    const beat: NarrativeBeat = {
+      id: randomUUID(),
+      type: aiBeat.type as BeatType,
+      content: aiBeat.content,
+    };
+
+    // Add optional fields only if defined
+    if (aiBeat.speaker) {
+      beat.speaker = aiBeat.speaker;
+    }
+
+    // Build metadata only if we have TTS hints
+    if (aiBeat.emotion || aiBeat.volume || aiBeat.pace) {
+      beat.metadata = {};
+      if (aiBeat.emotion) {
+        beat.metadata.emotion = aiBeat.emotion;
+      }
+      if (aiBeat.volume) {
+        beat.metadata.volume = aiBeat.volume;
+      }
+      if (aiBeat.pace) {
+        beat.metadata.pace = aiBeat.pace;
+      }
+    }
+
+    return beat;
   }
 }
