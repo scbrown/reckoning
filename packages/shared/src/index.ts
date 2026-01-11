@@ -16,7 +16,5 @@ export type {
   HeartbeatEvent,
   SSEEventType,
   SSEEventByType,
+  SSEEvent,
 } from './sse/index.js';
-
-// Re-export SSE union type (both original name and alias)
-export type { SSEEvent, SSEEvent as SSEEventUnion } from './sse/index.js';
