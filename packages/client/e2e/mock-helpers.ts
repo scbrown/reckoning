@@ -5,7 +5,31 @@
  * The real backend handles all game logic.
  */
 
-import type { Page } from '@playwright/test';
+import type { Page, Route } from '@playwright/test';
+
+// =============================================================================
+// Types
+// =============================================================================
+
+export interface MockGameConfig {
+  party?: Array<{
+    id: string;
+    name: string;
+    description?: string;
+    class?: string;
+    stats?: { health: number; maxHealth: number };
+  }>;
+  narrativeHistory?: Array<{
+    id: string;
+    type: string;
+    content: string;
+  }>;
+}
+
+export interface MockSSEEvent {
+  type: string;
+  data: Record<string, unknown>;
+}
 
 /**
  * Mock TTS to return instantly (for faster tests)
@@ -98,4 +122,92 @@ export async function completeNewGameWizard(page: Page, playerName = 'Test Hero'
 
   // Wait for game UI
   await page.waitForSelector('#game-ui.active', { timeout: 60000 });
+}
+
+// =============================================================================
+// Game API Mocks
+// =============================================================================
+
+/**
+ * Mock game API endpoints with custom configuration
+ * This sets up route interception for game state endpoints
+ */
+export async function mockGameAPI(page: Page, config: MockGameConfig = {}): Promise<void> {
+  const gameId = 'test-game-' + Date.now();
+
+  // Mock POST /api/game/new - create new game
+  await page.route('**/api/game/new', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        gameId,
+        session: {
+          id: gameId,
+          playerName: 'Test Hero',
+          party: config.party ?? [],
+          narrativeHistory: config.narrativeHistory ?? [],
+          currentArea: { name: 'Starting Area', npcs: [] },
+        },
+      }),
+    });
+  });
+
+  // Mock GET /api/game/:id - get game state
+  await page.route('**/api/game/*', async (route: Route, request) => {
+    const url = request.url();
+
+    // Skip if it's a nested route like /api/game/:id/events
+    if (url.includes('/events') || url.includes('/next') || url.includes('/submit')) {
+      await route.continue();
+      return;
+    }
+
+    // Handle GET /api/game/:id
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          session: {
+            id: gameId,
+            playerName: 'Test Hero',
+            party: config.party ?? [],
+            narrativeHistory: config.narrativeHistory ?? [],
+            currentArea: { name: 'Starting Area', npcs: [] },
+          },
+          editorState: {
+            pending: null,
+            editedContent: '',
+            status: 'idle',
+          },
+        }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+}
+
+/**
+ * Mock SSE events endpoint to emit predefined events
+ * Events are sent after a short delay to simulate real behavior
+ */
+export async function mockSSEEvents(page: Page, events: MockSSEEvent[]): Promise<void> {
+  await page.route('**/api/game/*/events', async (route: Route) => {
+    // Build SSE response body
+    const sseBody = events
+      .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`)
+      .join('');
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+      body: sseBody,
+    });
+  });
 }
