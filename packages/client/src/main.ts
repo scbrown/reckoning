@@ -479,12 +479,27 @@ function setupTTSIntegration(): void {
   ttsService.setCallbacks({
     onStart: (item) => {
       console.log('[TTS] Started playing:', item.id);
+      // Show speech bubble if speaker is specified
+      const speaker = item.request.speaker;
+      if (speaker && speechBubble) {
+        speechBubble.show(speaker, item.request.text);
+      }
     },
     onEnd: (item) => {
       console.log('[TTS] Finished playing:', item.id);
+      // Schedule speech bubble fade if speaker is specified
+      const speaker = item.request.speaker;
+      if (speaker && speechBubble) {
+        speechBubble.scheduleFade(speaker);
+      }
     },
     onError: (item, error) => {
       console.error('[TTS] Error:', item.id, error);
+      // Hide speech bubble on error if speaker is specified
+      const speaker = item.request.speaker;
+      if (speaker && speechBubble) {
+        speechBubble.hide(speaker);
+      }
     },
     onQueueChange: (status) => {
       console.log('[TTS] Queue status:', status.playbackState, 'items:', status.totalItems);
