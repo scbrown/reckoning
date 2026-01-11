@@ -166,14 +166,15 @@ export class TTSService implements ITTSService {
       : beats;
 
     for (let i = 0; i < filteredBeats.length; i++) {
-      const beat = filteredBeats[i];
+      const beat = filteredBeats[i]!;
       const isLast = i === filteredBeats.length - 1;
 
       // Create TTS request for this beat
+      const preset = getPresetForBeat(beat);
       const request: TTSRequest = {
         text: beat.content,
         role: getVoiceRoleForBeat(beat),
-        preset: getPresetForBeat(beat),
+        ...(preset && { preset }),
         priority: 'normal',
         cache: true,
       };

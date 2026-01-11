@@ -89,34 +89,37 @@ export class StatusBar {
       ];
     }
 
+    const aiDetail = this.status.ai.lastGenerationMs
+      ? `${this.status.ai.lastGenerationMs}ms`
+      : this.status.ai.errorMessage;
+    const ttsDetail = this.status.tts.queueLength > 0
+      ? `${this.status.tts.queueLength} queued`
+      : undefined;
+    const dbDetail = this.status.db.lastSyncAt
+      ? this.formatLastSync(this.status.db.lastSyncAt)
+      : undefined;
+
     return [
       {
         id: 'ai',
         label: 'AI',
         icon: '🤖',
         status: this.status.ai.status,
-        detail: this.status.ai.lastGenerationMs
-          ? `${this.status.ai.lastGenerationMs}ms`
-          : this.status.ai.errorMessage,
+        ...(aiDetail && { detail: aiDetail }),
       },
       {
         id: 'tts',
         label: 'TTS',
         icon: '🔊',
         status: this.status.tts.status,
-        detail:
-          this.status.tts.queueLength > 0
-            ? `${this.status.tts.queueLength} queued`
-            : undefined,
+        ...(ttsDetail && { detail: ttsDetail }),
       },
       {
         id: 'db',
         label: 'DB',
         icon: '💾',
         status: this.status.db.status,
-        detail: this.status.db.lastSyncAt
-          ? this.formatLastSync(this.status.db.lastSyncAt)
-          : undefined,
+        ...(dbDetail && { detail: dbDetail }),
       },
     ];
   }

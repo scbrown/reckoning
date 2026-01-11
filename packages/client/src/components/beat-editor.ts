@@ -7,7 +7,7 @@
 
 import type { GameStateManager } from '../state/game-state.js';
 import type { ClientGameState } from '../state/types.js';
-import type { NarrativeBeat, BeatType, BeatSequence } from '@reckoning/shared';
+import type { NarrativeBeat, BeatType } from '@reckoning/shared';
 
 export interface BeatEditorConfig {
   containerId: string;
@@ -488,12 +488,15 @@ export class BeatEditor {
     // This is a temporary solution until the server provides structured beats
     const paragraphs = content.split(/\n\n+/).filter((p) => p.trim());
 
-    return paragraphs.map((p, i) => ({
-      id: `beat-${Date.now()}-${i}`,
-      type: this.inferBeatType(p),
-      content: p.trim(),
-      speaker: this.extractSpeaker(p),
-    }));
+    return paragraphs.map((p, i) => {
+      const speaker = this.extractSpeaker(p);
+      return {
+        id: `beat-${Date.now()}-${i}`,
+        type: this.inferBeatType(p),
+        content: p.trim(),
+        ...(speaker && { speaker }),
+      };
+    });
   }
 
   private inferBeatType(text: string): BeatType {
