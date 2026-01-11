@@ -432,4 +432,222 @@ describe('TTS Routes', () => {
       expect(body).toHaveProperty('config');
     });
   });
+
+  describe('Character Voice Mapping', () => {
+    describe('GET /api/tts/characters', () => {
+      it('should return empty list when no character voices are configured', async () => {
+        const response = await app.inject({
+          method: 'GET',
+          url: '/api/tts/characters',
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body).toHaveProperty('characters');
+        expect(Array.isArray(body.characters)).toBe(true);
+      });
+    });
+
+    describe('POST /api/tts/characters', () => {
+      it('should create a character voice mapping', async () => {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            characterName: 'Stiwi',
+            voiceId: 'iKa6KVAfDE7NBkGe3dJo',
+          },
+        });
+
+        expect(response.statusCode).toBe(201);
+        const body = response.json();
+        expect(body.success).toBe(true);
+        expect(body.mapping.characterName).toBe('Stiwi');
+        expect(body.mapping.voiceId).toBe('iKa6KVAfDE7NBkGe3dJo');
+      });
+
+      it('should return 400 if characterName is missing', async () => {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            voiceId: 'some-voice-id',
+          },
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe('INVALID_REQUEST');
+      });
+
+      it('should return 400 if voiceId is missing', async () => {
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            characterName: 'Test',
+          },
+        });
+
+        expect(response.statusCode).toBe(400);
+        expect(response.json().error.code).toBe('INVALID_REQUEST');
+      });
+    });
+
+    describe('GET /api/tts/characters/:name', () => {
+      it('should return 404 for non-existent character', async () => {
+        const response = await app.inject({
+          method: 'GET',
+          url: '/api/tts/characters/NonExistent',
+        });
+
+        expect(response.statusCode).toBe(404);
+        expect(response.json().error.code).toBe('CHARACTER_NOT_FOUND');
+      });
+
+      it('should return character voice mapping', async () => {
+        // First create a mapping
+        await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            characterName: 'TestChar',
+            voiceId: 'test-voice-id',
+          },
+        });
+
+        const response = await app.inject({
+          method: 'GET',
+          url: '/api/tts/characters/TestChar',
+        });
+
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        expect(body.characterName).toBe('TestChar');
+        expect(body.voiceId).toBe('test-voice-id');
+      });
+
+      it('should be case-insensitive for character name lookup', async () => {
+        await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            characterName: 'CaseSensitive',
+            voiceId: 'case-voice-id',
+          },
+        });
+
+        const response = await app.inject({
+          method: 'GET',
+          url: '/api/tts/characters/casesensitive',
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.json().characterName).toBe('CaseSensitive');
+      });
+    });
+
+    describe('DELETE /api/tts/characters/:name', () => {
+      it('should return 404 for non-existent character', async () => {
+        const response = await app.inject({
+          method: 'DELETE',
+          url: '/api/tts/characters/NonExistent',
+        });
+
+        expect(response.statusCode).toBe(404);
+      });
+
+      it('should delete existing character voice mapping', async () => {
+        // Create first
+        await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            characterName: 'ToDelete',
+            voiceId: 'delete-voice-id',
+          },
+        });
+
+        // Delete
+        const deleteResponse = await app.inject({
+          method: 'DELETE',
+          url: '/api/tts/characters/ToDelete',
+        });
+
+        expect(deleteResponse.statusCode).toBe(200);
+        expect(deleteResponse.json().success).toBe(true);
+
+        // Verify it's gone
+        const getResponse = await app.inject({
+          method: 'GET',
+          url: '/api/tts/characters/ToDelete',
+        });
+
+        expect(getResponse.statusCode).toBe(404);
+      });
+    });
+
+    describe('POST /api/tts/speak with speakerName', () => {
+      it('should use character voice when speakerName matches configured character', async () => {
+        // Set up character voice
+        await app.inject({
+          method: 'POST',
+          url: '/api/tts/characters',
+          payload: {
+            characterName: 'SpeakerTest',
+            voiceId: 'speaker-voice-id',
+          },
+        });
+
+        // Mock successful ElevenLabs response
+        const mockAudioData = new Uint8Array([0x49, 0x44, 0x33]);
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          body: createMockStream(mockAudioData),
+          headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        });
+
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/tts/speak',
+          payload: {
+            text: 'Hello from speaker test',
+            speakerName: 'SpeakerTest',
+          },
+        });
+
+        expect(response.statusCode).toBe(200);
+        expect(response.headers['content-type']).toBe('audio/mpeg');
+
+        // Verify the correct voice was used
+        expect(mockFetch).toHaveBeenCalledWith(
+          expect.stringContaining('speaker-voice-id'),
+          expect.any(Object)
+        );
+      });
+
+      it('should fall back to role voice when speakerName is not configured', async () => {
+        // Mock successful ElevenLabs response
+        const mockAudioData = new Uint8Array([0x49, 0x44, 0x33]);
+        mockFetch.mockResolvedValueOnce({
+          ok: true,
+          body: createMockStream(mockAudioData),
+          headers: new Headers({ 'content-type': 'audio/mpeg' }),
+        });
+
+        const response = await app.inject({
+          method: 'POST',
+          url: '/api/tts/speak',
+          payload: {
+            text: 'Hello from unknown speaker',
+            speakerName: 'UnknownCharacter',
+            role: 'npc',
+          },
+        });
+
+        expect(response.statusCode).toBe(200);
+        // Should have fallen back to npc role voice
+        expect(mockFetch).toHaveBeenCalled();
+      });
+    });
+  });
 });
