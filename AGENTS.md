@@ -211,6 +211,28 @@ pnpm --filter @reckoning/client build
 
 Reckoning uses Gastown for multi-agent coordination with custom formulas.
 
+### Beads: Single Source of Truth
+
+**IMPORTANT:** Always use the gastown beads database, not the workspace `.beads` directory.
+
+There are two beads locations - only use gastown:
+- `/home/admin/gt/reckoning/.beads/` - **USE THIS** (gastown, visible to polecats)
+- `/home/admin/workspace/reckoning/.beads/` - **IGNORE** (local only, not dispatched)
+
+The `just` recipes automatically use the correct database:
+```bash
+just tasks              # Lists gastown beads
+just add-task "desc"    # Creates in gastown + syncs
+just done <id>          # Closes in gastown
+just beads-sync         # Syncs gastown beads
+```
+
+If you need to use `bd` directly, always specify the database:
+```bash
+bd --db /home/admin/gt/reckoning/.beads/beads.db list
+bd --db /home/admin/gt/reckoning/.beads/beads.db create "task"
+```
+
 ### For Mayor: Dispatching Work
 
 **ALWAYS use the `reckoning-work` formula when slinging work to polecats:**
@@ -286,7 +308,7 @@ The server automatically finds an available port if the default (3001) is in use
 4. **PUSH TO REMOTE** - This is MANDATORY:
    ```bash
    git pull --rebase
-   bd sync
+   just beads-sync        # Sync gastown beads
    git push
    git status  # MUST show "up to date with origin"
    ```
