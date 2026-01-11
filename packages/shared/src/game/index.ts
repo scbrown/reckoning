@@ -55,3 +55,12 @@ export type {
   SystemStatus,
   GameObservation,
 } from './status.js';
+
+// Beat types
+export type {
+  BeatType,
+  NarrativeBeat,
+  BeatMetadata,
+  BeatSequenceStatus,
+  BeatSequence,
+} from './beats.js';
