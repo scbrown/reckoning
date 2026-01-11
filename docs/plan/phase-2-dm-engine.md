@@ -3,7 +3,7 @@ title: "Phase 2: DM Engine & Minimal Playable Loop"
 type: plan
 status: active
 created: 2026-01-10
-updated: 2026-01-10
+updated: 2026-01-11
 authors:
   - human
   - agent
@@ -768,3 +768,51 @@ Dynamic world creation after character creation:
 4. **World Seeded** → Game begins
 
 This replaces the static "default-area" with AI-generated content tailored to the character.
+
+---
+
+## Known Issues & Next Steps (Pre-Phase 2.5)
+
+### AI Response Parsing ✅ FIXED
+
+The AI generates structured JSON responses using an output schema:
+```json
+{
+  "eventType": "narration",
+  "content": "The narrative text...",
+  "speaker": "Character name or null",
+  "suggestedActions": ["optional", "follow-up", "options"]
+}
+```
+
+**Solution implemented:**
+1. Added `GAME_CONTENT_SCHEMA` output schema for structured responses
+2. Claude CLI now uses `--output-format json` and `--json-schema` flags
+3. `ContentPipeline.parseResponse()` parses JSON and extracts fields
+4. Handles CLI wrapper format: extracts `structured_output` from `{ type: "result", structured_output: {...} }`
+5. Graceful fallback to text extraction if JSON parsing fails
+
+### Claude CLI Integration ✅ UPDATED
+
+Current status:
+- Uses `claude --model haiku --output-format json --json-schema <schema> -p "<prompt>"`
+- Output schema enforces consistent JSON responses
+- `stdio: ['ignore', 'pipe', 'pipe']` - stdin must be closed
+- Full path: `/home/admin/.npm-global/bin/claude`
+- 30 second timeout, 20 second early bailout
+
+### Client-Server API Mismatches ✅ FIXED
+
+Tests updated to match implementation:
+- `POST /api/game/new` - game creation with `{ gameId, session }` response
+- `GET /api/game/list` - list saves
+- `POST /api/game/:id/control` - playback mode (was `/playback` with PUT)
+- `POST /api/game/:id/submit` - wrapped in `{ action: ... }`
+
+### Demo Script
+
+Run `just demo` for interactive Phase 1 walkthrough with:
+- TTS voice configuration
+- Game engine architecture
+- Database persistence
+- Client UI overview

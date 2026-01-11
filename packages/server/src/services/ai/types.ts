@@ -11,6 +11,16 @@ import { Result } from '@reckoning/shared';
 // =============================================================================
 
 /**
+ * JSON Schema for structured output
+ */
+export interface OutputSchema {
+  /** Schema name (used as identifier) */
+  name: string;
+  /** JSON Schema object */
+  schema: Record<string, unknown>;
+}
+
+/**
  * Request to an AI provider
  */
 export interface AIRequest {
@@ -20,6 +30,8 @@ export interface AIRequest {
   systemPrompt?: string;
   /** Maximum tokens to generate */
   maxTokens?: number;
+  /** Optional JSON schema for structured output */
+  outputSchema?: OutputSchema;
 }
 
 /**

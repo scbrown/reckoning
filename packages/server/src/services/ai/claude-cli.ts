@@ -7,7 +7,7 @@
 
 import { spawn } from 'child_process';
 import { Result, Ok, Err } from '@reckoning/shared';
-import type { AIProvider, AIRequest, AIResponse, AIError } from './types.js';
+import type { AIProvider, AIRequest, AIResponse, AIError, OutputSchema } from './types.js';
 
 // =============================================================================
 // Configuration
@@ -95,7 +95,7 @@ export class ClaudeCodeCLI implements AIProvider {
     console.log('[ClaudeCLI] ─────────────────── PROMPT END ─────────────────────');
 
     try {
-      const result = await this.spawnClaude(request.prompt);
+      const result = await this.spawnClaude(request.prompt, request.outputSchema);
 
       const durationMs = Date.now() - startTime;
 
@@ -178,16 +178,35 @@ export class ClaudeCodeCLI implements AIProvider {
    * Spawn a Claude CLI subprocess
    *
    * @param prompt - The prompt or flag to pass to the CLI
+   * @param outputSchema - Optional JSON schema for structured output
    * @returns Subprocess result with stdout, stderr, and exit code
    */
-  private async spawnClaude(prompt: string): Promise<SubprocessResult> {
+  private async spawnClaude(
+    prompt: string,
+    outputSchema?: OutputSchema
+  ): Promise<SubprocessResult> {
     return new Promise((resolve, reject) => {
       // Determine args: for --version check, just pass it directly
       // For prompts, use --model and -p flags
       const isFlag = prompt.startsWith('-');
-      const args = isFlag ? [prompt] : ['--model', this.config.model, '-p', prompt];
+      let args: string[];
 
-      console.log(`[ClaudeCLI] Spawning: ${this.config.cliCommand} --model ${this.config.model} -p "<prompt>"`);
+      if (isFlag) {
+        args = [prompt];
+      } else {
+        args = ['--model', this.config.model];
+
+        // Add output format flags if schema provided
+        if (outputSchema) {
+          args.push('--output-format', 'json');
+          args.push('--json-schema', JSON.stringify(outputSchema.schema));
+        }
+
+        args.push('-p', prompt);
+      }
+
+      const schemaInfo = outputSchema ? ` with schema "${outputSchema.name}"` : '';
+      console.log(`[ClaudeCLI] Spawning: ${this.config.cliCommand} --model ${this.config.model}${schemaInfo} -p "<prompt>"`);
       console.log(`[ClaudeCLI] CWD: ${process.cwd()}, PATH includes npm-global: ${process.env.PATH?.includes('.npm-global') ?? false}`);
 
       const proc = spawn(this.config.cliCommand, args, {

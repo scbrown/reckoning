@@ -14,7 +14,10 @@
       "Bash(gt --version:*)",
       "Bash(just:*)",
       "Bash(pnpm --version:*)",
-      "Bash(go install:*)"
+      "Bash(go install:*)",
+      "WebFetch(domain:elevenlabs.io)",
+      "Bash(grep:*)",
+      "WebSearch"
     ]
   }
 }

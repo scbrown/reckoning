@@ -85,10 +85,10 @@ describe('ClaudeCodeCLI', () => {
 
       expect(mockSpawn).toHaveBeenCalledWith(
         'claude',
-        ['-p', 'Hello, Claude!'],
+        ['--model', 'haiku', '-p', 'Hello, Claude!'],
         expect.objectContaining({
-          shell: true,
           env: expect.any(Object),
+          stdio: ['ignore', 'pipe', 'pipe'],
         })
       );
     });

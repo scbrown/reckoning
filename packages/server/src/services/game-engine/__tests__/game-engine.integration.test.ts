@@ -25,15 +25,15 @@ describe('GameEngine Integration', () => {
     const schema = readFileSync(schemaPath, 'utf-8');
     db.exec(schema);
 
-    // Seed with test data - include default-area which is the fallback starting point
+    // Seed with test data - default-area is already in schema.sql, so use OR REPLACE
     db.exec(`
-      INSERT INTO areas (id, name, description, tags)
+      INSERT OR REPLACE INTO areas (id, name, description, tags)
       VALUES ('default-area', 'Town Square', 'A bustling town square.', '["town", "start"]');
 
-      INSERT INTO areas (id, name, description, tags)
+      INSERT OR REPLACE INTO areas (id, name, description, tags)
       VALUES ('area-1', 'Tavern', 'A cozy tavern.', '["town", "building"]');
 
-      INSERT INTO area_exits (area_id, direction, target_area_id, description)
+      INSERT OR REPLACE INTO area_exits (area_id, direction, target_area_id, description)
       VALUES ('default-area', 'north', 'area-1', 'To the tavern');
     `);
 
@@ -98,9 +98,7 @@ describe('GameEngine Integration', () => {
         game.id,
         expect.objectContaining({
           type: 'generation_complete',
-          content: expect.objectContaining({
-            content: 'The adventurer steps into the town square.',
-          }),
+          content: 'The adventurer steps into the town square.',
         })
       );
 

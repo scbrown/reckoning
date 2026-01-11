@@ -26,11 +26,12 @@ This directory contains detailed implementation plans for each development phase
 |-------|-------|--------|
 | [Phase 0](./phase-0-project-setup.md) | Project Foundation | Complete |
 | [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Complete |
-| [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Planning |
-| Phase 3 | History & Perspective System | Not Started |
-| Phase 4 | Pattern Engine | Not Started |
-| Phase 5 | Trial System | Not Started |
-| Phase 6 | UI & Rendering | Not Started |
+| [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Complete |
+| [Phase 3](./phase-3-party-world.md) | Party System, Beats & World Gen | Planning |
+| Phase 4 | History & Perspective System | Not Started |
+| Phase 5 | Pattern Engine | Not Started |
+| Phase 6 | Trial System | Not Started |
+| Phase 7 | UI & Rendering | Not Started |
 
 ## Phase 0: Foundation
 

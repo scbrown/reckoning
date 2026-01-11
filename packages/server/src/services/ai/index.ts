@@ -10,9 +10,12 @@ export type {
   AIError,
   AIErrorCode,
   AIProvider,
+  OutputSchema,
 } from './types.js';
 
 export { ClaudeCodeCLI, type ClaudeCLIConfig } from './claude-cli.js';
+
+export { GAME_CONTENT_SCHEMA } from './schemas.js';
 
 export {
   createContextBuilder,

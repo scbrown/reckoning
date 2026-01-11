@@ -17,6 +17,7 @@ import type {
   ExtendedGenerationContext,
 } from '../ai/context-builder.js';
 import type { AIProvider } from '../ai/types.js';
+import { GAME_CONTENT_SCHEMA } from '../ai/schemas.js';
 import {
   buildPrompt,
   type PromptBuildContext,
@@ -112,10 +113,11 @@ export class ContentPipeline {
     const prompt = buildPrompt(promptContext);
     console.log(`[ContentPipeline] Prompt ready (${prompt.combined.length} chars)`);
 
-    // Execute AI generation
-    console.log('[ContentPipeline] Calling AI provider...');
+    // Execute AI generation with structured output schema
+    console.log('[ContentPipeline] Calling AI provider with game content schema...');
     const aiResult = await this.aiProvider.execute({
       prompt: prompt.combined,
+      outputSchema: GAME_CONTENT_SCHEMA,
     });
 
     if (!aiResult.ok) {
@@ -232,12 +234,60 @@ export class ContentPipeline {
   }
 
   /**
+   * Expected JSON structure from AI response
+   */
+  private static readonly VALID_EVENT_TYPES = new Set([
+    'party_action',
+    'party_dialogue',
+    'npc_action',
+    'npc_dialogue',
+    'narration',
+    'environment',
+  ]);
+
+  /**
    * Parse AI response into GeneratedContent
+   *
+   * The AI is instructed to respond with JSON in this format:
+   * {
+   *   "eventType": "narration" | "party_action" | etc,
+   *   "content": "The narrative text...",
+   *   "speaker": "Character name or null",
+   *   "suggestedActions": ["optional", "follow-up", "options"]
+   * }
+   *
+   * If JSON parsing fails, falls back to treating the response as plain text.
    */
   private parseResponse(
     response: string,
     generationType: GenerationType
   ): GeneratedContent {
+    // Try to parse as JSON first
+    const jsonResult = this.tryParseJsonResponse(response);
+
+    if (jsonResult) {
+      console.log('[ContentPipeline] Successfully parsed JSON response');
+      // Build metadata object only with defined values (exactOptionalPropertyTypes)
+      const metadata: GeneratedContent['metadata'] = {};
+      if (jsonResult.speaker) {
+        metadata.speaker = jsonResult.speaker;
+      }
+      if (jsonResult.suggestedActions && jsonResult.suggestedActions.length > 0) {
+        metadata.suggestedActions = jsonResult.suggestedActions;
+      }
+
+      return {
+        id: randomUUID(),
+        generationType,
+        eventType: jsonResult.eventType,
+        content: jsonResult.content,
+        metadata,
+      };
+    }
+
+    // Fallback: treat as plain text with regex extraction
+    console.log('[ContentPipeline] JSON parse failed, falling back to text extraction');
+
     // Map generation type to event type
     const eventType = this.mapToEventType(generationType);
 
@@ -254,6 +304,106 @@ export class ContentPipeline {
       content,
       metadata,
     };
+  }
+
+  /**
+   * Try to parse AI response as JSON
+   *
+   * Handles various edge cases:
+   * - Claude CLI wrapper format with structured_output field
+   * - JSON wrapped in markdown code blocks
+   * - Extra text before/after JSON
+   * - Partial JSON with missing fields
+   */
+  private tryParseJsonResponse(response: string): {
+    eventType: EventType;
+    content: string;
+    speaker: string | null;
+    suggestedActions?: string[];
+  } | null {
+    const trimmed = response.trim();
+
+    // Try to extract JSON from markdown code blocks
+    let jsonStr = trimmed;
+    const codeBlockMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch && codeBlockMatch[1]) {
+      jsonStr = codeBlockMatch[1].trim();
+    } else {
+      // Try to find JSON object in the response
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+      if (jsonMatch && jsonMatch[0]) {
+        jsonStr = jsonMatch[0];
+      }
+    }
+
+    try {
+      let parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+
+      // Handle Claude CLI wrapper format: { type: "result", structured_output: {...} }
+      if (
+        parsed.type === 'result' &&
+        typeof parsed.structured_output === 'object' &&
+        parsed.structured_output !== null
+      ) {
+        console.log('[ContentPipeline] Detected CLI wrapper format, extracting structured_output');
+        parsed = parsed.structured_output as Record<string, unknown>;
+      }
+
+      // Validate required fields
+      if (typeof parsed.content !== 'string' || !parsed.content.trim()) {
+        console.log('[ContentPipeline] JSON missing or empty content field');
+        return null;
+      }
+
+      // Validate and map eventType
+      const rawEventType = parsed.eventType;
+      let eventType: EventType = 'narration'; // default
+
+      if (
+        typeof rawEventType === 'string' &&
+        ContentPipeline.VALID_EVENT_TYPES.has(rawEventType)
+      ) {
+        eventType = rawEventType as EventType;
+      } else if (rawEventType !== undefined) {
+        console.log(
+          `[ContentPipeline] Unknown eventType "${rawEventType}", defaulting to narration`
+        );
+      }
+
+      // Extract optional fields
+      const speaker =
+        typeof parsed.speaker === 'string' ? parsed.speaker : null;
+
+      // Build return object, only including suggestedActions if present
+      const result: {
+        eventType: EventType;
+        content: string;
+        speaker: string | null;
+        suggestedActions?: string[];
+      } = {
+        eventType,
+        content: parsed.content.trim(),
+        speaker,
+      };
+
+      // Only add suggestedActions if present and non-empty
+      if (Array.isArray(parsed.suggestedActions)) {
+        const actions = (parsed.suggestedActions as unknown[]).filter(
+          (a): a is string => typeof a === 'string'
+        );
+        if (actions.length > 0) {
+          result.suggestedActions = actions;
+        }
+      }
+
+      return result;
+    } catch (e) {
+      // JSON parse failed
+      console.log(
+        `[ContentPipeline] JSON parse error: ${e instanceof Error ? e.message : 'Unknown'}`
+      );
+      return null;
+    }
   }
 
   /**

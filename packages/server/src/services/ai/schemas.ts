@@ -1,14 +1,68 @@
 /**
  * AI Output Schemas
  *
- * Zod schemas for validating and parsing AI-generated content.
- * These schemas define the expected structure of AI outputs for world generation.
+ * This file contains two types of schemas:
+ * 1. JSON schemas for Claude CLI structured output (OutputSchema)
+ * 2. Zod schemas for validation and parsing of AI-generated content
  */
 
 import { z } from 'zod';
+import type { OutputSchema } from './types.js';
 
 // =============================================================================
-// Area Component Schemas
+// Claude CLI Output Schemas (JSON Schema format)
+// =============================================================================
+
+/**
+ * Schema for generated game content
+ *
+ * The AI must respond with:
+ * - eventType: Classification of the content
+ * - content: The narrative text
+ * - speaker: Character name if dialogue, null otherwise
+ * - suggestedActions: Optional follow-up options
+ */
+export const GAME_CONTENT_SCHEMA: OutputSchema = {
+  name: 'game_content',
+  schema: {
+    type: 'object',
+    properties: {
+      eventType: {
+        type: 'string',
+        enum: [
+          'party_action',
+          'party_dialogue',
+          'npc_action',
+          'npc_dialogue',
+          'narration',
+          'environment',
+        ],
+        description:
+          'Classification of the generated content based on what it describes',
+      },
+      content: {
+        type: 'string',
+        description:
+          'The narrative text to be read aloud or displayed to players',
+      },
+      speaker: {
+        type: ['string', 'null'],
+        description:
+          'Name of the character speaking (for dialogue) or null for narration',
+      },
+      suggestedActions: {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Optional list of follow-up actions or prompts for the DM',
+      },
+    },
+    required: ['eventType', 'content'],
+    additionalProperties: false,
+  },
+};
+
+// =============================================================================
+// Zod Schemas for World Generation
 // =============================================================================
 
 /**
@@ -89,10 +143,6 @@ export const AreaSchema = z.object({
   /** Searchable tags for categorization */
   tags: z.array(z.string()),
 });
-
-// =============================================================================
-// World Generation Schema
-// =============================================================================
 
 /**
  * Schema for the complete world generation output

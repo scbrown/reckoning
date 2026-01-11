@@ -110,7 +110,9 @@ describe('GameService', () => {
 
     it('should return game ID after newGame', async () => {
       const mockSession = createMockSession();
-      mockFetch.mockResolvedValueOnce(mockResponse(mockSession));
+      mockFetch.mockResolvedValueOnce(
+        mockResponse({ gameId: 'game-123', session: mockSession })
+      );
 
       await gameService.newGame('Test Player');
 
@@ -121,16 +123,18 @@ describe('GameService', () => {
   describe('newGame', () => {
     it('should create a new game session', async () => {
       const mockSession = createMockSession();
-      mockFetch.mockResolvedValueOnce(mockResponse(mockSession));
+      mockFetch.mockResolvedValueOnce(
+        mockResponse({ gameId: 'game-123', session: mockSession })
+      );
 
       const result = await gameService.newGame('Test Player', 'A brave hero');
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/game', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/game/new', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           playerName: 'Test Player',
-          description: 'A brave hero',
+          playerDescription: 'A brave hero',
         }),
       });
       expect(result).toEqual(mockSession);
@@ -138,7 +142,9 @@ describe('GameService', () => {
 
     it('should store the game ID', async () => {
       const mockSession = createMockSession();
-      mockFetch.mockResolvedValueOnce(mockResponse(mockSession));
+      mockFetch.mockResolvedValueOnce(
+        mockResponse({ gameId: 'game-123', session: mockSession })
+      );
 
       await gameService.newGame('Test Player');
 
@@ -181,7 +187,7 @@ describe('GameService', () => {
 
       const result = await gameService.listSaves();
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/game/saves', {
+      expect(mockFetch).toHaveBeenCalledWith('/api/game/list', {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -312,7 +318,7 @@ describe('GameService', () => {
       expect(mockFetch).toHaveBeenCalledWith('/api/game/game-123/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'ACCEPT' }),
+        body: JSON.stringify({ action: { type: 'ACCEPT' } }),
       });
       expect(result.event).toEqual(mockEvent);
       expect(result.session).toEqual(mockSession);
@@ -333,7 +339,7 @@ describe('GameService', () => {
       expect(mockFetch).toHaveBeenCalledWith('/api/game/game-123/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'EDIT', content: 'Edited content' }),
+        body: JSON.stringify({ action: { type: 'EDIT', content: 'Edited content' } }),
       });
       expect(result.event).toEqual(mockEvent);
     });
@@ -354,8 +360,7 @@ describe('GameService', () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          type: 'REGENERATE',
-          guidance: 'Make it more dramatic',
+          action: { type: 'REGENERATE', guidance: 'Make it more dramatic' },
         }),
       });
       expect(result.event).toEqual(mockEvent);
@@ -479,8 +484,8 @@ describe('GameService', () => {
 
       const result = await gameService.setPlaybackMode('game-123', 'paused');
 
-      expect(mockFetch).toHaveBeenCalledWith('/api/game/game-123/playback', {
-        method: 'PUT',
+      expect(mockFetch).toHaveBeenCalledWith('/api/game/game-123/control', {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ mode: 'paused' }),
       });

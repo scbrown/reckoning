@@ -313,11 +313,22 @@ async function handleGameLoaded(): Promise<void> {
 async function handleAccept(): Promise<void> {
   if (!stateManager) return;
 
+  // Get the content before submit (it will be cleared after)
+  const content = dmEditor?.getContent() || stateManager.getState().pendingContent?.content;
+
   try {
     await stateManager.submitContent({
       type: 'ACCEPT',
     });
     dmEditor?.resetEditingState();
+
+    // Trigger TTS for the accepted content
+    if (content) {
+      console.log('[Main] Speaking accepted content');
+      ttsService.speak({ text: content, role: 'narrator' }).catch((error) => {
+        console.error('[Main] TTS failed:', error);
+      });
+    }
   } catch (error) {
     console.error('[Main] Accept failed:', error);
     showError(error instanceof Error ? error.message : 'Failed to accept content');
@@ -335,6 +346,14 @@ async function handleEdit(): Promise<void> {
       content,
     });
     dmEditor.resetEditingState();
+
+    // Trigger TTS for the edited content
+    if (content) {
+      console.log('[Main] Speaking edited content');
+      ttsService.speak({ text: content, role: 'narrator' }).catch((error) => {
+        console.error('[Main] TTS failed:', error);
+      });
+    }
   } catch (error) {
     console.error('[Main] Edit failed:', error);
     showError(error instanceof Error ? error.message : 'Failed to submit edit');
@@ -364,6 +383,12 @@ async function handleInject(): Promise<void> {
   try {
     await stateManager.injectContent(content, 'narration');
     dmEditor.resetEditingState();
+
+    // Trigger TTS for the injected content
+    console.log('[Main] Speaking injected content');
+    ttsService.speak({ text: content, role: 'narrator' }).catch((error) => {
+      console.error('[Main] TTS failed:', error);
+    });
   } catch (error) {
     console.error('[Main] Inject failed:', error);
     showError(error instanceof Error ? error.message : 'Failed to inject content');

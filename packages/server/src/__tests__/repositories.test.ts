@@ -250,8 +250,9 @@ describe('AreaRepository', () => {
       VALUES ('area-2', 'Second Area', 'Another area', '[]')
     `).run();
 
+    // default-area is seeded in schema.sql, so we have: default-area, area-1, area-2
     const areas = repo.findAll();
-    expect(areas).toHaveLength(2);
+    expect(areas).toHaveLength(3);
   });
 
   it('should get area with details', () => {
