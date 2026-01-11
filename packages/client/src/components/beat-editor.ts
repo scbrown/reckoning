@@ -213,7 +213,7 @@ export class BeatEditor {
 
     if (draggedIndex !== -1 && targetIndex !== -1) {
       const [draggedBeat] = this.beats.splice(draggedIndex, 1);
-      this.beats.splice(targetIndex, 0, draggedBeat);
+      this.beats.splice(targetIndex, 0, draggedBeat!);
       this.renderBeats();
     }
 
