@@ -36,6 +36,7 @@ test-results/
 *~
 
 # Runtime
+.runtime/
 .server-port
 .pnpm-store/
 
