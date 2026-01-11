@@ -101,12 +101,23 @@ describe('Repository Integration Tests', () => {
       VALUES ('player-1', ?, 'Hero', 'A brave adventurer')
     `).run(game.id);
 
-    // 3. Create party members
-    const party = partyRepo.create(game.id, [
-      { name: 'Warrior', description: 'Strong fighter', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-      { name: 'Mage', description: 'Wise spellcaster', class: 'Wizard', stats: { health: 60, maxHealth: 60 } },
-    ]);
-    expect(party).toHaveLength(2);
+    // 3. Create party and add members
+    const party = partyRepo.create(game.id);
+    partyRepo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'Strong fighter',
+      class: 'Fighter',
+      role: 'player',
+      stats: { health: 100, maxHealth: 100 },
+    });
+    partyRepo.addCharacter(party.id, {
+      name: 'Mage',
+      description: 'Wise spellcaster',
+      class: 'Wizard',
+      role: 'member',
+      stats: { health: 60, maxHealth: 60 },
+    });
+    expect(party.id).toBeDefined();
 
     // 4. Create some events
     const event1 = eventRepo.create({

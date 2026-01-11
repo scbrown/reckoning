@@ -1,9 +1,26 @@
 import type Database from 'better-sqlite3';
-import type { Character } from '@reckoning/shared/game';
+import type { Party, Character, CharacterStats } from '@reckoning/shared/game';
 import { randomUUID } from 'crypto';
 
 /**
- * Repository for party member operations
+ * Character role within a party
+ * Role limits enforced: 1 player, 2 members, 2 companions
+ */
+export type CharacterRole = 'player' | 'member' | 'companion';
+
+/**
+ * Input for creating a character
+ */
+export interface CreateCharacterInput {
+  name: string;
+  description?: string;
+  class?: string;
+  role: CharacterRole;
+  stats?: CharacterStats;
+}
+
+/**
+ * Repository for party CRUD operations
  */
 export class PartyRepository {
   private db: Database.Database;
@@ -13,114 +30,214 @@ export class PartyRepository {
   }
 
   /**
-   * Create party members for a game
+   * Create a new party for a game
    */
-  create(gameId: string, members: Omit<Character, 'id'>[]): Character[] {
-    const insertStmt = this.db.prepare(`
-      INSERT INTO party_members (id, game_id, name, description, class, created_at)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-
+  create(gameId: string, name?: string): Party {
+    const id = randomUUID();
     const now = new Date().toISOString();
-    const createdMembers: Character[] = [];
 
-    const insertMany = this.db.transaction(() => {
-      for (const member of members) {
-        const id = randomUUID();
-        insertStmt.run(id, gameId, member.name, member.description, member.class, now);
-        createdMembers.push({
-          id,
-          ...member,
-        });
-      }
-    });
+    this.db.prepare(`
+      INSERT INTO parties (id, game_id, name, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(id, gameId, name || null, now, now);
 
-    insertMany();
-
-    return createdMembers;
+    return {
+      id,
+      gameId,
+      members: [],
+    };
   }
 
   /**
-   * Find all party members for a game
+   * Find all parties for a game
+   */
+  findByGameId(gameId: string): Party[] {
+    const rows = this.db.prepare(`
+      SELECT id, game_id FROM parties WHERE game_id = ?
+    `).all(gameId) as PartyRow[];
+
+    return rows.map(row => ({
+      id: row.id,
+      gameId: row.game_id,
+      members: this.getCharactersByPartyId(row.id),
+    }));
+  }
+
+  /**
+   * Find all characters for a game (convenience method)
+   * Returns all characters across all parties in the game
+   * @deprecated Use findByGameId and access party.members instead
    */
   findByGame(gameId: string): Character[] {
-    const rows = this.db.prepare(`
-      SELECT id, name, description, class FROM party_members WHERE game_id = ?
-    `).all(gameId) as PartyMemberRow[];
-
-    return rows.map(row => this.rowToCharacter(row));
+    const parties = this.findByGameId(gameId);
+    return parties.flatMap(party => party.members);
   }
 
   /**
-   * Find a party member by ID
+   * Get a party with all its members
    */
-  findById(id: string): Character | null {
+  getWithMembers(partyId: string): Party | null {
     const row = this.db.prepare(`
-      SELECT id, name, description, class FROM party_members WHERE id = ?
-    `).get(id) as PartyMemberRow | undefined;
+      SELECT id, game_id FROM parties WHERE id = ?
+    `).get(partyId) as PartyRow | undefined;
 
     if (!row) return null;
 
-    return this.rowToCharacter(row);
+    return {
+      id: row.id,
+      gameId: row.game_id,
+      members: this.getCharactersByPartyId(row.id),
+    };
   }
 
   /**
-   * Update a party member
+   * Update a party
    */
-  update(member: Partial<Character> & { id: string }): void {
+  update(party: { id: string; name?: string }): void {
     const fields: string[] = [];
     const values: unknown[] = [];
 
-    if (member.name !== undefined) {
+    if (party.name !== undefined) {
       fields.push('name = ?');
-      values.push(member.name);
-    }
-    if (member.description !== undefined) {
-      fields.push('description = ?');
-      values.push(member.description);
-    }
-    if (member.class !== undefined) {
-      fields.push('class = ?');
-      values.push(member.class);
+      values.push(party.name);
     }
 
     if (fields.length === 0) return;
 
-    values.push(member.id);
+    fields.push('updated_at = ?');
+    values.push(new Date().toISOString());
+    values.push(party.id);
 
     this.db.prepare(`
-      UPDATE party_members SET ${fields.join(', ')} WHERE id = ?
+      UPDATE parties SET ${fields.join(', ')} WHERE id = ?
     `).run(...values);
   }
 
   /**
-   * Delete a party member
+   * Delete a party and all its characters
    */
   delete(id: string): void {
-    this.db.prepare('DELETE FROM party_members WHERE id = ?').run(id);
+    const deleteParty = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM characters WHERE party_id = ?').run(id);
+      this.db.prepare('DELETE FROM parties WHERE id = ?').run(id);
+    });
+    deleteParty();
   }
 
   /**
-   * Delete all party members for a game
+   * Add a character to a party
    */
-  deleteByGame(gameId: string): void {
-    this.db.prepare('DELETE FROM party_members WHERE game_id = ?').run(gameId);
+  addCharacter(partyId: string, input: CreateCharacterInput): Character {
+    const id = randomUUID();
+    const now = new Date().toISOString();
+    const stats = input.stats || { health: 100, maxHealth: 100 };
+
+    this.db.prepare(`
+      INSERT INTO characters (id, party_id, name, description, class, role, stats, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      id,
+      partyId,
+      input.name,
+      input.description || null,
+      input.class || null,
+      input.role,
+      JSON.stringify(stats),
+      now,
+      now
+    );
+
+    return {
+      id,
+      name: input.name,
+      description: input.description || '',
+      class: input.class || '',
+      stats,
+    };
   }
 
-  private rowToCharacter(row: PartyMemberRow): Character {
+  /**
+   * Update a character
+   */
+  updateCharacter(character: Partial<Character> & { id: string }): void {
+    const fields: string[] = [];
+    const values: unknown[] = [];
+
+    if (character.name !== undefined) {
+      fields.push('name = ?');
+      values.push(character.name);
+    }
+    if (character.description !== undefined) {
+      fields.push('description = ?');
+      values.push(character.description);
+    }
+    if (character.class !== undefined) {
+      fields.push('class = ?');
+      values.push(character.class);
+    }
+    if (character.stats !== undefined) {
+      fields.push('stats = ?');
+      values.push(JSON.stringify(character.stats));
+    }
+
+    if (fields.length === 0) return;
+
+    fields.push('updated_at = ?');
+    values.push(new Date().toISOString());
+    values.push(character.id);
+
+    this.db.prepare(`
+      UPDATE characters SET ${fields.join(', ')} WHERE id = ?
+    `).run(...values);
+  }
+
+  /**
+   * Remove a character from a party
+   */
+  removeCharacter(characterId: string): void {
+    this.db.prepare('DELETE FROM characters WHERE id = ?').run(characterId);
+  }
+
+  /**
+   * Get characters for a party
+   */
+  private getCharactersByPartyId(partyId: string): Character[] {
+    const rows = this.db.prepare(`
+      SELECT id, name, description, class, stats FROM characters WHERE party_id = ?
+    `).all(partyId) as CharacterRow[];
+
+    return rows.map(row => this.rowToCharacter(row));
+  }
+
+  private rowToCharacter(row: CharacterRow): Character {
+    let stats: CharacterStats = { health: 100, maxHealth: 100 };
+    if (row.stats) {
+      try {
+        stats = JSON.parse(row.stats);
+      } catch {
+        // Use default stats if parsing fails
+      }
+    }
+
     return {
       id: row.id,
       name: row.name,
       description: row.description || '',
       class: row.class || '',
-      stats: { health: 100, maxHealth: 100 },
+      stats,
     };
   }
 }
 
-interface PartyMemberRow {
+interface PartyRow {
+  id: string;
+  game_id: string;
+}
+
+interface CharacterRow {
   id: string;
   name: string;
   description: string | null;
   class: string | null;
+  stats: string | null;
 }

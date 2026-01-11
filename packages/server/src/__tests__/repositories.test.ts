@@ -311,71 +311,130 @@ describe('PartyRepository', () => {
     db.close();
   });
 
-  it('should create party members', () => {
-    const members = repo.create(gameId, [
-      { name: 'Warrior', description: 'A brave warrior', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-      { name: 'Mage', description: 'A wise mage', class: 'Wizard', stats: { health: 60, maxHealth: 60 } },
-    ]);
+  it('should create a party', () => {
+    const party = repo.create(gameId, 'The Heroes');
 
-    expect(members).toHaveLength(2);
-    expect(members[0].id).toBeDefined();
-    expect(members[0].name).toBe('Warrior');
-    expect(members[1].name).toBe('Mage');
+    expect(party.id).toBeDefined();
+    expect(party.gameId).toBe(gameId);
+    expect(party.members).toHaveLength(0);
   });
 
-  it('should find party members by game', () => {
-    repo.create(gameId, [
-      { name: 'Warrior', description: 'A brave warrior', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-    ]);
+  it('should add characters to a party', () => {
+    const party = repo.create(gameId);
+    const warrior = repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+      stats: { health: 100, maxHealth: 100 },
+    });
+    const mage = repo.addCharacter(party.id, {
+      name: 'Mage',
+      description: 'A wise mage',
+      class: 'Wizard',
+      role: 'member',
+      stats: { health: 60, maxHealth: 60 },
+    });
+
+    expect(warrior.id).toBeDefined();
+    expect(warrior.name).toBe('Warrior');
+    expect(mage.name).toBe('Mage');
+  });
+
+  it('should find parties by game', () => {
+    const party = repo.create(gameId);
+    repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+    });
+
+    const parties = repo.findByGameId(gameId);
+    expect(parties).toHaveLength(1);
+    expect(parties[0]?.members).toHaveLength(1);
+    expect(parties[0]?.members[0]?.name).toBe('Warrior');
+  });
+
+  it('should get party with members', () => {
+    const party = repo.create(gameId);
+    repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+    });
+
+    const found = repo.getWithMembers(party.id);
+    expect(found).not.toBeNull();
+    expect(found?.members).toHaveLength(1);
+    expect(found?.members[0]?.name).toBe('Warrior');
+  });
+
+  it('should update a character', () => {
+    const party = repo.create(gameId);
+    const character = repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+    });
+
+    repo.updateCharacter({ id: character.id, name: 'Veteran Warrior', class: 'Champion' });
+
+    const found = repo.getWithMembers(party.id);
+    expect(found?.members[0]?.name).toBe('Veteran Warrior');
+    expect(found?.members[0]?.class).toBe('Champion');
+  });
+
+  it('should remove a character', () => {
+    const party = repo.create(gameId);
+    const character = repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+    });
+
+    repo.removeCharacter(character.id);
+
+    const found = repo.getWithMembers(party.id);
+    expect(found?.members).toHaveLength(0);
+  });
+
+  it('should delete party and its characters', () => {
+    const party = repo.create(gameId);
+    repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+    });
+    repo.addCharacter(party.id, {
+      name: 'Mage',
+      description: 'A wise mage',
+      class: 'Wizard',
+      role: 'member',
+    });
+
+    repo.delete(party.id);
+
+    const parties = repo.findByGameId(gameId);
+    expect(parties).toHaveLength(0);
+  });
+
+  it('should find all characters by game (deprecated method)', () => {
+    const party = repo.create(gameId);
+    repo.addCharacter(party.id, {
+      name: 'Warrior',
+      description: 'A brave warrior',
+      class: 'Fighter',
+      role: 'player',
+    });
 
     const members = repo.findByGame(gameId);
     expect(members).toHaveLength(1);
-    expect(members[0].name).toBe('Warrior');
-  });
-
-  it('should find party member by id', () => {
-    const created = repo.create(gameId, [
-      { name: 'Warrior', description: 'A brave warrior', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-    ]);
-
-    const found = repo.findById(created[0].id);
-    expect(found).not.toBeNull();
-    expect(found?.name).toBe('Warrior');
-  });
-
-  it('should update party member', () => {
-    const created = repo.create(gameId, [
-      { name: 'Warrior', description: 'A brave warrior', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-    ]);
-
-    repo.update({ id: created[0].id, name: 'Veteran Warrior', class: 'Champion' });
-
-    const found = repo.findById(created[0].id);
-    expect(found?.name).toBe('Veteran Warrior');
-    expect(found?.class).toBe('Champion');
-  });
-
-  it('should delete party member', () => {
-    const created = repo.create(gameId, [
-      { name: 'Warrior', description: 'A brave warrior', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-    ]);
-
-    repo.delete(created[0].id);
-
-    const found = repo.findById(created[0].id);
-    expect(found).toBeNull();
-  });
-
-  it('should delete all party members by game', () => {
-    repo.create(gameId, [
-      { name: 'Warrior', description: 'A brave warrior', class: 'Fighter', stats: { health: 100, maxHealth: 100 } },
-      { name: 'Mage', description: 'A wise mage', class: 'Wizard', stats: { health: 60, maxHealth: 60 } },
-    ]);
-
-    repo.deleteByGame(gameId);
-
-    const members = repo.findByGame(gameId);
-    expect(members).toHaveLength(0);
+    expect(members[0]?.name).toBe('Warrior');
   });
 });
 

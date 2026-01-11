@@ -126,15 +126,15 @@ export class GameEngine {
     // Create player record (for getSession to work)
     this.createPlayer(game.id, playerId, playerName);
 
-    // Create party member for player
-    this.partyRepo.create(game.id, [
-      {
-        name: playerName,
-        description: 'The adventurer',
-        class: 'Adventurer',
-        stats: { health: 100, maxHealth: 100 },
-      },
-    ]);
+    // Create party and add player character
+    const party = this.partyRepo.create(game.id);
+    this.partyRepo.addCharacter(party.id, {
+      name: playerName,
+      description: 'The adventurer',
+      class: 'Adventurer',
+      role: 'player',
+      stats: { health: 100, maxHealth: 100 },
+    });
 
     // Set initial playback mode
     this.eventLoop.setMode(game.id, 'paused');
