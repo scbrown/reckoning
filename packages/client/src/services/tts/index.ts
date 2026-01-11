@@ -11,6 +11,9 @@ import type {
   TTSQueueStatus,
   TTSPlaybackState,
   TTSEventCallbacks,
+  VoiceRole,
+  NarrativeBeat,
+  BeatType,
 } from '@reckoning/shared';
 
 /**
@@ -30,6 +33,46 @@ export interface TTSServiceConfig {
  */
 function generateId(): string {
   return `tts-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
+/**
+ * Map beat types to voice roles for TTS playback
+ */
+const BEAT_TYPE_TO_VOICE_ROLE: Record<BeatType, VoiceRole> = {
+  narration: 'narrator',
+  dialogue: 'npc',
+  action: 'narrator',
+  thought: 'inner_voice',
+  sound: 'narrator',
+  transition: 'narrator',
+};
+
+/**
+ * Get the appropriate voice role for a beat
+ */
+function getVoiceRoleForBeat(beat: NarrativeBeat): VoiceRole {
+  // If the beat has a speaker, use NPC voice for dialogue-like beats
+  if (beat.speaker && (beat.type === 'dialogue' || beat.type === 'thought')) {
+    return beat.type === 'thought' ? 'inner_voice' : 'npc';
+  }
+  return BEAT_TYPE_TO_VOICE_ROLE[beat.type];
+}
+
+/**
+ * Get the voice preset based on beat metadata
+ */
+function getPresetForBeat(beat: NarrativeBeat): string | undefined {
+  if (!beat.metadata?.emotion) return undefined;
+
+  // Map emotions to presets
+  const emotion = beat.metadata.emotion.toLowerCase();
+  if (emotion.includes('intense') || emotion.includes('angry') || emotion.includes('excited')) {
+    return 'dialogue_intense';
+  }
+  if (emotion.includes('calm') || emotion.includes('peaceful') || emotion.includes('soft')) {
+    return 'dialogue_calm';
+  }
+  return undefined;
 }
 
 /**
@@ -86,6 +129,104 @@ export class TTSService implements ITTSService {
     });
 
     return item.id;
+  }
+
+  /**
+   * Speak a sequence of narrative beats with appropriate voices and pauses
+   *
+   * @param beats - Array of narrative beats to speak in sequence
+   * @param options - Optional configuration for sequence playback
+   * @returns Promise that resolves when all beats have been queued
+   */
+  async speakSequence(
+    beats: NarrativeBeat[],
+    options: {
+      /** Default pause between beats in ms (default: 500) */
+      defaultPause?: number;
+      /** Skip empty beats (default: true) */
+      skipEmpty?: boolean;
+      /** Callback when each beat starts */
+      onBeatStart?: (beat: NarrativeBeat, index: number) => void;
+      /** Callback when each beat ends */
+      onBeatEnd?: (beat: NarrativeBeat, index: number) => void;
+    } = {}
+  ): Promise<string[]> {
+    this.ensureNotDisposed();
+
+    const {
+      defaultPause = 500,
+      skipEmpty = true,
+      onBeatStart,
+      onBeatEnd,
+    } = options;
+
+    const queueIds: string[] = [];
+    const filteredBeats = skipEmpty
+      ? beats.filter((b) => b.content.trim().length > 0)
+      : beats;
+
+    for (let i = 0; i < filteredBeats.length; i++) {
+      const beat = filteredBeats[i];
+      const isLast = i === filteredBeats.length - 1;
+
+      // Create TTS request for this beat
+      const request: TTSRequest = {
+        text: beat.content,
+        role: getVoiceRoleForBeat(beat),
+        preset: getPresetForBeat(beat),
+        priority: 'normal',
+        cache: true,
+      };
+
+      // Create queue item with beat reference for callbacks
+      const item = this.createQueueItem(request);
+      (item as TTSQueueItem & { beatIndex?: number; beat?: NarrativeBeat }).beatIndex = i;
+      (item as TTSQueueItem & { beatIndex?: number; beat?: NarrativeBeat }).beat = beat;
+
+      this.queue.push(item);
+      queueIds.push(item.id);
+
+      // If not the last beat, add a pause after based on metadata or default
+      if (!isLast) {
+        const pauseDuration = beat.metadata?.pauseAfter ?? defaultPause;
+        if (pauseDuration > 0) {
+          // Add a pause item to the queue
+          const pauseItem = this.createPauseItem(pauseDuration);
+          this.queue.push(pauseItem);
+        }
+      }
+    }
+
+    this.notifyQueueChange();
+
+    // Store callbacks for beat events
+    if (onBeatStart || onBeatEnd) {
+      const originalOnStart = this.callbacks.onStart;
+      const originalOnEnd = this.callbacks.onEnd;
+
+      this.callbacks.onStart = (item) => {
+        originalOnStart?.(item);
+        const beatItem = item as TTSQueueItem & { beatIndex?: number; beat?: NarrativeBeat };
+        if (beatItem.beat !== undefined && beatItem.beatIndex !== undefined) {
+          onBeatStart?.(beatItem.beat, beatItem.beatIndex);
+        }
+      };
+
+      this.callbacks.onEnd = (item) => {
+        originalOnEnd?.(item);
+        const beatItem = item as TTSQueueItem & { beatIndex?: number; beat?: NarrativeBeat };
+        if (beatItem.beat !== undefined && beatItem.beatIndex !== undefined) {
+          onBeatEnd?.(beatItem.beat, beatItem.beatIndex);
+        }
+      };
+    }
+
+    // Start playback if autoPlay is enabled and we're idle
+    if (this.autoPlay && this.playbackState === 'idle') {
+      this.playNext();
+    }
+
+    return queueIds;
   }
 
   getQueueStatus(): TTSQueueStatus {
@@ -229,6 +370,19 @@ export class TTSService implements ITTSService {
     };
   }
 
+  /**
+   * Create a pause item for the queue (used between beats)
+   */
+  private createPauseItem(durationMs: number): TTSQueueItem & { isPause: true; pauseDuration: number } {
+    return {
+      id: generateId(),
+      request: { text: '' }, // Empty request for pause
+      state: 'pending',
+      isPause: true,
+      pauseDuration: durationMs,
+    };
+  }
+
   private ensureNotDisposed(): void {
     if (this.disposed) {
       throw new Error('TTSService has been disposed');
@@ -272,6 +426,15 @@ export class TTSService implements ITTSService {
     }
 
     const item = this.queue.shift()!;
+
+    // Handle pause items (used between beats)
+    const pauseItem = item as TTSQueueItem & { isPause?: boolean; pauseDuration?: number };
+    if (pauseItem.isPause && pauseItem.pauseDuration) {
+      await this.playPause(pauseItem.pauseDuration);
+      this.playNext();
+      return;
+    }
+
     this.currentItem = item;
     this.playbackState = 'loading';
     this.notifyQueueChange();
@@ -285,6 +448,15 @@ export class TTSService implements ITTSService {
       this.currentItem = null;
       this.playNext();
     }
+  }
+
+  /**
+   * Play a pause (silence) for the specified duration
+   */
+  private async playPause(durationMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      setTimeout(resolve, durationMs);
+    });
   }
 
   private async playAudioBlob(item: TTSQueueItem, blob: Blob): Promise<void> {
