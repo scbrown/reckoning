@@ -10,3 +10,10 @@ export { AreaRepository } from './area-repository.js';
 export { PartyRepository } from './party-repository.js';
 export { SaveRepository, type SaveSlot } from './save-repository.js';
 export { EditorStateRepository } from './editor-state-repository.js';
+export {
+  CharacterRepository,
+  type CharacterRole,
+  type CharacterWithRole,
+  type CreateCharacterInput,
+  PARTY_LIMITS,
+} from './character-repository.js';
