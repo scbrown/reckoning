@@ -132,35 +132,6 @@ CREATE TABLE IF NOT EXISTS editor_state (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
--- Parties table (Phase 3)
--- A group of characters traveling together in a game
-CREATE TABLE IF NOT EXISTS parties (
-  id TEXT PRIMARY KEY,
-  game_id TEXT NOT NULL REFERENCES games(id),
-  name TEXT,  -- Optional party name
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_parties_game ON parties(game_id);
-
--- Characters table (Phase 3)
--- Player characters and party members
--- Role limits enforced by repository: 1 player, 2 members, 2 companions
-CREATE TABLE IF NOT EXISTS characters (
-  id TEXT PRIMARY KEY,
-  party_id TEXT NOT NULL REFERENCES parties(id),
-  name TEXT NOT NULL,
-  description TEXT,
-  class TEXT,
-  role TEXT NOT NULL CHECK (role IN ('player', 'member', 'companion')),
-  stats TEXT,  -- JSON CharacterStats: {health, maxHealth, ...}
-  voice_id TEXT,  -- ElevenLabs voice ID for TTS
-  created_at TEXT DEFAULT (datetime('now')),
-  updated_at TEXT DEFAULT (datetime('now'))
-);
-CREATE INDEX IF NOT EXISTS idx_characters_party ON characters(party_id);
-CREATE INDEX IF NOT EXISTS idx_characters_role ON characters(party_id, role);
-
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (
