@@ -967,7 +967,7 @@ export class SaveLoadModal {
         this.wizardState.playerDescription || undefined
       );
 
-      this.callbacks.onNewGame?.();
+      this.callbacks.onNewGame?.(this.wizardState.playerName, this.wizardState.playerDescription || undefined);
       this.resetWizardState();
       this.close();
     } catch (error) {
