@@ -7,6 +7,7 @@ import { fileURLToPath } from 'url';
 
 import { healthRoutes } from './routes/health.js';
 import { ttsRoutes } from './routes/tts.js';
+import { gameRoutes } from './routes/game.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../../..');
@@ -31,6 +32,7 @@ await server.register(cors, {
 // Register routes
 await server.register(healthRoutes, { prefix: '/health' });
 await server.register(ttsRoutes, { prefix: '/api/tts' });
+await server.register(gameRoutes, { prefix: '/api/game' });
 
 /**
  * Try to start server on a port, incrementing if port is in use.
