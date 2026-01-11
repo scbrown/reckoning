@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { CanonicalEvent, GameState, Character, NPC } from '@reckoning/shared';
+import type { CanonicalEvent, GameState, NPC } from '@reckoning/shared';
 import {
   DefaultContextBuilder,
   type GameRepository,
@@ -7,6 +7,9 @@ import {
   type AreaRepository,
   type AreaWithDetails,
   type PartyRepository,
+  type CharacterWithRole,
+  buildPartyContext,
+  getHealthStatus,
 } from '../ai/context-builder.js';
 
 // =============================================================================
@@ -56,12 +59,13 @@ const mockArea: AreaWithDetails = {
   ],
 };
 
-const mockPartyMembers: Character[] = [
+const mockPartyMembers: CharacterWithRole[] = [
   {
     id: 'char-001',
     name: 'Theron',
     description: 'A brave warrior.',
     class: 'Fighter',
+    role: 'player',
     stats: { health: 100, maxHealth: 100 },
   },
 ];
@@ -112,7 +116,7 @@ function createMockAreaRepo(area?: AreaWithDetails): AreaRepository {
   };
 }
 
-function createMockPartyRepo(members: Character[] = []): PartyRepository {
+function createMockPartyRepo(members: CharacterWithRole[] = []): PartyRepository {
   return {
     findByGame: vi.fn().mockReturnValue(members),
   };
@@ -268,5 +272,122 @@ describe('DefaultContextBuilder', () => {
 
       expect(context.historyContext).toBe('Summary of 2 events');
     });
+  });
+
+  describe('formattedPartyContext', () => {
+    it('should include formattedPartyContext in returned context', async () => {
+      const context = await builder.build('game-123', 'narration');
+
+      expect(context.formattedPartyContext).toBe('Party: Theron (Fighter) [Healthy] (Player Character)');
+    });
+
+    it('should show empty party message when no party members', async () => {
+      partyRepo = createMockPartyRepo([]);
+      builder = new DefaultContextBuilder(gameRepo, eventRepo, areaRepo, partyRepo);
+
+      const context = await builder.build('game-123', 'narration');
+
+      expect(context.formattedPartyContext).toBe('Party: (empty)');
+    });
+  });
+});
+
+describe('getHealthStatus', () => {
+  it('should return Healthy for health > 70%', () => {
+    expect(getHealthStatus(100, 100)).toBe('Healthy');
+    expect(getHealthStatus(80, 100)).toBe('Healthy');
+    expect(getHealthStatus(71, 100)).toBe('Healthy');
+  });
+
+  it('should return Wounded for health > 30% and <= 70%', () => {
+    expect(getHealthStatus(70, 100)).toBe('Wounded');
+    expect(getHealthStatus(50, 100)).toBe('Wounded');
+    expect(getHealthStatus(31, 100)).toBe('Wounded');
+  });
+
+  it('should return Critical for health <= 30%', () => {
+    expect(getHealthStatus(30, 100)).toBe('Critical');
+    expect(getHealthStatus(15, 100)).toBe('Critical');
+    expect(getHealthStatus(0, 100)).toBe('Critical');
+  });
+
+  it('should return Healthy for zero maxHealth (edge case)', () => {
+    expect(getHealthStatus(0, 0)).toBe('Healthy');
+  });
+});
+
+describe('buildPartyContext', () => {
+  it('should format party with health status and player marker', () => {
+    const party: CharacterWithRole[] = [
+      {
+        id: 'char-001',
+        name: 'Theron',
+        description: 'A warrior',
+        class: 'Fighter',
+        role: 'player',
+        stats: { health: 100, maxHealth: 100 },
+      },
+      {
+        id: 'char-002',
+        name: 'Lyra',
+        description: 'A mage',
+        class: 'Wizard',
+        role: 'member',
+        stats: { health: 50, maxHealth: 100 },
+      },
+    ];
+
+    const result = buildPartyContext(party);
+
+    expect(result).toBe('Party: Theron (Fighter) [Healthy] (Player Character), Lyra (Wizard) [Wounded]');
+  });
+
+  it('should mark only the player character', () => {
+    const party: CharacterWithRole[] = [
+      {
+        id: 'char-001',
+        name: 'Theron',
+        description: 'A warrior',
+        class: 'Fighter',
+        role: 'player',
+        stats: { health: 100, maxHealth: 100 },
+      },
+      {
+        id: 'char-002',
+        name: 'Wolf',
+        description: 'A wolf companion',
+        class: 'Beast',
+        role: 'companion',
+        stats: { health: 80, maxHealth: 100 },
+      },
+    ];
+
+    const result = buildPartyContext(party);
+
+    expect(result).toContain('(Player Character)');
+    expect(result.match(/\(Player Character\)/g)?.length).toBe(1);
+  });
+
+  it('should return empty message for empty party', () => {
+    const result = buildPartyContext([]);
+
+    expect(result).toBe('Party: (empty)');
+  });
+
+  it('should show Critical for low health characters', () => {
+    const party: CharacterWithRole[] = [
+      {
+        id: 'char-001',
+        name: 'Theron',
+        description: 'A warrior',
+        class: 'Fighter',
+        role: 'player',
+        stats: { health: 20, maxHealth: 100 },
+      },
+    ];
+
+    const result = buildPartyContext(party);
+
+    expect(result).toBe('Party: Theron (Fighter) [Critical] (Player Character)');
   });
 });

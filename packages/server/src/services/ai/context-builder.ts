@@ -53,10 +53,22 @@ export interface AreaRepository {
 }
 
 /**
+ * Character role within a party
+ */
+export type CharacterRole = 'player' | 'member' | 'companion';
+
+/**
+ * Character with role information for party context
+ */
+export interface CharacterWithRole extends Character {
+  role: CharacterRole;
+}
+
+/**
  * Repository for party member operations
  */
 export interface PartyRepository {
-  findByGame(gameId: string): Character[];
+  findByGame(gameId: string): CharacterWithRole[];
 }
 
 // =============================================================================
@@ -251,29 +263,42 @@ class SQLiteAreaRepository implements AreaRepository {
 class SQLitePartyRepository implements PartyRepository {
   constructor(private db: Database) {}
 
-  findByGame(gameId: string): Character[] {
+  findByGame(gameId: string): CharacterWithRole[] {
+    // Query characters through parties table to get by game_id
     const rows = this.db
       .prepare(
-        `SELECT id, name, description, class
-         FROM party_members WHERE game_id = ?`
+        `SELECT c.id, c.name, c.description, c.class, c.role, c.stats
+         FROM characters c
+         JOIN parties p ON c.party_id = p.id
+         WHERE p.game_id = ?`
       )
       .all(gameId) as Array<{
       id: string;
       name: string;
       description: string | null;
       class: string | null;
+      role: string;
+      stats: string | null;
     }>;
 
-    return rows.map((row) => ({
-      id: row.id,
-      name: row.name,
-      description: row.description ?? '',
-      class: row.class ?? 'Adventurer',
-      stats: {
-        health: 100,
-        maxHealth: 100,
-      },
-    }));
+    return rows.map((row) => {
+      let stats = { health: 100, maxHealth: 100 };
+      if (row.stats) {
+        try {
+          stats = JSON.parse(row.stats);
+        } catch {
+          // Use default stats if parsing fails
+        }
+      }
+      return {
+        id: row.id,
+        name: row.name,
+        description: row.description ?? '',
+        class: row.class ?? 'Adventurer',
+        role: row.role as CharacterRole,
+        stats,
+      };
+    });
   }
 }
 
@@ -303,8 +328,8 @@ export interface ContextBuildOptions {
 export interface ExtendedGenerationContext extends GenerationContext {
   /** Current area with full details */
   currentArea: AreaWithDetails;
-  /** Party members */
-  party: Character[];
+  /** Party members with role information */
+  party: CharacterWithRole[];
   /** NPCs present in the current area */
   npcsPresent: NPC[];
 }
@@ -336,6 +361,52 @@ export interface ContextBuilder {
    * @returns Summarized history text, or undefined for no summarization
    */
   summarizeHistory?(events: CanonicalEvent[]): string | undefined;
+}
+
+// =============================================================================
+// Party Context Formatting
+// =============================================================================
+
+/**
+ * Health status thresholds
+ * - Healthy: >70%
+ * - Wounded: >30% and <=70%
+ * - Critical: <=30%
+ */
+export type HealthStatus = 'Healthy' | 'Wounded' | 'Critical';
+
+/**
+ * Get health status based on current/max health
+ */
+export function getHealthStatus(health: number, maxHealth: number): HealthStatus {
+  if (maxHealth <= 0) return 'Healthy';
+  const percent = (health / maxHealth) * 100;
+  if (percent > 70) return 'Healthy';
+  if (percent > 30) return 'Wounded';
+  return 'Critical';
+}
+
+/**
+ * Build formatted party context for AI consumption
+ *
+ * Format: "Party: Name (Class) [Health Status] (Player Character), Name (Class) [Health Status]"
+ * Player character is marked with "(Player Character)"
+ *
+ * @param party - Party members with role information
+ * @returns Formatted party context string
+ */
+export function buildPartyContext(party: CharacterWithRole[]): string {
+  if (party.length === 0) {
+    return 'Party: (empty)';
+  }
+
+  const formattedMembers = party.map((member) => {
+    const healthStatus = getHealthStatus(member.stats.health, member.stats.maxHealth);
+    const playerMarker = member.role === 'player' ? ' (Player Character)' : '';
+    return `${member.name} (${member.class}) [${healthStatus}]${playerMarker}`;
+  });
+
+  return `Party: ${formattedMembers.join(', ')}`;
 }
 
 // =============================================================================
@@ -385,11 +456,15 @@ export class DefaultContextBuilder implements ContextBuilder {
     // 6. Build history context (extension point for summarization)
     const historyContext = this.summarizeHistory?.(recentEvents);
 
-    // 7. Return complete context
+    // 7. Build formatted party context
+    const formattedPartyContext = buildPartyContext(party);
+
+    // 8. Return complete context
     const context: ExtendedGenerationContext = {
       type,
       gameState: game,
       recentHistory,
+      formattedPartyContext,
       currentArea: area,
       party,
       npcsPresent: area.npcs,

@@ -32,6 +32,8 @@ export interface GenerationContext {
   recentHistory: string[];
   /** Summarized historical context (for longer games) */
   historyContext?: string;
+  /** Formatted party status with health (e.g., "Party: Theron (Fighter) [Healthy]") */
+  formattedPartyContext?: string;
   /** Optional DM guidance or constraints */
   dmGuidance?: string;
 }

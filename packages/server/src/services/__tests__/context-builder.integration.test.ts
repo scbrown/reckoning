@@ -99,31 +99,43 @@ describe('ContextBuilder Integration Tests', () => {
         JSON.stringify(['bartender', 'innkeeper'])
       );
 
-    // Create party members
+    // Create a party for the game
     database
       .prepare(
-        `INSERT INTO party_members (id, game_id, name, description, class)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO parties (id, game_id, name, created_at, updated_at)
+         VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+      )
+      .run('party-001', 'test-game-001', 'The Wayward Band');
+
+    // Create party members using the new characters table
+    database
+      .prepare(
+        `INSERT INTO characters (id, party_id, name, description, class, role, stats, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
       )
       .run(
         'char-001',
-        'test-game-001',
+        'party-001',
         'Theron',
         'A brave warrior from the northern lands.',
-        'Fighter'
+        'Fighter',
+        'player',
+        JSON.stringify({ health: 100, maxHealth: 100 })
       );
 
     database
       .prepare(
-        `INSERT INTO party_members (id, game_id, name, description, class)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO characters (id, party_id, name, description, class, role, stats, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
       )
       .run(
         'char-002',
-        'test-game-001',
+        'party-001',
         'Elara',
         'A mysterious mage with arcane knowledge.',
-        'Wizard'
+        'Wizard',
+        'member',
+        JSON.stringify({ health: 80, maxHealth: 100 })
       );
 
     // Create some events
