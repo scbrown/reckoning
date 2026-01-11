@@ -111,9 +111,10 @@ export class GameEngine {
    * Start a new game
    *
    * @param playerName - Name of the player
+   * @param playerDescription - Optional description of the player character
    * @returns The initial game state
    */
-  async startGame(playerName: string): Promise<GameState> {
+  async startGame(playerName: string, playerDescription?: string): Promise<GameState> {
     // Create player first
     const playerId = randomUUID();
 
@@ -124,13 +125,13 @@ export class GameEngine {
     const game = this.gameRepo.create(playerId, startAreaId);
 
     // Create player record (for getSession to work)
-    this.createPlayer(game.id, playerId, playerName);
+    this.createPlayer(game.id, playerId, playerName, playerDescription);
 
     // Create party and add player character
     const party = this.partyRepo.create(game.id);
     this.partyRepo.addCharacter(party.id, {
       name: playerName,
-      description: 'The adventurer',
+      description: playerDescription || 'The adventurer',
       class: 'Adventurer',
       role: 'player',
       stats: { health: 100, maxHealth: 100 },
@@ -145,12 +146,12 @@ export class GameEngine {
   /**
    * Create a player record in the players table
    */
-  private createPlayer(gameId: string, playerId: string, name: string): void {
+  private createPlayer(gameId: string, playerId: string, name: string, description?: string): void {
     const db = this.gameRepo['db'] as import('better-sqlite3').Database;
     db.prepare(`
       INSERT INTO players (id, game_id, name, description, created_at)
       VALUES (?, ?, ?, ?, ?)
-    `).run(playerId, gameId, name, 'The adventurer', new Date().toISOString());
+    `).run(playerId, gameId, name, description || 'The adventurer', new Date().toISOString());
   }
 
   /**

@@ -242,11 +242,11 @@ export async function gameRoutes(fastify: FastifyInstance) {
     '/new',
     { schema: newGameSchema },
     async (request: FastifyRequest<{ Body: NewGameRequest }>, reply: FastifyReply) => {
-      const { playerName } = request.body;
+      const { playerName, playerDescription } = request.body;
 
       try {
         const engine = getGameEngine();
-        const gameState = await engine.startGame(playerName);
+        const gameState = await engine.startGame(playerName, playerDescription);
 
         // Get the full session
         const session = gameRepo.getSession(gameState.id);
