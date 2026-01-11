@@ -508,4 +508,4 @@ You do NOT need to wait around.
 [vars]
 [vars.issue]
 description = "The issue ID assigned to this polecat"
-required = true
+default = "hook_bead"
