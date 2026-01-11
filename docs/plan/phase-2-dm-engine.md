@@ -724,3 +724,47 @@ just dev                     # Start servers
 - [ ] ContentGenerator interface allows backend swap
 - [ ] ContextBuilder has summarization extension point
 - [ ] Flexible architecture supports iteration
+
+---
+
+## Future Phase Items
+
+### Observability (Phase 2.5 or 3)
+
+Add structured logging and metrics export for debugging and monitoring:
+
+**Logging:**
+- Loki-compatible structured logs
+- All AI prompts and responses logged with metadata
+- Request tracing with correlation IDs
+- Performance timing for generation pipeline
+
+**Metrics (Prometheus):**
+- AI generation latency histogram
+- Generation success/failure counters
+- TTS queue depth and latency
+- SSE connection count
+- Request rate by endpoint
+
+**Implementation:**
+```
+packages/server/src/observability/
+├── logger.ts          # Structured logger (Loki-compatible)
+├── metrics.ts         # Prometheus metrics
+└── middleware.ts      # Request tracing middleware
+```
+
+### World Generation (Phase 2.5)
+
+Dynamic world creation after character creation:
+
+1. **Character Created** → Trigger world generation
+2. **AI Generates:**
+   - Starting area with details
+   - 2-3 connected areas
+   - 1-2 NPCs with personalities
+   - Initial story hooks
+3. **DM Reviews** → Can edit/regenerate world elements
+4. **World Seeded** → Game begins
+
+This replaces the static "default-area" with AI-generated content tailored to the character.

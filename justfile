@@ -37,6 +37,14 @@ build-client:
 build-server:
     pnpm run build:server
 
+# Quick rebuild server (quiet, only shows errors)
+rb:
+    @pnpm --filter @reckoning/server build 2>&1 | grep -E "^(error|Error|ERROR)" || echo "✓ Build OK"
+
+# Quick rebuild server (verbose)
+rbv:
+    pnpm --filter @reckoning/server build
+
 # ═══════════════════════════════════════════════════════════════════════════════
 # Testing & Quality
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -278,6 +286,18 @@ claude-rm:
     @echo "Your home directory volume will be preserved."
     @read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ] || (echo "Cancelled." && exit 1)
     docker rm claude-dev-container
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# Demo
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# Run the Phase 1 demo walkthrough
+demo:
+    bash scripts/demo.sh
+
+# Demo specific section (tts, engine, db, ui)
+demo-section section:
+    bash scripts/demo.sh --{{section}}
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TTS Testing

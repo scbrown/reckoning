@@ -106,12 +106,16 @@ export class GameService {
     playerName: string,
     description?: string
   ): Promise<GameSession> {
-    const session = await this.request<GameSession>('POST', '/game', {
-      playerName,
-      description,
-    });
-    this.currentGameId = session.state.id;
-    return session;
+    const response = await this.request<{ gameId: string; session: GameSession }>(
+      'POST',
+      '/game/new',
+      {
+        playerName,
+        playerDescription: description,
+      }
+    );
+    this.currentGameId = response.gameId;
+    return response.session;
   }
 
   /**
@@ -137,7 +141,7 @@ export class GameService {
   async listSaves(): Promise<SaveSlot[]> {
     const result = await this.request<{ saves: SaveSlot[] }>(
       'GET',
-      '/game/saves'
+      '/game/list'
     );
     return result.saves;
   }
@@ -211,7 +215,7 @@ export class GameService {
     return this.request<{ event: CanonicalEvent; session: GameSession }>(
       'POST',
       `/game/${gameId}/submit`,
-      action
+      { action }
     );
   }
 
@@ -276,8 +280,8 @@ export class GameService {
     mode: PlaybackMode
   ): Promise<PlaybackMode> {
     const result = await this.request<{ mode: PlaybackMode }>(
-      'PUT',
-      `/game/${gameId}/playback`,
+      'POST',
+      `/game/${gameId}/control`,
       { mode }
     );
     return result.mode;

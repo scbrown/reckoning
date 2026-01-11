@@ -23,18 +23,22 @@ export interface ClaudeCLIConfig {
   maxOutputLength?: number;
   /** CLI command to execute (default: 'claude') */
   cliCommand?: string;
+  /** Model to use (default: 'haiku' for speed) */
+  model?: string;
 }
 
 interface RequiredConfig {
   timeout: number;
   maxOutputLength: number;
   cliCommand: string;
+  model: string;
 }
 
 const DEFAULT_CONFIG: RequiredConfig = {
-  timeout: 60000,
+  timeout: 30000, // 30 seconds - haiku is fast
   maxOutputLength: 50000,
-  cliCommand: 'claude',
+  cliCommand: '/home/admin/.npm-global/bin/claude',
+  model: 'haiku', // Fast model for generation
 };
 
 // =============================================================================
@@ -85,6 +89,10 @@ export class ClaudeCodeCLI implements AIProvider {
    */
   async execute(request: AIRequest): Promise<Result<AIResponse, AIError>> {
     const startTime = Date.now();
+    console.log(`[ClaudeCLI] Executing prompt (${request.prompt.length} chars) with model: ${this.config.model}`);
+    console.log('[ClaudeCLI] ─────────────────── PROMPT START ───────────────────');
+    console.log(request.prompt);
+    console.log('[ClaudeCLI] ─────────────────── PROMPT END ─────────────────────');
 
     try {
       const result = await this.spawnClaude(request.prompt);
@@ -92,6 +100,8 @@ export class ClaudeCodeCLI implements AIProvider {
       const durationMs = Date.now() - startTime;
 
       if (result.exitCode !== 0) {
+        console.error(`[ClaudeCLI] Failed with exit code ${result.exitCode} after ${durationMs}ms`);
+        console.error(`[ClaudeCLI] stderr: ${result.stderr}`);
         return Err({
           code: 'EXECUTION_ERROR',
           message: `Claude CLI exited with code ${result.exitCode}: ${result.stderr}`,
@@ -102,6 +112,7 @@ export class ClaudeCodeCLI implements AIProvider {
       const content = result.stdout.trim();
 
       if (!content) {
+        console.error(`[ClaudeCLI] Empty output after ${durationMs}ms`);
         return Err({
           code: 'PARSE_ERROR',
           message: 'Claude CLI returned empty output',
@@ -109,13 +120,19 @@ export class ClaudeCodeCLI implements AIProvider {
         });
       }
 
+      console.log(`[ClaudeCLI] Success after ${durationMs}ms (${content.length} chars)`);
+      console.log('[ClaudeCLI] ─────────────────── RESPONSE START ─────────────────');
+      console.log(content);
+      console.log('[ClaudeCLI] ─────────────────── RESPONSE END ───────────────────');
       return Ok({
         content,
         durationMs,
       });
     } catch (error) {
+      const elapsed = Date.now() - startTime;
       if (error instanceof Error) {
         if (error.name === 'AbortError' || error.message.includes('aborted')) {
+          console.error(`[ClaudeCLI] Timed out after ${elapsed}ms (limit: ${this.config.timeout}ms)`);
           return Err({
             code: 'TIMEOUT',
             message: `Claude CLI timed out after ${this.config.timeout}ms`,
@@ -165,25 +182,40 @@ export class ClaudeCodeCLI implements AIProvider {
    */
   private async spawnClaude(prompt: string): Promise<SubprocessResult> {
     return new Promise((resolve, reject) => {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.config.timeout);
-
       // Determine args: for --version check, just pass it directly
-      // For prompts, use -p flag
+      // For prompts, use --model and -p flags
       const isFlag = prompt.startsWith('-');
-      const args = isFlag ? [prompt] : ['-p', prompt];
+      const args = isFlag ? [prompt] : ['--model', this.config.model, '-p', prompt];
+
+      console.log(`[ClaudeCLI] Spawning: ${this.config.cliCommand} --model ${this.config.model} -p "<prompt>"`);
+      console.log(`[ClaudeCLI] CWD: ${process.cwd()}, PATH includes npm-global: ${process.env.PATH?.includes('.npm-global') ?? false}`);
 
       const proc = spawn(this.config.cliCommand, args, {
-        signal: controller.signal,
-        shell: true,
         env: { ...process.env },
+        stdio: ['ignore', 'pipe', 'pipe'],  // Close stdin - claude waits for it otherwise
       });
+
+      // Handle timeout manually
+      const killOnTimeout = setTimeout(() => {
+        console.error(`[ClaudeCLI] Main timeout reached (${this.config.timeout}ms) - killing process`);
+        proc.kill('SIGTERM');
+      }, this.config.timeout);
 
       let stdout = '';
       let stderr = '';
       let truncated = false;
+      let hasOutput = false;
+
+      // Early bail-out: if no output within 20 seconds, something is wrong
+      const earlyBailout = setTimeout(() => {
+        if (!hasOutput) {
+          console.error('[ClaudeCLI] No output received within 20 seconds - killing process');
+          proc.kill();
+        }
+      }, 20000);
 
       proc.stdout.on('data', (data: Buffer) => {
+        hasOutput = true;
         if (!truncated) {
           stdout += data.toString();
           if (stdout.length > this.config.maxOutputLength) {
@@ -195,11 +227,14 @@ export class ClaudeCodeCLI implements AIProvider {
       });
 
       proc.stderr.on('data', (data: Buffer) => {
-        stderr += data.toString();
+        const chunk = data.toString();
+        stderr += chunk;
+        console.log(`[ClaudeCLI] stderr: ${chunk}`);
       });
 
       proc.on('close', (code: number | null) => {
-        clearTimeout(timeoutId);
+        clearTimeout(killOnTimeout);
+        clearTimeout(earlyBailout);
         resolve({
           stdout,
           stderr,
@@ -208,7 +243,9 @@ export class ClaudeCodeCLI implements AIProvider {
       });
 
       proc.on('error', (err: Error) => {
-        clearTimeout(timeoutId);
+        console.error(`[ClaudeCLI] Spawn error: ${err.message}`);
+        clearTimeout(killOnTimeout);
+        clearTimeout(earlyBailout);
         reject(err);
       });
     });

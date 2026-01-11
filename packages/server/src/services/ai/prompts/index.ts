@@ -14,9 +14,7 @@ import { buildNPCPrompt, type NPCContext } from './npc.js';
 import {
   buildEnvironmentPrompt,
   type EnvironmentContext,
-  type EnvironmentTrigger,
 } from './environment.js';
-import { formatRecentEvents } from './utils.js';
 
 // Re-export all prompt builders and types
 export { DM_SYSTEM_PROMPT } from './system.js';

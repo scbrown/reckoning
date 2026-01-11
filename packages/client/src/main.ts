@@ -68,9 +68,31 @@ const menuBtn = document.getElementById('menu-btn');
 // UI Helpers
 // =============================================================================
 
-function showLoading(show: boolean): void {
+function showLoading(show: boolean, main?: string, detail?: string): void {
   if (loadingOverlay) {
     loadingOverlay.classList.toggle('active', show);
+
+    const mainEl = document.getElementById('loading-status-main');
+    const detailEl = document.getElementById('loading-status-detail');
+
+    if (mainEl) {
+      mainEl.textContent = main || 'Loading...';
+    }
+    if (detailEl) {
+      detailEl.textContent = detail || '';
+    }
+  }
+}
+
+function updateLoadingStatus(main: string, detail?: string): void {
+  const mainEl = document.getElementById('loading-status-main');
+  const detailEl = document.getElementById('loading-status-detail');
+
+  if (mainEl) {
+    mainEl.textContent = main;
+  }
+  if (detailEl) {
+    detailEl.textContent = detail || '';
   }
 }
 
@@ -160,9 +182,17 @@ function initializeUIComponents(): void {
       console.log('[Main] Game loaded:', slot.name);
       handleGameLoaded();
     },
-    onNewGame: () => {
-      console.log('[Main] New game started from modal');
-      handleGameStarted();
+    onNewGame: async (playerName, description) => {
+      console.log('[Main] Starting new game for:', playerName);
+      showLoading(true, 'Creating your world...', 'Setting up game session');
+      try {
+        await stateManager?.startNewGame(playerName, description);
+        updateLoadingStatus('Connecting...', 'Establishing real-time connection');
+        handleGameStarted();
+      } catch (error) {
+        showLoading(false);
+        throw error;
+      }
     },
     onClose: () => {
       console.log('[Main] Modal closed');
@@ -208,6 +238,23 @@ async function handleGameStarted(): Promise<void> {
     updateConnectionStatus(state === 'connected' ? 'connected' : state === 'connecting' ? 'connecting' : 'disconnected');
   }, 1000);
 
+  // Listen for generation events to update loading status
+  sseService.on('generation_started', () => {
+    console.log('[Main] Generation started');
+    showLoading(true, 'Generating scene...', 'The AI is crafting your story');
+  });
+
+  sseService.on('generation_complete', () => {
+    console.log('[Main] Generation complete');
+    showLoading(false);
+  });
+
+  sseService.on('generation_error', (event) => {
+    console.error('[Main] Generation error:', event.error);
+    showLoading(false);
+    showError(event.error || 'Generation failed');
+  });
+
   // Subscribe to state changes
   stateManager?.subscribe((state) => {
     // Update controls based on pending content
@@ -215,9 +262,6 @@ async function handleGameStarted(): Promise<void> {
       const hasPending = !!state.pendingContent || !!state.editorState?.pending;
       controls.setAllEnabled(hasPending && !state.isLoading);
     }
-
-    // Update loading overlay
-    showLoading(state.isLoading);
 
     // Show errors
     if (state.error) {
@@ -227,12 +271,16 @@ async function handleGameStarted(): Promise<void> {
 
   // Trigger first generation
   try {
+    updateLoadingStatus('Generating opening scene...', 'This may take a moment');
     const gameId = stateManager?.getState().gameId;
     if (gameId) {
+      console.log('[Main] Triggering first generation for game:', gameId);
       await gameService.next(gameId);
     }
   } catch (error) {
     console.error('[Main] Failed to trigger first generation:', error);
+    showLoading(false);
+    showError(error instanceof Error ? error.message : 'Failed to start game');
   }
 }
 

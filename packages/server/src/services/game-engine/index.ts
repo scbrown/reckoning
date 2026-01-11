@@ -21,7 +21,6 @@ import type { AIProvider } from '../ai/types.js';
 import { createContextBuilder } from '../ai/context-builder.js';
 import {
   GameRepository,
-  AreaRepository,
   PartyRepository,
 } from '../../db/repositories/index.js';
 import { ContentPipeline } from './content-pipeline.js';
@@ -81,7 +80,6 @@ export class GameEngine {
   private stateManager: StateManager;
   private broadcaster: BroadcastManager;
   private gameRepo: GameRepository;
-  private areaRepo: AreaRepository;
   private partyRepo: PartyRepository;
 
   constructor(deps: GameEngineDeps) {
@@ -89,7 +87,6 @@ export class GameEngine {
 
     this.broadcaster = broadcaster;
     this.gameRepo = new GameRepository(db);
-    this.areaRepo = new AreaRepository(db);
     this.partyRepo = new PartyRepository(db);
 
     // Create context builder with DB
@@ -121,15 +118,13 @@ export class GameEngine {
     const playerId = randomUUID();
 
     // Get default starting area (first area in DB or create one)
-    let startAreaId = 'default-area';
-    const areas = this.getAllAreas();
-    const firstArea = areas[0];
-    if (firstArea && firstArea.id) {
-      startAreaId = firstArea.id;
-    }
+    const startAreaId = 'default-area';
 
     // Create the game
     const game = this.gameRepo.create(playerId, startAreaId);
+
+    // Create player record (for getSession to work)
+    this.createPlayer(game.id, playerId, playerName);
 
     // Create party member for player
     this.partyRepo.create(game.id, [
@@ -145,6 +140,17 @@ export class GameEngine {
     this.eventLoop.setMode(game.id, 'paused');
 
     return game;
+  }
+
+  /**
+   * Create a player record in the players table
+   */
+  private createPlayer(gameId: string, playerId: string, name: string): void {
+    const db = this.gameRepo['db'] as import('better-sqlite3').Database;
+    db.prepare(`
+      INSERT INTO players (id, game_id, name, description, created_at)
+      VALUES (?, ?, ?, ?, ?)
+    `).run(playerId, gameId, name, 'The adventurer', new Date().toISOString());
   }
 
   /**
@@ -231,16 +237,11 @@ export class GameEngine {
       status: 'editing',
     });
 
-    // Broadcast generation complete with SSE-compatible GeneratedContent
+    // Broadcast generation complete
     this.broadcaster.broadcast(gameId, {
       type: 'generation_complete',
-      content: {
-        id: result.value.id,
-        generationType: result.value.generationType,
-        eventType: result.value.eventType,
-        content: result.value.content,
-        metadata: result.value.metadata,
-      },
+      generationId: result.value.id,
+      content: result.value.content,  // Just the text content
     });
   }
 
@@ -500,21 +501,6 @@ export class GameEngine {
     await this.eventLoop.onSubmit(gameId);
 
     return event;
-  }
-
-  /**
-   * Get all areas from DB
-   */
-  private getAllAreas() {
-    // Use AreaRepository to get areas
-    // For now, return empty array if no areas exist
-    try {
-      // Try to get a known area
-      const area = this.areaRepo.getWithDetails('default-area');
-      return area ? [area] : [];
-    } catch {
-      return [];
-    }
   }
 }
 

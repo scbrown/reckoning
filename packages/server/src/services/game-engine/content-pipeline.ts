@@ -71,13 +71,18 @@ export class ContentPipeline {
     type: GenerationType,
     options?: GenerateOptions
   ): Promise<Result<GeneratedContent, PipelineError>> {
+    console.log(`[ContentPipeline] Starting ${type} generation for game ${gameId}`);
+    const startTime = Date.now();
+
     // Build context - only pass options if dmGuidance is defined
     let context: ExtendedGenerationContext;
     try {
+      console.log('[ContentPipeline] Building context...');
       const buildOptions = options?.dmGuidance !== undefined
         ? { dmGuidance: options.dmGuidance }
         : undefined;
       context = await this.contextBuilder.build(gameId, type, buildOptions);
+      console.log('[ContentPipeline] Context built successfully');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown error';
       if (message.includes('Game not found')) {
@@ -102,15 +107,20 @@ export class ContentPipeline {
     }
 
     // Build prompt with type-specific context
+    console.log('[ContentPipeline] Building prompt...');
     const promptContext = this.buildPromptContext(context, type);
     const prompt = buildPrompt(promptContext);
+    console.log(`[ContentPipeline] Prompt ready (${prompt.combined.length} chars)`);
 
     // Execute AI generation
+    console.log('[ContentPipeline] Calling AI provider...');
     const aiResult = await this.aiProvider.execute({
       prompt: prompt.combined,
     });
 
     if (!aiResult.ok) {
+      const elapsed = Date.now() - startTime;
+      console.error(`[ContentPipeline] AI error after ${elapsed}ms: ${aiResult.error.message}`);
       return Err({
         code: 'AI_ERROR',
         message: aiResult.error.message,
@@ -119,10 +129,13 @@ export class ContentPipeline {
     }
 
     // Parse response into GeneratedContent
+    const elapsed = Date.now() - startTime;
+    console.log(`[ContentPipeline] AI response received after ${elapsed}ms (${aiResult.value.content.length} chars)`);
     const generatedContent = this.parseResponse(
       aiResult.value.content,
       type
     );
+    console.log(`[ContentPipeline] Generation complete for ${type}`);
 
     return Ok(generatedContent);
   }

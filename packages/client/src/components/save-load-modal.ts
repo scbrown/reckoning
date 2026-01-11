@@ -15,7 +15,7 @@ export type ModalView = 'closed' | 'save' | 'load' | 'confirm-delete' | 'new-gam
 export interface SaveLoadModalCallbacks {
   onSave?: (slot: SaveSlot) => void;
   onLoad?: (slot: SaveSlot) => void;
-  onNewGame?: () => void;
+  onNewGame?: (playerName: string, description?: string) => Promise<void>;
   onDelete?: (slotId: string) => void;
   onClose?: () => void;
 }

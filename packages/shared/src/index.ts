@@ -18,5 +18,5 @@ export type {
   SSEEventByType,
 } from './sse/index.js';
 
-// Re-export SSE union type with explicit name to avoid confusion
-export type { SSEEvent as SSEEventUnion } from './sse/index.js';
+// Re-export SSE union type (both original name and alias)
+export type { SSEEvent, SSEEvent as SSEEventUnion } from './sse/index.js';

@@ -14,6 +14,7 @@ RUN apt update && apt install -y \
     ca-certificates \
     gnupg \
     unzip \
+    jq \
     redis-tools \
     ripgrep \
     fd-find \
