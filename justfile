@@ -291,13 +291,17 @@ claude-rm:
 # Demo
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# Run the Phase 1 demo walkthrough
+# Run the demo walkthrough (party, beats, world generation)
 demo:
     bash scripts/demo.sh
 
-# Demo specific section (tts, engine, db, ui)
+# Demo specific section (party, beats, world, tts, engine, db, ui)
 demo-section section:
     bash scripts/demo.sh --{{section}}
+
+# Show demo help
+demo-help:
+    bash scripts/demo.sh --help
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # TTS Testing

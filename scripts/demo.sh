@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 #
 # Reckoning RPG Demo Script
-# Showcases Phase 1 features: TTS Engine, Game Engine Core, and DM Interface
+# Showcases current features: Party System, Beat Sequences, World Generation
+#
+# Phase 1 content preserved in appendix sections (--tts, --engine, --db, --ui)
 #
 
-set -e
+set +e  # Don't exit on errors - handle them gracefully
 
 # Load .env file if it exists
 if [ -f .env ]; then
@@ -108,9 +110,193 @@ wait_key() {
     read -r
 }
 
+# ==============================================================================
+# CURRENT FEATURES (Phase 2/3)
+# ==============================================================================
+
+# Demo the party system
+demo_party() {
+    banner "Party System"
+
+    section "Party Composition"
+    info "Reckoning supports a party of up to 5 characters:"
+    echo ""
+    echo -e "    ${BOLD}Permanent Members (max 3):${NC}"
+    echo -e "      • Player Character (1) - Your main character"
+    echo -e "      • Party Members (up to 2) - Persistent companions"
+    echo ""
+    echo -e "    ${BOLD}Temporary Companions (max 2):${NC}"
+    echo -e "      • NPCs who joined the party during play"
+
+    wait_key
+
+    section "Party Panel UI"
+    echo ""
+    cat << 'EOF'
+    ┌─────────────────────────────┐
+    │ THE PARTY                   │
+    ├─────────────────────────────┤
+    │ ┌─────┐ Alex Chen     [PC] │
+    │ │     │ Ex-Detective        │
+    │ │     │ ████████░░ 80/100  │
+    │ └─────┘                     │
+    ├─────────────────────────────┤
+    │ ┌─────┐ MARI-7              │
+    │ │     │ Android Medic       │
+    │ │     │ ██████████ 50/50   │
+    │ └─────┘                     │
+    ├─────────────────────────────┤
+    │ ┌─────┐ Old Pete    [NPC]  │
+    │ │     │ Local Guide         │
+    │ │     │ ███████░░░ 70/100  │
+    │ └─────┘                     │
+    └─────────────────────────────┘
+EOF
+    echo ""
+    info "[PC] = Player Character, [NPC] = Temporary Companion"
+
+    wait_key
+
+    section "Fetching Party Data"
+    info "GET /api/game/:gameId/party returns the full party:"
+
+    local port=$(cat .server-port 2>/dev/null || echo 3001)
+    local games=$(curl -s "http://localhost:${port}/api/game/list" 2>/dev/null) || true
+
+    if [ -n "$games" ] && [ "$games" != "[]" ]; then
+        local game_id=$(echo "$games" | jq -r '.[0].id' 2>/dev/null)
+        if [ -n "$game_id" ] && [ "$game_id" != "null" ]; then
+            api_fetch "/api/game/${game_id}/party" 20
+        else
+            info "No active games found. Start a game to see party data."
+        fi
+    else
+        info "Server not running or no games. Start with: just dev"
+    fi
+}
+
+# Demo the beat sequence system
+demo_beats() {
+    banner "Narrative Beat Sequences"
+
+    section "What Are Beats?"
+    info "Instead of one long paragraph, AI generates short atomic beats:"
+    echo ""
+    echo -e "    ${BOLD}Beat Types:${NC}"
+    echo -e "      • ${CYAN}narration${NC}   - Scene descriptions, atmosphere"
+    echo -e "      • ${GREEN}dialogue${NC}    - Character speech"
+    echo -e "      • ${YELLOW}action${NC}      - Physical actions"
+    echo -e "      • ${BLUE}environment${NC} - World reactions, sounds"
+
+    wait_key
+
+    section "Beat Sequence Example"
+    example_json "AI-Generated Beat Sequence" '{
+      "beats": [
+        { "type": "narration", "speaker": null, "content": "The door creaks open slowly." },
+        { "type": "dialogue", "speaker": "Alex", "content": "Everyone stay behind me." },
+        { "type": "narration", "speaker": null, "content": "A cold draft rushes past." },
+        { "type": "dialogue", "speaker": "MARI-7", "content": "Detecting movement ahead." },
+        { "type": "environment", "speaker": null, "content": "Something stirs in the darkness." }
+      ]
+    }'
+
+    wait_key
+
+    section "Beat Editor UI"
+    echo ""
+    cat << 'EOF'
+    ┌─────────────────────────────────────────────────────────────────┐
+    │ SCENE BEATS                              [▶ Play All] [✓ Accept]│
+    ├─────────────────────────────────────────────────────────────────┤
+    │  ▼ ≡ 1. NARRATION                                      [✏️][🗑️] │
+    │  ┌────────────────────────────────────────────────────────────┐ │
+    │  │ The door creaks open slowly.                               │ │
+    │  └────────────────────────────────────────────────────────────┘ │
+    │                                                                 │
+    │  ▼ ≡ 2. ALEX (Dialogue)                                [✏️][🗑️] │
+    │  ┌────────────────────────────────────────────────────────────┐ │
+    │  │ "Everyone stay behind me."                                 │ │
+    │  └────────────────────────────────────────────────────────────┘ │
+    │                                                                 │
+    │  ▶ ≡ 3. NARRATION (collapsed)                          [✏️][🗑️] │
+    │  ▶ ≡ 4. MARI-7 (collapsed)                             [✏️][🗑️] │
+    │                                                                 │
+    ├─────────────────────────────────────────────────────────────────┤
+    │ [+ Add Beat]                                   [🔄 Regenerate]  │
+    └─────────────────────────────────────────────────────────────────┘
+EOF
+    echo ""
+    info "DM can reorder, edit, delete, or add beats before playback"
+
+    wait_key
+
+    section "Sequential TTS Playback"
+    info "Each beat plays with the appropriate voice:"
+    echo ""
+    echo -e "    1. ${CYAN}Narrator voice:${NC} \"The door creaks open slowly.\""
+    echo -e "    2. ${GREEN}Alex's voice:${NC} \"Everyone stay behind me.\""
+    echo -e "    3. ${CYAN}Narrator voice:${NC} \"A cold draft rushes past.\""
+    echo -e "    4. ${GREEN}MARI-7's voice:${NC} \"Detecting movement ahead.\""
+    echo -e "    5. ${CYAN}Narrator voice:${NC} \"Something stirs in the darkness.\""
+    echo ""
+    info "Speech bubbles appear next to characters in the party panel"
+}
+
+# Demo world generation
+demo_world_gen() {
+    banner "World Generation"
+
+    section "AI-Powered World Creation"
+    info "When starting a new game, the AI generates a tailored world:"
+    echo ""
+    echo -e "    ${BOLD}Based on your party:${NC}"
+    echo -e "      • Character backgrounds inform setting"
+    echo -e "      • Party theme influences atmosphere"
+    echo -e "      • Story hooks connect to character goals"
+
+    wait_key
+
+    section "World Generation Output"
+    example_json "Generated World" '{
+      "worldName": "The Fractured Sprawl",
+      "worldDescription": "A cyberpunk megacity where technology and desperation collide",
+      "startingAreaId": "area_neon_district",
+      "areas": [
+        {
+          "id": "area_neon_district",
+          "name": "Neon District",
+          "description": "Holographic advertisements flicker above rain-slicked streets...",
+          "exits": [
+            { "direction": "north", "targetAreaId": "area_corp_zone", "description": "Corporate towers loom ahead" },
+            { "direction": "east", "targetAreaId": "area_black_market", "description": "A dark alley with coded graffiti" }
+          ],
+          "npcs": [
+            { "id": "npc_info_broker", "name": "The Whisper", "disposition": "neutral" }
+          ]
+        }
+      ]
+    }'
+
+    wait_key
+
+    section "DM Review Flow"
+    info "Before the game starts, the DM can:"
+    echo ""
+    echo -e "    ${GREEN}Accept${NC}      → Use the generated world as-is"
+    echo -e "    ${YELLOW}Edit${NC}        → Modify area descriptions and NPCs"
+    echo -e "    ${BLUE}Regenerate${NC}  → Request a completely new world"
+    echo ""
+    info "This ensures the DM is always in control of the narrative"
+}
+
+# ==============================================================================
+# APPENDIX: Phase 1 Features
+# ==============================================================================
+
 # Check for required tools
 check_prereqs() {
-    banner "THE RECKONING - Phase 1 Demo"
+    banner "THE RECKONING - Demo"
 
     echo ""
     echo -e "  ${BOLD}\"You are not who you think you are,"
@@ -363,16 +549,14 @@ main() {
     check_prereqs
     wait_key
 
-    demo_tts
+    # Current features (Phase 2/3)
+    demo_party
     wait_key
 
-    demo_game_engine
+    demo_beats
     wait_key
 
-    demo_database
-    wait_key
-
-    demo_client
+    demo_world_gen
     wait_key
 
     start_demo_servers
@@ -380,19 +564,25 @@ main() {
     banner "Demo Complete!"
 
     echo ""
-    echo -e "  ${BOLD}Phase 1 Features Demonstrated:${NC}"
+    echo -e "  ${BOLD}Current Features:${NC}"
     echo ""
-    echo -e "    ✓ Text-to-Speech with ElevenLabs integration"
-    echo -e "    ✓ Multiple voice roles and presets"
-    echo -e "    ✓ Redis caching with graceful fallback"
-    echo -e "    ✓ Game Engine with AI content generation"
-    echo -e "    ✓ DM editorial workflow (Accept/Edit/Regenerate/Inject)"
-    echo -e "    ✓ Playback mode controls"
-    echo -e "    ✓ SQLite persistence layer"
-    echo -e "    ✓ Real-time SSE updates"
-    echo -e "    ✓ Two-panel responsive UI"
+    echo -e "    ✓ Party system with multiple characters"
+    echo -e "    ✓ Character health and status tracking"
+    echo -e "    ✓ Narrative beat sequences (not long paragraphs)"
+    echo -e "    ✓ Beat editor with reorder/edit/delete"
+    echo -e "    ✓ Sequential TTS with character voices"
+    echo -e "    ✓ Speech bubbles in party panel"
+    echo -e "    ✓ AI-powered world generation"
+    echo -e "    ✓ DM review flow for generated content"
     echo ""
-    echo -e "  ${BOLD}What's Next:${NC}"
+    echo -e "  ${BOLD}Foundation (Phase 1):${NC}"
+    echo ""
+    echo -e "    ✓ TTS with ElevenLabs, voice roles, Redis caching"
+    echo -e "    ✓ Game Engine with AI content pipeline"
+    echo -e "    ✓ SQLite persistence, real-time SSE"
+    echo -e "    ✓ Run ${CYAN}just demo --tts${NC} for TTS deep-dive"
+    echo ""
+    echo -e "  ${BOLD}Try It:${NC}"
     echo ""
     echo -e "    • Run ${CYAN}just dev${NC} to start the servers"
     echo -e "    • Open ${CYAN}http://localhost:5173${NC} in your browser"
@@ -404,6 +594,17 @@ main() {
 
 # Handle command line args
 case "${1:-}" in
+    # Current features
+    --party)
+        demo_party
+        ;;
+    --beats)
+        demo_beats
+        ;;
+    --world)
+        demo_world_gen
+        ;;
+    # Phase 1 appendix
     --tts)
         demo_tts
         ;;
@@ -415,6 +616,24 @@ case "${1:-}" in
         ;;
     --ui)
         demo_client
+        ;;
+    --help|-h)
+        echo "Reckoning RPG Demo Script"
+        echo ""
+        echo "Usage: just demo [section]"
+        echo ""
+        echo "Current Features:"
+        echo "  --party    Party system demo"
+        echo "  --beats    Narrative beat sequences"
+        echo "  --world    World generation"
+        echo ""
+        echo "Phase 1 Appendix:"
+        echo "  --tts      Text-to-Speech engine"
+        echo "  --engine   Game engine architecture"
+        echo "  --db       Database layer"
+        echo "  --ui       Client interface"
+        echo ""
+        echo "Run without args for full demo."
         ;;
     *)
         main
