@@ -24,6 +24,7 @@ interface AddMemberRequest {
   class?: string;
   role: CharacterRole;
   stats?: CharacterStats;
+  voiceId?: string;
 }
 
 interface UpdateMemberRequest {
@@ -31,6 +32,7 @@ interface UpdateMemberRequest {
   description?: string;
   class?: string;
   stats?: CharacterStats;
+  voiceId?: string;
 }
 
 interface UpdateHealthRequest {
@@ -58,6 +60,7 @@ const addMemberSchema = {
           maxHealth: { type: 'number', minimum: 1 },
         },
       },
+      voiceId: { type: 'string', maxLength: 100 },
     },
   },
 };
@@ -76,6 +79,7 @@ const updateMemberSchema = {
           maxHealth: { type: 'number', minimum: 1 },
         },
       },
+      voiceId: { type: 'string', maxLength: 100 },
     },
   },
 };
@@ -163,7 +167,7 @@ export async function partyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       const { gameId } = request.params;
-      const { name, description, class: charClass, role, stats } = request.body;
+      const { name, description, class: charClass, role, stats, voiceId } = request.body;
 
       try {
         // Verify game exists
@@ -190,6 +194,7 @@ export async function partyRoutes(fastify: FastifyInstance) {
         if (description !== undefined) createInput.description = description;
         if (charClass !== undefined) createInput.class = charClass;
         if (stats !== undefined) createInput.stats = stats;
+        if (voiceId !== undefined) createInput.voiceId = voiceId;
 
         const member = characterRepo.create(createInput);
 
@@ -216,7 +221,7 @@ export async function partyRoutes(fastify: FastifyInstance) {
       reply: FastifyReply
     ) => {
       const { gameId, memberId } = request.params;
-      const { name, description, class: charClass, stats } = request.body;
+      const { name, description, class: charClass, stats, voiceId } = request.body;
 
       try {
         // Verify game exists
@@ -242,6 +247,7 @@ export async function partyRoutes(fastify: FastifyInstance) {
         if (description !== undefined) updateInput.description = description;
         if (charClass !== undefined) updateInput.class = charClass;
         if (stats !== undefined) updateInput.stats = stats;
+        if (voiceId !== undefined) updateInput.voiceId = voiceId;
 
         characterRepo.update(updateInput);
 

@@ -19,10 +19,13 @@ import {
   voiceRegistry,
   getAvailableVoices,
   findVoiceById,
+  getVoiceForCharacter,
   ElevenLabsClient,
   ElevenLabsError,
   TTSCacheService,
 } from '../services/index.js';
+import { getDatabase } from '../db/index.js';
+import { CharacterRepository } from '../db/repositories/index.js';
 
 // =============================================================================
 // TTS Speak Types
@@ -33,6 +36,10 @@ interface SpeakRequest {
   voiceId?: string;
   role?: VoiceRole;
   preset?: string;
+  /** Character ID for party member voice resolution */
+  characterId?: string;
+  /** Party index for default voice selection (when characterId has no voiceId) */
+  partyIndex?: number;
 }
 
 // =============================================================================
@@ -237,7 +244,7 @@ export async function ttsRoutes(fastify: FastifyInstance) {
   fastify.post<{ Body: SpeakRequest }>(
     '/speak',
     async (request: FastifyRequest<{ Body: SpeakRequest }>, reply: FastifyReply) => {
-      const { text, voiceId, role, preset } = request.body;
+      const { text, voiceId, role, preset, characterId, partyIndex } = request.body;
 
       // Validate text
       if (!text || typeof text !== 'string' || text.trim().length === 0) {
@@ -247,10 +254,23 @@ export async function ttsRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // Resolve voiceId from role if not provided directly
+      // Resolve voiceId - priority: voiceId > characterId > role > default
       let resolvedVoiceId = voiceId;
       let voiceSettings: VoiceSettings | undefined;
 
+      // If characterId provided, look up character's voice
+      if (!resolvedVoiceId && characterId) {
+        const db = getDatabase();
+        const characterRepo = new CharacterRepository(db);
+        const character = characterRepo.findById(characterId);
+        if (character) {
+          // Use character's voice or default based on party index
+          resolvedVoiceId = getVoiceForCharacter(character.voiceId, partyIndex ?? 0);
+          voiceSettings = getPreset(preset || 'dialogue_calm');
+        }
+      }
+
+      // Fall back to role-based voice
       if (!resolvedVoiceId && role) {
         const mapping = voiceRegistry.getMappingForRole(role);
         if (mapping) {

@@ -8,6 +8,9 @@ export {
   voiceRegistry,
   getAvailableVoices,
   findVoiceById,
+  getDefaultPartyVoice,
+  getVoiceForCharacter,
+  getPartyVoicePool,
 } from './voice-registry.js';
 
 export { ElevenLabsClient } from './elevenlabs/client.js';

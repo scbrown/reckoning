@@ -34,6 +34,7 @@ export interface CreateCharacterInput {
   class?: string;
   role: CharacterRole;
   stats?: CharacterStats;
+  voiceId?: string;
 }
 
 /**
@@ -67,8 +68,8 @@ export class CharacterRepository {
     const stats = input.stats || { health: 100, maxHealth: 100 };
 
     this.db.prepare(`
-      INSERT INTO characters (id, party_id, name, description, class, role, stats, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO characters (id, party_id, name, description, class, role, stats, voice_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       id,
       input.partyId,
@@ -77,11 +78,12 @@ export class CharacterRepository {
       input.class || null,
       input.role,
       JSON.stringify(stats),
+      input.voiceId || null,
       now,
       now
     );
 
-    return {
+    const result: CharacterWithRole = {
       id,
       partyId: input.partyId,
       name: input.name,
@@ -90,6 +92,10 @@ export class CharacterRepository {
       role: input.role,
       stats,
     };
+    if (input.voiceId) {
+      result.voiceId = input.voiceId;
+    }
+    return result;
   }
 
   /**
@@ -97,7 +103,7 @@ export class CharacterRepository {
    */
   findById(id: string): CharacterWithRole | null {
     const row = this.db.prepare(`
-      SELECT id, party_id, name, description, class, role, stats
+      SELECT id, party_id, name, description, class, role, stats, voice_id
       FROM characters WHERE id = ?
     `).get(id) as CharacterRow | undefined;
 
@@ -111,7 +117,7 @@ export class CharacterRepository {
    */
   findByParty(partyId: string): CharacterWithRole[] {
     const rows = this.db.prepare(`
-      SELECT id, party_id, name, description, class, role, stats
+      SELECT id, party_id, name, description, class, role, stats, voice_id
       FROM characters WHERE party_id = ?
     `).all(partyId) as CharacterRow[];
 
@@ -123,7 +129,7 @@ export class CharacterRepository {
    */
   findByPartyAndRole(partyId: string, role: CharacterRole): CharacterWithRole[] {
     const rows = this.db.prepare(`
-      SELECT id, party_id, name, description, class, role, stats
+      SELECT id, party_id, name, description, class, role, stats, voice_id
       FROM characters WHERE party_id = ? AND role = ?
     `).all(partyId, role) as CharacterRow[];
 
@@ -135,7 +141,7 @@ export class CharacterRepository {
    */
   findPlayer(partyId: string): CharacterWithRole | null {
     const row = this.db.prepare(`
-      SELECT id, party_id, name, description, class, role, stats
+      SELECT id, party_id, name, description, class, role, stats, voice_id
       FROM characters WHERE party_id = ? AND role = 'player'
     `).get(partyId) as CharacterRow | undefined;
 
@@ -197,6 +203,10 @@ export class CharacterRepository {
       fields.push('stats = ?');
       values.push(JSON.stringify(character.stats));
     }
+    if (character.voiceId !== undefined) {
+      fields.push('voice_id = ?');
+      values.push(character.voiceId);
+    }
     // Note: role changes are not allowed via update to maintain party limits
     // Use changeRole() method instead if role changes are needed
 
@@ -252,7 +262,7 @@ export class CharacterRepository {
   private rowToCharacter(row: CharacterRow): CharacterWithRole {
     const stats = row.stats ? JSON.parse(row.stats) : { health: 100, maxHealth: 100 };
 
-    return {
+    const result: CharacterWithRole = {
       id: row.id,
       partyId: row.party_id,
       name: row.name,
@@ -261,6 +271,10 @@ export class CharacterRepository {
       role: row.role as CharacterRole,
       stats,
     };
+    if (row.voice_id) {
+      result.voiceId = row.voice_id;
+    }
+    return result;
   }
 }
 
@@ -272,4 +286,5 @@ interface CharacterRow {
   class: string | null;
   role: string;
   stats: string | null;
+  voice_id: string | null;
 }

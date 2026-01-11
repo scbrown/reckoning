@@ -124,6 +124,8 @@ export interface Character {
   class: string;
   /** Character's current stats */
   stats: CharacterStats;
+  /** ElevenLabs voice ID for TTS (optional) */
+  voiceId?: string;
 }
 
 /**

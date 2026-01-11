@@ -40,6 +40,22 @@ const DEFAULT_PRESETS_FOR_ROLE: Record<VoiceRole, PresetName> = {
 };
 
 // =============================================================================
+// Party Member Voice Defaults
+// =============================================================================
+
+/**
+ * Default voice IDs for party members (player, members, companions)
+ * Uses a variety of voices to differentiate characters
+ */
+const PARTY_MEMBER_VOICE_POOL: string[] = [
+  'TxGEqnHWrfWFTfGW9XjX', // Josh - deep, resonant male
+  'EXAVITQu4vr4xnSDxMaL', // Bella - warm, friendly
+  'MF3mGyEYCl7XYWbV9V6O', // Elli - soft, introspective
+  'VR6AewLTigWG4xSOukaG', // Arnold - bold, commanding
+  '21m00Tcm4TlvDq8ikWAM', // Rachel - calm, narrative
+];
+
+// =============================================================================
 // Voice Registry Class
 // =============================================================================
 
@@ -147,6 +163,44 @@ class VoiceRegistry {
 
 // Singleton instance
 export const voiceRegistry = new VoiceRegistry();
+
+// =============================================================================
+// Party Member Voice Functions
+// =============================================================================
+
+/**
+ * Get a default voice ID for a party member by index
+ * Uses round-robin selection from the voice pool
+ *
+ * @param index - The party member's index (0-4)
+ * @returns A voice ID from the pool
+ */
+export function getDefaultPartyVoice(index: number): string {
+  // Pool is guaranteed to have at least one voice
+  return PARTY_MEMBER_VOICE_POOL[index % PARTY_MEMBER_VOICE_POOL.length]!;
+}
+
+/**
+ * Get voice ID for a character, with fallback to default pool
+ *
+ * @param voiceId - The character's assigned voice ID (optional)
+ * @param partyIndex - The character's index in the party for default selection
+ * @returns The voice ID to use
+ */
+export function getVoiceForCharacter(voiceId: string | undefined, partyIndex: number): string {
+  if (voiceId) {
+    return voiceId;
+  }
+  return getDefaultPartyVoice(partyIndex);
+}
+
+/**
+ * Get the available party member voice pool
+ * Useful for UI voice selection
+ */
+export function getPartyVoicePool(): string[] {
+  return [...PARTY_MEMBER_VOICE_POOL];
+}
 
 // =============================================================================
 // Mock Voice List (for development without ElevenLabs API)

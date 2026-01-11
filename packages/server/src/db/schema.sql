@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS characters (
   class TEXT,
   role TEXT NOT NULL CHECK (role IN ('player', 'member', 'companion')),
   stats TEXT,  -- JSON blob
+  voice_id TEXT,  -- ElevenLabs voice ID for TTS
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
@@ -153,6 +154,7 @@ CREATE TABLE IF NOT EXISTS characters (
   class TEXT,
   role TEXT NOT NULL CHECK (role IN ('player', 'member', 'companion')),
   stats TEXT,  -- JSON CharacterStats: {health, maxHealth, ...}
+  voice_id TEXT,  -- ElevenLabs voice ID for TTS
   created_at TEXT DEFAULT (datetime('now')),
   updated_at TEXT DEFAULT (datetime('now'))
 );
