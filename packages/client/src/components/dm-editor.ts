@@ -41,19 +41,24 @@ export class DMEditor {
    */
   render(): void {
     this.container.innerHTML = `
-      <div class="dm-editor">
+      <div class="dm-editor" role="region" aria-label="DM Editor - AI content review and editing">
         <div class="dm-editor-header">
           <span class="dm-editor-title">DM Editor</span>
-          <span class="dm-editor-status">Idle</span>
+          <span class="dm-editor-status" role="status" aria-live="polite">Idle</span>
         </div>
         <div class="dm-editor-content">
-          <textarea class="dm-editor-textarea" placeholder="AI will generate content here..."></textarea>
-          <div class="dm-editor-loading" style="display: none;">
-            <span class="spinner"></span>
+          <textarea
+            class="dm-editor-textarea"
+            role="textbox"
+            aria-label="AI-generated content editor"
+            aria-multiline="true"
+            placeholder="AI will generate content here..."></textarea>
+          <div class="dm-editor-loading" role="alert" aria-live="assertive" style="display: none;">
+            <span class="spinner" aria-hidden="true"></span>
             <span>Generating...</span>
           </div>
         </div>
-        <div class="dm-editor-meta">
+        <div class="dm-editor-meta" aria-label="Content metadata">
           <span class="event-type-badge"></span>
           <span class="speaker"></span>
         </div>
@@ -97,6 +102,8 @@ export class DMEditor {
       const isGenerating = state.editorState?.status === 'generating' || state.isLoading;
       loadingEl.style.display = isGenerating ? 'flex' : 'none';
       this.textarea.style.display = isGenerating ? 'none' : 'block';
+      // Update aria-busy to indicate loading state to screen readers
+      this.textarea.setAttribute('aria-busy', isGenerating ? 'true' : 'false');
     }
 
     // Update content (only if not actively editing)
