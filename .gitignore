@@ -39,6 +39,7 @@ test-results/
 .runtime/
 .server-port
 .pnpm-store/
+.runtime/
 
 # Database
 data/
