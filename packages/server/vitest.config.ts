@@ -1,7 +1,15 @@
 /// <reference types="vitest" />
 import { defineConfig } from 'vitest/config';
+import { resolve } from 'path';
 
 export default defineConfig({
+  resolve: {
+    alias: {
+      '@reckoning/shared/tts': resolve(__dirname, '../shared/src/tts/index.ts'),
+      '@reckoning/shared/game': resolve(__dirname, '../shared/src/game/index.ts'),
+      '@reckoning/shared': resolve(__dirname, '../shared/src/index.ts'),
+    },
+  },
   test: {
     globals: true,
     environment: 'node',
