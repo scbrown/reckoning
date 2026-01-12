@@ -69,6 +69,7 @@ export class SSEService {
       'generation_complete',
       'generation_error',
       'state_changed',
+      'party_changed',
       'tts_started',
       'tts_complete',
       'editor_state',

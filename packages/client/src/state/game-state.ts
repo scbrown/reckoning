@@ -515,6 +515,15 @@ export class GameStateManager {
       })
     );
 
+    // party_changed
+    this.unsubscribers.push(
+      this.sseService.on('party_changed', (event) => {
+        this.updateState({
+          party: event.party,
+        });
+      })
+    );
+
     // tts_started
     this.unsubscribers.push(
       this.sseService.on('tts_started', (event) => {
