@@ -34,3 +34,11 @@ export {
   RELATIONSHIP_DIMENSIONS,
   DIMENSION_DEFAULTS,
 } from './relationship-repository.js';
+export {
+  TraitRepository,
+  type TraitStatus,
+  type TraitCategory,
+  type EntityTrait,
+  type AddTraitInput,
+  type TraitCatalogEntry,
+} from './trait-repository.js';

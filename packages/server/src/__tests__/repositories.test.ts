@@ -11,6 +11,7 @@ import { PartyRepository } from '../db/repositories/party-repository.js';
 import { SaveRepository } from '../db/repositories/save-repository.js';
 import { EditorStateRepository } from '../db/repositories/editor-state-repository.js';
 import { RelationshipRepository } from '../db/repositories/relationship-repository.js';
+import { TraitRepository } from '../db/repositories/trait-repository.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -981,5 +982,258 @@ describe('RelationshipRepository', () => {
       const npcRels = repo.findByEntity(gameId, { type: 'npc', id: 'npc-1' });
       expect(npcRels).toHaveLength(1);
     });
+  });
+});
+
+describe('TraitRepository', () => {
+  let db: Database.Database;
+  let repo: TraitRepository;
+  let gameId: string;
+
+  beforeEach(() => {
+    db = createTestDatabase();
+    repo = new TraitRepository(db);
+
+    db.prepare(`
+      INSERT INTO games (id, player_id, current_area_id, turn)
+      VALUES ('game-1', 'player-1', 'area-1', 0)
+    `).run();
+    gameId = 'game-1';
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  it('should add a trait to an entity', () => {
+    const trait = repo.addTrait({
+      gameId,
+      entityType: 'player',
+      entityId: 'player-1',
+      trait: 'honorable',
+      turn: 1,
+    });
+
+    expect(trait.id).toBeDefined();
+    expect(trait.gameId).toBe(gameId);
+    expect(trait.entityType).toBe('player');
+    expect(trait.entityId).toBe('player-1');
+    expect(trait.trait).toBe('honorable');
+    expect(trait.acquiredTurn).toBe(1);
+    expect(trait.status).toBe('active');
+    expect(trait.createdAt).toBeDefined();
+  });
+
+  it('should add a trait with source event', () => {
+    // Create an event first
+    db.prepare(`
+      INSERT INTO events (id, game_id, turn, event_type, content, location_id)
+      VALUES ('event-1', 'game-1', 1, 'narration', 'Test event', 'area-1')
+    `).run();
+
+    const trait = repo.addTrait({
+      gameId,
+      entityType: 'player',
+      entityId: 'player-1',
+      trait: 'merciful',
+      turn: 1,
+      sourceEventId: 'event-1',
+    });
+
+    expect(trait.sourceEventId).toBe('event-1');
+  });
+
+  it('should find traits by entity', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-1', trait: 'ruthless', turn: 1 });
+
+    const playerTraits = repo.findByEntity(gameId, 'player', 'player-1');
+
+    expect(playerTraits).toHaveLength(2);
+    expect(playerTraits.map(t => t.trait)).toContain('honorable');
+    expect(playerTraits.map(t => t.trait)).toContain('merciful');
+  });
+
+  it('should find entities by trait', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-1', trait: 'honorable', turn: 2 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-2', trait: 'ruthless', turn: 1 });
+
+    const honorableEntities = repo.findByTrait(gameId, 'honorable');
+
+    expect(honorableEntities).toHaveLength(2);
+    expect(honorableEntities.map(t => t.entityId)).toContain('player-1');
+    expect(honorableEntities.map(t => t.entityId)).toContain('npc-1');
+  });
+
+  it('should remove a trait (set status to removed)', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+
+    repo.removeTrait(gameId, 'player', 'player-1', 'honorable');
+
+    const traits = repo.findByEntity(gameId, 'player', 'player-1');
+    expect(traits).toHaveLength(0); // removed traits are not active
+  });
+
+  it('should get trait history including removed traits', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+    repo.removeTrait(gameId, 'player', 'player-1', 'honorable');
+
+    const history = repo.getTraitHistory(gameId, 'player', 'player-1');
+
+    expect(history).toHaveLength(2);
+    const honorable = history.find(t => t.trait === 'honorable');
+    const merciful = history.find(t => t.trait === 'merciful');
+    expect(honorable?.status).toBe('removed');
+    expect(merciful?.status).toBe('active');
+  });
+
+  it('should get trait catalog', () => {
+    const catalog = repo.getTraitCatalog();
+
+    expect(catalog.length).toBe(24);
+    expect(catalog.some(t => t.trait === 'honorable')).toBe(true);
+    expect(catalog.some(t => t.trait === 'ruthless')).toBe(true);
+    expect(catalog.some(t => t.category === 'moral')).toBe(true);
+    expect(catalog.some(t => t.category === 'emotional')).toBe(true);
+    expect(catalog.some(t => t.category === 'capability')).toBe(true);
+    expect(catalog.some(t => t.category === 'reputation')).toBe(true);
+  });
+
+  it('should get traits by category', () => {
+    const moralTraits = repo.getTraitsByCategory('moral');
+
+    expect(moralTraits.length).toBe(6);
+    expect(moralTraits.every(t => t.category === 'moral')).toBe(true);
+  });
+
+  it('should find trait by id', () => {
+    const created = repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+
+    const found = repo.findById(created.id);
+
+    expect(found).not.toBeNull();
+    expect(found?.trait).toBe('honorable');
+  });
+
+  it('should return null for non-existent trait', () => {
+    const found = repo.findById('non-existent');
+    expect(found).toBeNull();
+  });
+
+  it('should check if entity has trait', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+
+    expect(repo.hasTrait(gameId, 'player', 'player-1', 'honorable')).toBe(true);
+    expect(repo.hasTrait(gameId, 'player', 'player-1', 'ruthless')).toBe(false);
+  });
+
+  it('should not return removed traits when checking hasTrait', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.removeTrait(gameId, 'player', 'player-1', 'honorable');
+
+    expect(repo.hasTrait(gameId, 'player', 'player-1', 'honorable')).toBe(false);
+  });
+
+  it('should update trait status', () => {
+    const created = repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+
+    repo.updateStatus(created.id, 'faded');
+
+    const found = repo.findById(created.id);
+    expect(found?.status).toBe('faded');
+  });
+
+  it('should delete a trait permanently', () => {
+    const created = repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+
+    repo.delete(created.id);
+
+    const found = repo.findById(created.id);
+    expect(found).toBeNull();
+  });
+
+  it('should delete all traits for a game', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-1', trait: 'ruthless', turn: 1 });
+
+    repo.deleteByGame(gameId);
+
+    const traits = repo.findByGame(gameId);
+    expect(traits).toHaveLength(0);
+  });
+
+  it('should delete all traits for an entity', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-1', trait: 'ruthless', turn: 1 });
+
+    repo.deleteByEntity(gameId, 'player', 'player-1');
+
+    const playerTraits = repo.findByEntity(gameId, 'player', 'player-1');
+    const npcTraits = repo.findByEntity(gameId, 'npc', 'npc-1');
+    expect(playerTraits).toHaveLength(0);
+    expect(npcTraits).toHaveLength(1);
+  });
+
+  it('should count traits for an entity', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+
+    const count = repo.countByEntity(gameId, 'player', 'player-1');
+
+    expect(count).toBe(2);
+  });
+
+  it('should not count removed traits', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+    repo.removeTrait(gameId, 'player', 'player-1', 'honorable');
+
+    const count = repo.countByEntity(gameId, 'player', 'player-1');
+
+    expect(count).toBe(1);
+  });
+
+  it('should find all traits for a game', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-1', trait: 'ruthless', turn: 1 });
+
+    const traits = repo.findByGame(gameId);
+
+    expect(traits).toHaveLength(2);
+  });
+
+  it('should not find removed traits when finding by game', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'npc', entityId: 'npc-1', trait: 'ruthless', turn: 1 });
+    repo.removeTrait(gameId, 'player', 'player-1', 'honorable');
+
+    const traits = repo.findByGame(gameId);
+
+    expect(traits).toHaveLength(1);
+    expect(traits[0].trait).toBe('ruthless');
+  });
+
+  it('should throw on duplicate trait for same entity', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+
+    expect(() => {
+      repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 2 });
+    }).toThrow();
+  });
+
+  it('should order traits by acquired turn', () => {
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'ruthless', turn: 3 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+    repo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+
+    const traits = repo.findByEntity(gameId, 'player', 'player-1');
+
+    expect(traits[0].trait).toBe('honorable');
+    expect(traits[1].trait).toBe('merciful');
+    expect(traits[2].trait).toBe('ruthless');
   });
 });
