@@ -135,6 +135,146 @@ export class EventRepository {
     return result.count;
   }
 
+  /**
+   * Find events by action verbs
+   */
+  findByActions(gameId: string, actions: string[], options?: { limit?: number; offset?: number }): CanonicalEvent[] {
+    if (actions.length === 0) return [];
+
+    const limit = options?.limit ?? 100;
+    const offset = options?.offset ?? 0;
+    const placeholders = actions.map(() => '?').join(', ');
+
+    const rows = this.db.prepare(`
+      SELECT id, game_id, turn, timestamp, event_type, content, original_generated, speaker, location_id, witnesses,
+             action, actor_type, actor_id, target_type, target_id, tags
+      FROM events
+      WHERE game_id = ? AND action IN (${placeholders})
+      ORDER BY timestamp ASC
+      LIMIT ? OFFSET ?
+    `).all(gameId, ...actions, limit, offset) as EventRow[];
+
+    return rows.map(row => this.rowToEvent(row));
+  }
+
+  /**
+   * Count events by action verbs
+   */
+  countByActions(gameId: string, actions: string[]): number {
+    if (actions.length === 0) return 0;
+
+    const placeholders = actions.map(() => '?').join(', ');
+
+    const result = this.db.prepare(`
+      SELECT COUNT(*) as count FROM events
+      WHERE game_id = ? AND action IN (${placeholders})
+    `).get(gameId, ...actions) as { count: number };
+
+    return result.count;
+  }
+
+  /**
+   * Find events by actor
+   */
+  findByActor(gameId: string, actorType: ActorType, actorId: string, options?: { limit?: number; offset?: number }): CanonicalEvent[] {
+    const limit = options?.limit ?? 100;
+    const offset = options?.offset ?? 0;
+
+    const rows = this.db.prepare(`
+      SELECT id, game_id, turn, timestamp, event_type, content, original_generated, speaker, location_id, witnesses,
+             action, actor_type, actor_id, target_type, target_id, tags
+      FROM events
+      WHERE game_id = ? AND actor_type = ? AND actor_id = ?
+      ORDER BY timestamp ASC
+      LIMIT ? OFFSET ?
+    `).all(gameId, actorType, actorId, limit, offset) as EventRow[];
+
+    return rows.map(row => this.rowToEvent(row));
+  }
+
+  /**
+   * Find events by target
+   */
+  findByTarget(gameId: string, targetType: TargetType, targetId: string, options?: { limit?: number; offset?: number }): CanonicalEvent[] {
+    const limit = options?.limit ?? 100;
+    const offset = options?.offset ?? 0;
+
+    const rows = this.db.prepare(`
+      SELECT id, game_id, turn, timestamp, event_type, content, original_generated, speaker, location_id, witnesses,
+             action, actor_type, actor_id, target_type, target_id, tags
+      FROM events
+      WHERE game_id = ? AND target_type = ? AND target_id = ?
+      ORDER BY timestamp ASC
+      LIMIT ? OFFSET ?
+    `).all(gameId, targetType, targetId, limit, offset) as EventRow[];
+
+    return rows.map(row => this.rowToEvent(row));
+  }
+
+  /**
+   * Find events witnessed by a specific entity
+   * Uses JSON query to search the witnesses array
+   */
+  findWitnessedBy(gameId: string, witnessId: string, options?: { limit?: number; offset?: number }): CanonicalEvent[] {
+    const limit = options?.limit ?? 100;
+    const offset = options?.offset ?? 0;
+
+    const rows = this.db.prepare(`
+      SELECT id, game_id, turn, timestamp, event_type, content, original_generated, speaker, location_id, witnesses,
+             action, actor_type, actor_id, target_type, target_id, tags
+      FROM events
+      WHERE game_id = ? AND EXISTS (
+        SELECT 1 FROM json_each(witnesses) WHERE value = ?
+      )
+      ORDER BY timestamp ASC
+      LIMIT ? OFFSET ?
+    `).all(gameId, witnessId, limit, offset) as EventRow[];
+
+    return rows.map(row => this.rowToEvent(row));
+  }
+
+  /**
+   * Find events with a specific tag
+   * Uses JSON query to search the tags array
+   */
+  findByTag(gameId: string, tag: string, options?: { limit?: number; offset?: number }): CanonicalEvent[] {
+    const limit = options?.limit ?? 100;
+    const offset = options?.offset ?? 0;
+
+    const rows = this.db.prepare(`
+      SELECT id, game_id, turn, timestamp, event_type, content, original_generated, speaker, location_id, witnesses,
+             action, actor_type, actor_id, target_type, target_id, tags
+      FROM events
+      WHERE game_id = ? AND tags IS NOT NULL AND EXISTS (
+        SELECT 1 FROM json_each(tags) WHERE value = ?
+      )
+      ORDER BY timestamp ASC
+      LIMIT ? OFFSET ?
+    `).all(gameId, tag, limit, offset) as EventRow[];
+
+    return rows.map(row => this.rowToEvent(row));
+  }
+
+  /**
+   * Get summary of action counts for a game
+   * Returns a map of action -> count
+   */
+  getActionSummary(gameId: string): Map<string, number> {
+    const rows = this.db.prepare(`
+      SELECT action, COUNT(*) as count
+      FROM events
+      WHERE game_id = ? AND action IS NOT NULL
+      GROUP BY action
+      ORDER BY count DESC
+    `).all(gameId) as { action: string; count: number }[];
+
+    const summary = new Map<string, number>();
+    for (const row of rows) {
+      summary.set(row.action, row.count);
+    }
+    return summary;
+  }
+
   private rowToEvent(row: EventRow): CanonicalEvent {
     const event: CanonicalEvent = {
       id: row.id,
