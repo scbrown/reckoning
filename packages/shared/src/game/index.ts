@@ -72,3 +72,33 @@ export type {
   BeatSequenceStatus,
   BeatSequence,
 } from './beats.js';
+
+// Action vocabulary types
+export type {
+  ActionCategory,
+  Action,
+  MercyAction,
+  ViolenceAction,
+  HonestyAction,
+  SocialAction,
+  ExplorationAction,
+  CharacterAction,
+} from './actions.js';
+
+// Action vocabulary constants and helpers
+export {
+  ACTION_CATEGORIES,
+  MERCY_ACTIONS,
+  VIOLENCE_ACTIONS,
+  HONESTY_ACTIONS,
+  SOCIAL_ACTIONS,
+  EXPLORATION_ACTIONS,
+  CHARACTER_ACTIONS,
+  ALL_ACTIONS,
+  ACTION_TO_CATEGORY,
+  CATEGORY_TO_ACTIONS,
+  isActionInCategory,
+  getActionCategory,
+  isValidAction,
+  isValidActionCategory,
+} from './actions.js';
