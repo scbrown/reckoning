@@ -3,7 +3,7 @@ title: Development Phases Overview
 type: plan
 status: active
 created: 2026-01-10
-updated: 2026-01-10
+updated: 2026-01-18
 authors:
   - human
   - agent
@@ -28,33 +28,56 @@ This directory contains detailed implementation plans for each development phase
 | [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Complete |
 | [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Complete |
 | [Phase 3](./phase-3-party-world.md) | Party System, Beats & World Gen | Planning |
-| [Phase 4](./chronicle-integration.md) | Chronicle Integration | Planning |
-| Phase 5 | Pattern Engine (via Chronicle) | Not Started |
+| [Phase A](./phase-a-entity-evolution.md) | Entity Evolution (Traits & Relationships) | Planning |
+| [Phase B](./phase-b-structured-events.md) | Structured Events & Pattern Detection | Planning |
+| [Phase C](./phase-c-narrative-structure.md) | Narrative Structure (Scenes) | Planning |
+| [Phase D](./phase-d-export-layer.md) | Export Layer & Git Persistence | Backlog |
+| Phase 5 | Pattern Engine | Not Started |
 | Phase 6 | Trial System | Not Started |
 | Phase 7 | UI & Rendering | Not Started |
 
-## Chronicle Integration
+## Chronicle Integration (Phases A-D)
 
-**Phase 4 is the pivotal integration phase.** Reckoning transitions from owning state to being an interface layer over Chronicle.
+Chronicle was originally planned as a separate WASM module. We've since adopted an **evolutionary approach**: building Chronicle concepts directly into Reckoning, with the option to extract later.
 
-Chronicle provides:
-- **Entity Evolution System** - Traits, relationships, scene transforms
-- **Evolution Rules** - Generated with world, evaluated on structured events
-- **Query & Eventing** - Rich context for AI generation, background processes
-- **Self-contained Persistence** - IndexedDB + optional Git sync
+See [Chronicle Integration Plan](./chronicle-integration.md) for the overall strategy.
 
-See [Chronicle Integration Plan](./chronicle-integration.md) for full details.
+### Phase A: Entity Evolution
 
-### Key Architectural Shift
+Track how characters, NPCs, and locations evolve through play:
+- **Traits**: Predefined vocabulary (merciful, ruthless, haunted, etc.)
+- **Relationships**: Multi-dimensional (trust, respect, fear, resentment, etc.)
+- **DM Approval**: System suggests evolutions, DM has final say
 
-```
-BEFORE: Reckoning owns everything (SQLite)
-AFTER:  Reckoning = Interface, Chronicle = State
+### Phase B: Structured Events
 
-Reckoning → submitEvent() → Chronicle → evaluates rules → pendingEvolutions
-                                      → Reckoning queries for AI context
-                                      → Reckoning subscribes to events
-```
+Enable queryable event patterns for AI context and emergence detection:
+- **Structured fields**: action, actor, target, witnesses, tags
+- **Pattern detection**: mercy ratio, violence tendency, honesty
+- **Emergence observer**: detect villain/ally emergence opportunities
+
+### Phase C: Narrative Structure
+
+Group turns into scenes with optional branching:
+- **Scenes**: Type, mood, stakes, turn boundaries
+- **Connections**: Requirements to unlock paths
+- **Scene-aware AI**: Context includes current scene state
+
+### Phase D: Export Layer (Backlog)
+
+Git-diffable game state for persistence and sharing:
+- **TOML/JSON export**: Human-readable, version-controllable
+- **Git integration**: Optional commit on save
+- **Derivative works**: Comic generation, transcripts
+
+## How Evolution Maps to the Four Pillars
+
+| Reckoning Pillar | Implementation |
+|------------------|----------------|
+| **Unreliable Self** | Traits visible to DM, hidden from player; AI interprets differently per character |
+| **History as Text** | Events table as source of truth; derived state computed |
+| **Pattern Engine** | Structured event queries; background observers detect patterns |
+| **Living Chronicle & Trial** | Relationship tracking enables emergent villains; scenes support arcs |
 
 ## Phase 0: Foundation
 
@@ -83,9 +106,10 @@ Starting with the Text-to-Speech engine provides:
 
 Each phase document contains:
 - **Goals**: What we're trying to achieve
-- **Architecture**: How it fits into the larger system
-- **Tasks**: Specific implementation items (sync with beads)
-- **Open Questions**: Decisions needed before/during implementation
+- **Database Schema**: Tables and migrations needed
+- **Services**: New services and modifications
+- **Integration Points**: How it connects to existing code
+- **Tasks**: Specific implementation items
 - **Acceptance Criteria**: How we know it's done
 
 ## Task Tracking
@@ -93,7 +117,7 @@ Each phase document contains:
 Phase documents inform task creation in beads:
 ```bash
 # Add tasks from a phase
-just add-task "Implement ElevenLabs service wrapper"
+just add-task "Implement TraitRepository"
 
 # Track progress
 bd list
