@@ -10,6 +10,7 @@ import type { PlaybackMode } from '@reckoning/shared';
 import { SSEService } from './services/sse/index.js';
 import { GameService } from './services/game/index.js';
 import { TTSService } from './services/tts/index.js';
+import { AvatarManager } from './services/avatar-manager/index.js';
 
 // State Management
 import { createGameStateManager, type GameStateManager } from './state/index.js';
@@ -33,6 +34,7 @@ import { SpeechBubble } from './components/speech-bubble.js';
 const sseService = new SSEService();
 const gameService = new GameService();
 const ttsService = new TTSService({ autoPlay: true });
+const avatarManager = new AvatarManager();
 
 // =============================================================================
 // State
@@ -214,6 +216,12 @@ function initializeUIComponents(): void {
 
   // Party Panel - with state manager for reactive updates
   partyPanel = new PartyPanel({ containerId: 'party-panel' }, stateManager);
+
+  // Connect avatar manager to party panel if WASM is available
+  if (avatarManager.isWasmAvailable()) {
+    partyPanel.setAvatarManager(avatarManager);
+  }
+
   partyPanel.render();
 
   // Area Panel
@@ -243,6 +251,9 @@ function destroyUIComponents(): void {
   statusBar?.destroy();
   beatEditor?.destroy();
   speechBubble?.destroy();
+
+  // Clear all avatar instances (but don't destroy the manager itself)
+  avatarManager.clearAll();
 
   dmEditor = null;
   controls = null;
@@ -481,24 +492,36 @@ function setupTTSIntegration(): void {
       console.log('[TTS] Started playing:', item.id);
       // Show speech bubble if speaker is specified
       const speaker = item.request.speaker;
-      if (speaker && speechBubble) {
-        speechBubble.show(speaker, item.request.text);
+      if (speaker) {
+        if (speechBubble) {
+          speechBubble.show(speaker, item.request.text);
+        }
+        // Start avatar speaking animation
+        avatarManager.startSpeaking(speaker);
       }
     },
     onEnd: (item) => {
       console.log('[TTS] Finished playing:', item.id);
       // Schedule speech bubble fade if speaker is specified
       const speaker = item.request.speaker;
-      if (speaker && speechBubble) {
-        speechBubble.scheduleFade(speaker);
+      if (speaker) {
+        if (speechBubble) {
+          speechBubble.scheduleFade(speaker);
+        }
+        // Stop avatar speaking animation
+        avatarManager.stopSpeaking(speaker);
       }
     },
     onError: (item, error) => {
       console.error('[TTS] Error:', item.id, error);
       // Hide speech bubble on error if speaker is specified
       const speaker = item.request.speaker;
-      if (speaker && speechBubble) {
-        speechBubble.hide(speaker);
+      if (speaker) {
+        if (speechBubble) {
+          speechBubble.hide(speaker);
+        }
+        // Stop avatar speaking animation on error
+        avatarManager.stopSpeaking(speaker);
       }
     },
     onQueueChange: (status) => {
@@ -522,6 +545,19 @@ function setupTTSIntegration(): void {
 
 async function initialize(): Promise<void> {
   console.log('[Main] Initializing The Reckoning client...');
+
+  // Initialize avatar manager (WASM) - non-blocking, graceful degradation if fails
+  avatarManager.init().then((success) => {
+    if (success) {
+      console.log('[Main] Avatar manager initialized');
+      // Connect to party panel if already created
+      if (partyPanel) {
+        partyPanel.setAvatarManager(avatarManager);
+      }
+    } else {
+      console.warn('[Main] Avatar manager failed to initialize, using fallback placeholders');
+    }
+  });
 
   // Create state manager
   stateManager = createGameStateManager(sseService, gameService);

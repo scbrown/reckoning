@@ -3,6 +3,7 @@
  *
  * Reusable character card for party panel and other contexts.
  * Displays character name, class, avatar, and health bar.
+ * Supports animated pixel art avatars via AvatarManager.
  */
 
 import type { Character, CharacterStats } from '@reckoning/shared';
@@ -11,6 +12,11 @@ export interface CharacterCardConfig {
   containerId?: string | undefined;
   onClick?: ((character: Character) => void) | undefined;
 }
+
+/**
+ * Callback for mounting animated avatars after HTML render
+ */
+export type AvatarMountCallback = (characterId: string, container: HTMLElement) => void;
 
 /**
  * Character Card component for displaying a single character
@@ -53,6 +59,9 @@ export class CharacterCard {
   /**
    * Generate HTML string for the character card
    * Useful for rendering within parent components
+   *
+   * The avatar container has the class 'avatar-mount' which can be used
+   * to mount animated avatars after the HTML is inserted into the DOM.
    */
   toHTML(): string {
     const healthPercent = this.calculateHealthPercent(this.character.stats);
@@ -62,7 +71,9 @@ export class CharacterCard {
     return `
       <div class="character-card ${clickableClass}" data-character-id="${this.character.id}">
         <div class="character-avatar">
-          <div class="avatar-placeholder">${this.getInitials(this.character.name)}</div>
+          <div class="avatar-mount" data-avatar-for="${this.character.id}">
+            <div class="avatar-placeholder">${this.getInitials(this.character.name)}</div>
+          </div>
         </div>
         <div class="character-info">
           <div class="character-name">${this.escapeHtml(this.character.name)}</div>
@@ -76,6 +87,40 @@ export class CharacterCard {
         </div>
       </div>
     `;
+  }
+
+  /**
+   * Mount an animated avatar element into the card's avatar container.
+   * Call this after the card HTML has been rendered to the DOM.
+   *
+   * @param element - Canvas element from AnimatedAvatar.getElement()
+   * @param rootElement - Optional root element to search within (defaults to document)
+   * @returns true if mounted successfully, false otherwise
+   */
+  static mountAvatar(
+    characterId: string,
+    element: HTMLElement,
+    rootElement: Element = document.documentElement
+  ): boolean {
+    const container = rootElement.querySelector(
+      `.avatar-mount[data-avatar-for="${characterId}"]`
+    );
+    if (!container) {
+      console.warn(`CharacterCard: No avatar mount found for character ${characterId}`);
+      return false;
+    }
+
+    // Clear existing content and insert the animated avatar
+    container.innerHTML = '';
+    container.appendChild(element);
+    return true;
+  }
+
+  /**
+   * Get all avatar mount containers within a root element
+   */
+  static getAvatarMounts(rootElement: Element = document.documentElement): NodeListOf<Element> {
+    return rootElement.querySelectorAll('.avatar-mount[data-avatar-for]');
   }
 
   /**
@@ -211,6 +256,19 @@ export class CharacterCard {
 
       .character-avatar {
         flex-shrink: 0;
+      }
+
+      .avatar-mount {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        overflow: hidden;
+      }
+
+      .avatar-mount canvas {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
       }
 
       .avatar-placeholder {

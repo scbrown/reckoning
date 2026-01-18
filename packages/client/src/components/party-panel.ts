@@ -3,16 +3,24 @@
  *
  * Displays the party members with character cards showing name, role, and health.
  * Integrates with GameStateManager to update when party state changes.
+ * Supports animated pixel art avatars via AvatarManager.
  */
 
-import type { Character, CharacterStats } from '@reckoning/shared';
+import type { Character, CharacterStats, PixelArt } from '@reckoning/shared';
 import type { GameStateManager } from '../state/game-state.js';
+import type { AvatarManager } from '../services/avatar-manager/index.js';
+import { CharacterCard } from './character-card.js';
 
 export interface PartyPanelConfig {
   containerId: string;
   /** ID of the player character to visually distinguish them */
   playerId?: string;
 }
+
+/**
+ * Callback to fetch PixelArt data for a character
+ */
+export type PixelArtFetcher = (character: Character) => Promise<PixelArt | null>;
 
 /**
  * Mock party members for initial development (used when no real party data exists)
@@ -58,6 +66,8 @@ export class PartyPanel {
   private members: Character[];
   private playerId: string | undefined;
   private stateManager: GameStateManager | null;
+  private avatarManager: AvatarManager | null = null;
+  private pixelArtFetcher: PixelArtFetcher | null = null;
   private unsubscribe: (() => void) | null = null;
 
   constructor(config: PartyPanelConfig, stateManager?: GameStateManager) {
@@ -83,6 +93,19 @@ export class PartyPanel {
     } else {
       // Initialize with mock data when no state manager is provided
       this.members = [...MOCK_PARTY_MEMBERS];
+    }
+  }
+
+  /**
+   * Set the avatar manager for animated avatar support
+   */
+  setAvatarManager(avatarManager: AvatarManager, fetcher?: PixelArtFetcher): void {
+    this.avatarManager = avatarManager;
+    this.pixelArtFetcher = fetcher ?? null;
+
+    // Re-render to create avatars for existing members
+    if (this.members.length > 0) {
+      this.render();
     }
   }
 
@@ -156,6 +179,48 @@ export class PartyPanel {
         </div>
       </div>
     `;
+
+    // Mount animated avatars after HTML is in DOM
+    this.mountAvatars();
+  }
+
+  /**
+   * Mount animated avatars for all members with pixelArtRef
+   */
+  private mountAvatars(): void {
+    if (!this.avatarManager || !this.avatarManager.isWasmAvailable()) {
+      return;
+    }
+
+    for (const member of this.members) {
+      // Skip if character has no pixel art reference
+      if (!member.pixelArtRef) {
+        continue;
+      }
+
+      // If we have a fetcher, use it to get full PixelArt data
+      if (this.pixelArtFetcher) {
+        this.pixelArtFetcher(member).then((pixelArt) => {
+          if (pixelArt) {
+            this.mountAvatarForCharacter(member, pixelArt);
+          }
+        }).catch((error) => {
+          console.warn(`PartyPanel: Failed to fetch pixel art for ${member.id}`, error);
+        });
+      }
+    }
+  }
+
+  /**
+   * Mount an animated avatar for a specific character
+   */
+  private mountAvatarForCharacter(character: Character, pixelArt: PixelArt): void {
+    if (!this.avatarManager) return;
+
+    const canvasElement = this.avatarManager.createAvatar(character, pixelArt);
+    if (canvasElement) {
+      CharacterCard.mountAvatar(character.id, canvasElement, this.container);
+    }
   }
 
   /**
@@ -192,6 +257,13 @@ export class PartyPanel {
    * Cleanup
    */
   destroy(): void {
+    // Cleanup avatars
+    if (this.avatarManager) {
+      for (const member of this.members) {
+        this.avatarManager.removeAvatar(member.id);
+      }
+    }
+
     // Unsubscribe from state manager
     if (this.unsubscribe) {
       this.unsubscribe();
@@ -215,7 +287,9 @@ export class PartyPanel {
     return `
       <div class="character-card ${playerClass}" data-character-id="${character.id}" role="listitem" tabindex="0" aria-label="${this.escapeHtml(character.name)}, ${this.escapeHtml(character.class)}, ${character.stats.health} of ${character.stats.maxHealth} health${isPlayer ? ', player character' : ''}">
         <div class="character-avatar" aria-hidden="true">
-          <div class="avatar-placeholder">${this.getInitials(character.name)}</div>
+          <div class="avatar-mount" data-avatar-for="${character.id}">
+            <div class="avatar-placeholder">${this.getInitials(character.name)}</div>
+          </div>
         </div>
         <div class="character-info">
           <div class="character-name-row">
@@ -331,6 +405,19 @@ export class PartyPanel {
 
       .character-avatar {
         flex-shrink: 0;
+      }
+
+      .avatar-mount {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        overflow: hidden;
+      }
+
+      .avatar-mount canvas {
+        width: 100%;
+        height: 100%;
+        border-radius: 50%;
       }
 
       .avatar-placeholder {
@@ -475,7 +562,8 @@ export class PartyPanel {
         background: linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%);
       }
 
-      .character-card--player .avatar-placeholder {
+      .character-card--player .avatar-placeholder,
+      .character-card--player .avatar-mount {
         box-shadow: 0 0 0 2px #667eea, 0 0 8px rgba(102, 126, 234, 0.5);
       }
 
