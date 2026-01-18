@@ -63,6 +63,9 @@ importers:
       '@reckoning/shared':
         specifier: workspace:*
         version: link:../shared
+      '@stiwi/pixelsrc-wasm':
+        specifier: file:../../../../../../../workspace/ttp/wasm
+        version: file:../../../../../workspace/ttp/wasm
       better-sqlite3:
         specifier: ^11.10.0
         version: 11.10.0
@@ -3230,4 +3233,9 @@ packages:
 
   /zod@4.3.5:
     resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
+    dev: false
+
+  file:../../../../../workspace/ttp/wasm:
+    resolution: {directory: ../../../../../workspace/ttp/wasm, type: directory}
+    name: '@stiwi/pixelsrc-wasm'
     dev: false

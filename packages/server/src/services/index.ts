@@ -42,3 +42,9 @@ export type {
   BroadcastManagerOptions,
   BroadcastStats,
 } from './sse/index.js';
+
+export {
+  PixelsrcRenderer,
+  PixelsrcRenderError,
+} from './pixelsrc/index.js';
+export type { RenderOptions, RenderResult } from './pixelsrc/index.js';
