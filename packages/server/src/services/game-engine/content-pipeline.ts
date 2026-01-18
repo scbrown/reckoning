@@ -24,7 +24,9 @@ import {
   GAME_CONTENT_SCHEMA,
   BEAT_SEQUENCE_SCHEMA,
   safeParseBeatSequenceOutput,
+  extractEvolutionSuggestions,
   type AIBeatOutput,
+  type EvolutionSuggestionOutput,
 } from '../ai/schemas.js';
 import {
   buildPrompt,
@@ -33,6 +35,7 @@ import {
   type SceneContext,
   type PartyContext,
 } from '../ai/prompts/index.js';
+import type { EvolutionService, EvolutionSuggestion, GameEventRef } from '../evolution/index.js';
 
 // =============================================================================
 // Types
@@ -55,18 +58,45 @@ export interface PipelineError {
   retryable: boolean;
 }
 
+/**
+ * Configuration options for ContentPipeline
+ */
+export interface ContentPipelineConfig {
+  contextBuilder: ContextBuilder;
+  aiProvider: AIProvider;
+  evolutionService?: EvolutionService;
+}
+
 // =============================================================================
 // ContentPipeline Class
 // =============================================================================
 
 /**
  * Generates content via AI provider using context and prompts.
+ * Optionally detects entity evolutions after content generation.
  */
 export class ContentPipeline {
+  private contextBuilder: ContextBuilder;
+  private aiProvider: AIProvider;
+  private evolutionService: EvolutionService | undefined;
+
+  constructor(config: ContentPipelineConfig);
+  constructor(contextBuilder: ContextBuilder, aiProvider: AIProvider);
   constructor(
-    private contextBuilder: ContextBuilder,
-    private aiProvider: AIProvider
-  ) {}
+    configOrContextBuilder: ContentPipelineConfig | ContextBuilder,
+    aiProvider?: AIProvider
+  ) {
+    if ('contextBuilder' in configOrContextBuilder) {
+      // New config-based constructor
+      this.contextBuilder = configOrContextBuilder.contextBuilder;
+      this.aiProvider = configOrContextBuilder.aiProvider;
+      this.evolutionService = configOrContextBuilder.evolutionService;
+    } else {
+      // Legacy two-argument constructor for backwards compatibility
+      this.contextBuilder = configOrContextBuilder;
+      this.aiProvider = aiProvider!;
+    }
+  }
 
   /**
    * Generate content for a game
@@ -142,11 +172,21 @@ export class ContentPipeline {
     // Parse response into GeneratedContent
     const elapsed = Date.now() - startTime;
     console.log(`[ContentPipeline] AI response received after ${elapsed}ms (${aiResult.value.content.length} chars)`);
-    const generatedContent = this.parseResponse(
+    const { generatedContent, parsedResponse } = this.parseResponseWithRaw(
       aiResult.value.content,
       type
     );
     console.log(`[ContentPipeline] Generation complete for ${type}`);
+
+    // Detect evolutions if EvolutionService is configured
+    if (this.evolutionService && parsedResponse) {
+      await this.detectEvolutions(
+        gameId,
+        context.gameState.turn,
+        generatedContent.id,
+        parsedResponse
+      );
+    }
 
     return Ok(generatedContent);
   }
@@ -358,7 +398,8 @@ export class ContentPipeline {
    *   "eventType": "narration" | "party_action" | etc,
    *   "content": "The narrative text...",
    *   "speaker": "Character name or null",
-   *   "suggestedActions": ["optional", "follow-up", "options"]
+   *   "suggestedActions": ["optional", "follow-up", "options"],
+   *   "evolutions": [...] (optional)
    * }
    *
    * If JSON parsing fails, falls back to treating the response as plain text.
@@ -367,26 +408,40 @@ export class ContentPipeline {
     response: string,
     generationType: GenerationType
   ): GeneratedContent {
+    return this.parseResponseWithRaw(response, generationType).generatedContent;
+  }
+
+  /**
+   * Parse AI response into GeneratedContent and return raw parsed object.
+   * Used for evolution detection which needs access to the full parsed response.
+   */
+  private parseResponseWithRaw(
+    response: string,
+    generationType: GenerationType
+  ): { generatedContent: GeneratedContent; parsedResponse: Record<string, unknown> | null } {
     // Try to parse as JSON first
-    const jsonResult = this.tryParseJsonResponse(response);
+    const jsonResult = this.tryParseJsonResponseWithRaw(response);
 
     if (jsonResult) {
       console.log('[ContentPipeline] Successfully parsed JSON response');
       // Build metadata object only with defined values (exactOptionalPropertyTypes)
       const metadata: GeneratedContent['metadata'] = {};
-      if (jsonResult.speaker) {
-        metadata.speaker = jsonResult.speaker;
+      if (jsonResult.parsed.speaker) {
+        metadata.speaker = jsonResult.parsed.speaker;
       }
-      if (jsonResult.suggestedActions && jsonResult.suggestedActions.length > 0) {
-        metadata.suggestedActions = jsonResult.suggestedActions;
+      if (jsonResult.parsed.suggestedActions && jsonResult.parsed.suggestedActions.length > 0) {
+        metadata.suggestedActions = jsonResult.parsed.suggestedActions;
       }
 
       return {
-        id: randomUUID(),
-        generationType,
-        eventType: jsonResult.eventType,
-        content: jsonResult.content,
-        metadata,
+        generatedContent: {
+          id: randomUUID(),
+          generationType,
+          eventType: jsonResult.parsed.eventType,
+          content: jsonResult.parsed.content,
+          metadata,
+        },
+        parsedResponse: jsonResult.raw,
       };
     }
 
@@ -403,11 +458,14 @@ export class ContentPipeline {
     const content = this.cleanContent(response);
 
     return {
-      id: randomUUID(),
-      generationType,
-      eventType,
-      content,
-      metadata,
+      generatedContent: {
+        id: randomUUID(),
+        generationType,
+        eventType,
+        content,
+        metadata,
+      },
+      parsedResponse: null,
     };
   }
 
@@ -425,6 +483,23 @@ export class ContentPipeline {
     content: string;
     speaker: string | null;
     suggestedActions?: string[];
+  } | null {
+    const result = this.tryParseJsonResponseWithRaw(response);
+    return result ? result.parsed : null;
+  }
+
+  /**
+   * Try to parse AI response as JSON and return both parsed content and raw object.
+   * The raw object is needed for evolution extraction.
+   */
+  private tryParseJsonResponseWithRaw(response: string): {
+    parsed: {
+      eventType: EventType;
+      content: string;
+      speaker: string | null;
+      suggestedActions?: string[];
+    };
+    raw: Record<string, unknown>;
   } | null {
     const trimmed = response.trim();
 
@@ -487,7 +562,7 @@ export class ContentPipeline {
         suggestedActions?: string[];
       } = {
         eventType,
-        content: parsed.content.trim(),
+        content: (parsed.content as string).trim(),
         speaker,
       };
 
@@ -501,7 +576,7 @@ export class ContentPipeline {
         }
       }
 
-      return result;
+      return { parsed: result, raw: parsed };
     } catch (e) {
       // JSON parse failed
       console.log(
@@ -681,5 +756,83 @@ export class ContentPipeline {
     }
 
     return beat;
+  }
+
+  /**
+   * Detect evolutions from parsed AI response and queue them for DM review.
+   *
+   * Extracts evolution suggestions from the AI response and passes them
+   * to the EvolutionService for processing.
+   *
+   * @param gameId - ID of the game
+   * @param turn - Current turn number
+   * @param sourceEventId - ID of the generated content (used as source event)
+   * @param parsedResponse - Raw parsed AI response containing potential evolutions
+   */
+  private async detectEvolutions(
+    gameId: string,
+    turn: number,
+    sourceEventId: string,
+    parsedResponse: Record<string, unknown>
+  ): Promise<void> {
+    if (!this.evolutionService) {
+      return;
+    }
+
+    // Extract evolution suggestions from the parsed response
+    const rawEvolutions = extractEvolutionSuggestions(parsedResponse);
+
+    if (rawEvolutions.length === 0) {
+      return;
+    }
+
+    console.log(`[ContentPipeline] Found ${rawEvolutions.length} evolution suggestions`);
+
+    // Convert to EvolutionSuggestion format expected by EvolutionService
+    const evolutionSuggestions: EvolutionSuggestion[] = rawEvolutions.map(
+      (raw: EvolutionSuggestionOutput) => {
+        const suggestion: EvolutionSuggestion = {
+          evolutionType: raw.evolutionType,
+          entityType: raw.entityType,
+          entityId: raw.entityId,
+          reason: raw.reason,
+        };
+
+        // Add optional fields
+        if (raw.trait) {
+          suggestion.trait = raw.trait;
+        }
+        if (raw.targetType) {
+          suggestion.targetType = raw.targetType;
+        }
+        if (raw.targetId) {
+          suggestion.targetId = raw.targetId;
+        }
+        if (raw.dimension) {
+          suggestion.dimension = raw.dimension;
+        }
+        if (raw.change !== undefined) {
+          suggestion.change = raw.change;
+        }
+
+        return suggestion;
+      }
+    );
+
+    // Create the game event reference
+    const event: GameEventRef = {
+      id: sourceEventId,
+      turn,
+      gameId,
+    };
+
+    // Queue evolutions for DM review
+    const pending = this.evolutionService.detectEvolutions(
+      gameId,
+      event,
+      evolutionSuggestions
+    );
+
+    console.log(`[ContentPipeline] Queued ${pending.length} pending evolutions for DM review`);
   }
 }

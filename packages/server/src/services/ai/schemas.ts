@@ -21,6 +21,7 @@ import type { OutputSchema } from './types.js';
  * - content: The narrative text
  * - speaker: Character name if dialogue, null otherwise
  * - suggestedActions: Optional follow-up options
+ * - evolutions: Optional evolution suggestions for entity traits/relationships
  */
 export const GAME_CONTENT_SCHEMA: OutputSchema = {
   name: 'game_content',
@@ -54,6 +55,57 @@ export const GAME_CONTENT_SCHEMA: OutputSchema = {
         type: 'array',
         items: { type: 'string' },
         description: 'Optional list of follow-up actions or prompts for the DM',
+      },
+      evolutions: {
+        type: 'array',
+        description: 'Suggested entity trait or relationship changes based on the narrative',
+        items: {
+          type: 'object',
+          properties: {
+            evolutionType: {
+              type: 'string',
+              enum: ['trait_add', 'trait_remove', 'relationship_change'],
+              description: 'Type of evolution being suggested',
+            },
+            entityType: {
+              type: 'string',
+              enum: ['player', 'character', 'npc', 'location'],
+              description: 'Type of entity being affected',
+            },
+            entityId: {
+              type: 'string',
+              description: 'ID of the entity being affected',
+            },
+            reason: {
+              type: 'string',
+              description: 'Explanation of why this evolution is suggested',
+            },
+            trait: {
+              type: 'string',
+              description: 'Trait name (for trait_add/trait_remove)',
+            },
+            targetType: {
+              type: 'string',
+              enum: ['player', 'character', 'npc', 'location'],
+              description: 'Target entity type (for relationship_change)',
+            },
+            targetId: {
+              type: 'string',
+              description: 'Target entity ID (for relationship_change)',
+            },
+            dimension: {
+              type: 'string',
+              enum: ['trust', 'respect', 'affection', 'fear', 'resentment', 'debt'],
+              description: 'Relationship dimension to change',
+            },
+            change: {
+              type: 'number',
+              description: 'Delta to apply to relationship dimension (-1.0 to 1.0)',
+            },
+          },
+          required: ['evolutionType', 'entityType', 'entityId', 'reason'],
+          additionalProperties: false,
+        },
       },
     },
     required: ['eventType', 'content'],
@@ -454,6 +506,81 @@ export const BeatSequenceOutputSchema = z.object({
 });
 
 // =============================================================================
+// Zod Schemas for Evolution Suggestion Validation
+// =============================================================================
+
+/**
+ * Schema for evolution type
+ */
+export const EvolutionTypeSchema = z.enum([
+  'trait_add',
+  'trait_remove',
+  'relationship_change',
+]);
+
+/**
+ * Schema for entity type in evolutions
+ */
+export const EntityTypeSchema = z.enum([
+  'player',
+  'character',
+  'npc',
+  'location',
+]);
+
+/**
+ * Schema for relationship dimension
+ */
+export const RelationshipDimensionSchema = z.enum([
+  'trust',
+  'respect',
+  'affection',
+  'fear',
+  'resentment',
+  'debt',
+]);
+
+/**
+ * Schema for a single evolution suggestion from AI response
+ */
+export const EvolutionSuggestionSchema = z.object({
+  /** Type of evolution being suggested */
+  evolutionType: EvolutionTypeSchema,
+  /** Type of entity being affected */
+  entityType: EntityTypeSchema,
+  /** ID of the entity being affected */
+  entityId: z.string().min(1),
+  /** Explanation of why this evolution is suggested */
+  reason: z.string().min(1),
+  /** Trait name (for trait_add/trait_remove) */
+  trait: z.string().optional(),
+  /** Target entity type (for relationship_change) */
+  targetType: EntityTypeSchema.optional(),
+  /** Target entity ID (for relationship_change) */
+  targetId: z.string().optional(),
+  /** Relationship dimension to change */
+  dimension: RelationshipDimensionSchema.optional(),
+  /** Delta to apply to relationship dimension (-1.0 to 1.0) */
+  change: z.number().min(-1).max(1).optional(),
+});
+
+/**
+ * Schema for game content output with optional evolutions
+ */
+export const GameContentOutputSchema = z.object({
+  /** Classification of the content */
+  eventType: z.string(),
+  /** The narrative text */
+  content: z.string().min(1),
+  /** Speaker name or null */
+  speaker: z.string().nullable().optional(),
+  /** Suggested follow-up actions */
+  suggestedActions: z.array(z.string()).optional(),
+  /** Evolution suggestions */
+  evolutions: z.array(EvolutionSuggestionSchema).optional(),
+});
+
+// =============================================================================
 // Type Exports
 // =============================================================================
 
@@ -486,6 +613,21 @@ export type AIBeatOutput = z.infer<typeof AIBeatSchema>;
 
 /** Inferred type for beat sequence output */
 export type BeatSequenceOutput = z.infer<typeof BeatSequenceOutputSchema>;
+
+/** Inferred type for evolution type */
+export type EvolutionTypeOutput = z.infer<typeof EvolutionTypeSchema>;
+
+/** Inferred type for entity type */
+export type EntityTypeOutput = z.infer<typeof EntityTypeSchema>;
+
+/** Inferred type for relationship dimension */
+export type RelationshipDimensionOutput = z.infer<typeof RelationshipDimensionSchema>;
+
+/** Inferred type for a single evolution suggestion */
+export type EvolutionSuggestionOutput = z.infer<typeof EvolutionSuggestionSchema>;
+
+/** Inferred type for game content output with evolutions */
+export type GameContentOutput = z.infer<typeof GameContentOutputSchema>;
 
 // =============================================================================
 // Parsing Utilities
@@ -553,4 +695,51 @@ export function safeParseBeatSequenceOutput(
   } catch {
     return null;
   }
+}
+
+/**
+ * Safely parse game content output including evolutions
+ *
+ * @param input - Raw input to parse (string or object)
+ * @returns Parsed GameContentOutput or null if invalid
+ */
+export function safeParseGameContentOutput(
+  input: unknown
+): GameContentOutput | null {
+  try {
+    const data = typeof input === 'string' ? JSON.parse(input) : input;
+    const result = GameContentOutputSchema.safeParse(data);
+    return result.success ? result.data : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract evolution suggestions from parsed game content
+ *
+ * @param input - Raw parsed object that may contain evolutions
+ * @returns Array of validated evolution suggestions, empty if none
+ */
+export function extractEvolutionSuggestions(
+  input: unknown
+): EvolutionSuggestionOutput[] {
+  if (!input || typeof input !== 'object') {
+    return [];
+  }
+
+  const obj = input as Record<string, unknown>;
+  if (!Array.isArray(obj.evolutions)) {
+    return [];
+  }
+
+  const validEvolutions: EvolutionSuggestionOutput[] = [];
+  for (const item of obj.evolutions) {
+    const result = EvolutionSuggestionSchema.safeParse(item);
+    if (result.success) {
+      validEvolutions.push(result.data);
+    }
+  }
+
+  return validEvolutions;
 }
