@@ -205,6 +205,53 @@ CREATE TABLE IF NOT EXISTS pending_evolutions (
 );
 CREATE INDEX IF NOT EXISTS idx_pending_evolutions_game ON pending_evolutions(game_id, status);
 
+-- Trait catalog table (Entity Evolution system)
+-- Predefined vocabulary of traits that entities can acquire
+CREATE TABLE IF NOT EXISTS trait_catalog (
+  trait TEXT PRIMARY KEY,  -- Unique trait identifier (used as FK in entity_traits)
+  category TEXT NOT NULL CHECK (category IN ('moral', 'emotional', 'capability', 'reputation')),
+  description TEXT NOT NULL,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_trait_catalog_category ON trait_catalog(category);
+
+-- Seed trait catalog with predefined vocabulary (24 traits: 6 per category)
+-- Moral traits: govern ethical choices and alignment
+INSERT OR IGNORE INTO trait_catalog (trait, category, description) VALUES
+  ('merciful', 'moral', 'Shows compassion to enemies and the defeated'),
+  ('ruthless', 'moral', 'Shows no mercy, eliminates threats without hesitation'),
+  ('honest', 'moral', 'Speaks truth even when it costs them'),
+  ('deceptive', 'moral', 'Lies and manipulates to achieve goals'),
+  ('honorable', 'moral', 'Keeps promises and fights fair'),
+  ('treacherous', 'moral', 'Breaks promises and betrays when advantageous');
+
+-- Emotional traits: govern reactions and temperament
+INSERT OR IGNORE INTO trait_catalog (trait, category, description) VALUES
+  ('brave', 'emotional', 'Faces danger without hesitation'),
+  ('fearful', 'emotional', 'Avoids danger and is easily intimidated'),
+  ('calm', 'emotional', 'Maintains composure under pressure'),
+  ('volatile', 'emotional', 'Quick to anger or panic when stressed'),
+  ('optimistic', 'emotional', 'Expects favorable outcomes in difficult situations'),
+  ('pessimistic', 'emotional', 'Expects the worst and prepares for failure');
+
+-- Capability traits: govern skills and competencies
+INSERT OR IGNORE INTO trait_catalog (trait, category, description) VALUES
+  ('cunning', 'capability', 'Clever strategist who outthinks opponents'),
+  ('naive', 'capability', 'Easily fooled and misses hidden meanings'),
+  ('charismatic', 'capability', 'Naturally persuasive and likeable'),
+  ('awkward', 'capability', 'Socially inept and struggles with interaction'),
+  ('resourceful', 'capability', 'Makes do with little and improvises solutions'),
+  ('dependent', 'capability', 'Relies heavily on others for support');
+
+-- Reputation traits: govern how others perceive the entity
+INSERT OR IGNORE INTO trait_catalog (trait, category, description) VALUES
+  ('renowned', 'reputation', 'Famous and respected across the land'),
+  ('infamous', 'reputation', 'Famous but feared or hated by many'),
+  ('mysterious', 'reputation', 'Unknown and secretive, hard to read'),
+  ('transparent', 'reputation', 'An open book whose motives are clear'),
+  ('trusted', 'reputation', 'People believe their word without question'),
+  ('distrusted', 'reputation', 'People doubt their motives and honesty');
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

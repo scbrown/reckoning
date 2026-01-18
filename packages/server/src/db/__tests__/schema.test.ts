@@ -346,6 +346,111 @@ describe('Database Schema', () => {
     expect(rel.debt).toBe(0.0);
   });
 
+  it('should create trait_catalog table with correct columns', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('trait_catalog')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('trait');
+    expect(columnNames).toContain('category');
+    expect(columnNames).toContain('description');
+    expect(columnNames).toContain('created_at');
+  });
+
+  it('should create index for trait_catalog category', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const indexes = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name LIKE 'idx_trait_catalog%'
+    `).all();
+    const indexNames = indexes.map((idx: { name: string }) => idx.name);
+
+    expect(indexNames).toContain('idx_trait_catalog_category');
+  });
+
+  it('should seed trait_catalog with 24 traits across 4 categories', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Check total count
+    const totalCount = db.prepare('SELECT COUNT(*) as count FROM trait_catalog').get() as { count: number };
+    expect(totalCount.count).toBe(24);
+
+    // Check 6 traits per category
+    const categories = ['moral', 'emotional', 'capability', 'reputation'];
+    for (const category of categories) {
+      const categoryCount = db.prepare('SELECT COUNT(*) as count FROM trait_catalog WHERE category = ?').get(category) as { count: number };
+      expect(categoryCount.count).toBe(6);
+    }
+  });
+
+  it('should enforce CHECK constraint on trait_catalog category', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Valid category should work
+    expect(() => {
+      db.exec(`
+        INSERT INTO trait_catalog (trait, category, description)
+        VALUES ('test_trait', 'moral', 'A test trait')
+      `);
+    }).not.toThrow();
+
+    // Invalid category should fail
+    expect(() => {
+      db.exec(`
+        INSERT INTO trait_catalog (trait, category, description)
+        VALUES ('bad_trait', 'invalid_category', 'A bad trait')
+      `);
+    }).toThrow();
+  });
+
+  it('should enforce unique constraint on trait_catalog trait', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Duplicate trait (trying to insert 'merciful' again) should fail
+    expect(() => {
+      db.exec(`
+        INSERT INTO trait_catalog (trait, category, description)
+        VALUES ('merciful', 'moral', 'Duplicate trait')
+      `);
+    }).toThrow();
+  });
+
+  it('should include expected moral traits in trait_catalog', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const moralTraits = db.prepare(`
+      SELECT trait FROM trait_catalog WHERE category = 'moral' ORDER BY trait
+    `).all() as { trait: string }[];
+    const traitNames = moralTraits.map(t => t.trait);
+
+    expect(traitNames).toContain('merciful');
+    expect(traitNames).toContain('ruthless');
+    expect(traitNames).toContain('honest');
+    expect(traitNames).toContain('deceptive');
+    expect(traitNames).toContain('honorable');
+    expect(traitNames).toContain('treacherous');
+  });
+
   it('should create pending_evolutions table with correct columns', () => {
     db = new Database(':memory:');
     const schemaPath = join(__dirname, '../schema.sql');
