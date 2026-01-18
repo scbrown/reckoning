@@ -10,6 +10,7 @@ This directory contains detailed task breakdowns for Chronicle integration featu
 | [structured-events](./structured-events.md) | Pattern Detection & Emergence | Planning | entity-evolution |
 | [narrative-structure](./narrative-structure.md) | Scenes & Story Graph | Planning | structured-events |
 | [export-layer](./export-layer.md) | Git Persistence | Backlog | narrative-structure |
+| [pixelsrc-integration](./pixelsrc-integration.md) | Pixel Art Generation | Planning | None |
 
 ## Dependency Graph
 
@@ -38,6 +39,17 @@ This directory contains detailed task breakdowns for Chronicle integration featu
 │  ┌──────────────────┐                                                       │
 │  │  export-layer    │ ◄── Exports traits, events, scenes, relationships     │
 │  └──────────────────┘      Requires stable data model                       │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       PIXELSRC INTEGRATION (parallel)                        │
+│                                                                              │
+│  ┌──────────────────────┐                                                   │
+│  │ pixelsrc-integration │ ◄── Pixel art generation via WASM                 │
+│  └──────────────────────┘     Animated avatars, scenes, art evolution       │
+│                                                                              │
+│  Can run independently of Chronicle epics                                    │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -91,3 +103,4 @@ just import-tasks docs/plan/tasks/entity-evolution.md
 | SEVT | structured-events |
 | NARR | narrative-structure |
 | EXPT | export-layer |
+| PXLS | pixelsrc-integration |

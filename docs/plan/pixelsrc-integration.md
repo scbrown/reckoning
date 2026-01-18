@@ -17,38 +17,198 @@ Integrate pixelsrc into Reckoning for procedurally generated pixel art portraits
 | **Portrait Size** | 64x64 (detailed) |
 | **Generation Timing** | Upfront during world gen, verified before proceeding |
 | **Animation** | Elaborate - leverage CSS keyframes, transforms, palette cycling |
-| **Storage** | .pxl source in DB, pre-render and cache PNGs |
+| **Storage** | .pxl source files in game project directory |
+| **Rendering** | WASM on both server (Node.js) and client |
+| **Validation** | Structural (WASM) + Visual (GenAI reviews rendered PNG) |
 | **Failure Handling** | Escalate to GenAI for repair attempts |
+| **Evolution** | New variants generated at Act transitions and major events |
+| **CLI** | Not required - WASM-only integration |
+
+## Pixelsrc Project Structure
+
+Each game session gets its own pixelsrc project, initialized during world generation.
+
+### Directory Layout
+
+```
+data/games/{game-id}/
+├── pxl.toml                    # Pixelsrc build config
+├── src/
+│   ├── palettes/
+│   │   ├── world.pxl           # World-wide color themes
+│   │   ├── characters.pxl      # Shared character colors
+│   │   └── effects.pxl         # Status effect overlays
+│   ├── characters/
+│   │   ├── {char-id}.pxl       # Party member portraits
+│   │   └── ...
+│   ├── npcs/
+│   │   ├── {npc-id}.pxl        # NPC portraits
+│   │   └── ...
+│   ├── scenes/
+│   │   ├── {area-id}.pxl       # Area backgrounds
+│   │   └── ...
+│   ├── effects/
+│   │   ├── damage.pxl          # Damage overlays
+│   │   ├── status.pxl          # Status effect sprites
+│   │   └── ...
+│   └── evolved/
+│       └── act-{n}/            # Art from previous acts (history)
+│           ├── characters/
+│           └── npcs/
+├── build/                       # Rendered output (gitignored)
+│   ├── characters/
+│   ├── npcs/
+│   └── scenes/
+└── .pxl-manifest.json          # Incremental build state
+```
+
+### Generated pxl.toml
+
+```toml
+[project]
+name = "{game-id}"
+src = "src"
+out = "build"
+
+[defaults]
+scale = 4  # 64px * 4 = 256px rendered
+
+[atlases.characters]
+sources = ["characters/**", "npcs/**"]
+max_size = [2048, 2048]
+power_of_two = true
+
+[atlases.scenes]
+sources = ["scenes/**"]
+max_size = [1024, 768]
+
+[animations]
+sources = ["characters/**", "npcs/**"]
+preview = true
+
+[validate]
+strict = true
+missing_refs = "error"
+```
+
+### Initialization Flow
+
+```typescript
+// During world generation:
+
+async function initializePixelsrcProject(gameId: string): Promise<void> {
+  const projectPath = `data/games/${gameId}`;
+
+  // 1. Create directory structure (following pixelsrc conventions)
+  const dirs = [
+    'src/palettes',
+    'src/characters',
+    'src/npcs',
+    'src/scenes',
+    'src/effects',
+    'src/evolved',
+  ];
+  for (const dir of dirs) {
+    await fs.mkdir(`${projectPath}/${dir}`, { recursive: true });
+  }
+
+  // 2. Generate world palette based on theme
+  const worldPalette = await generateWorldPalette(worldTheme);
+  await fs.writeFile(`${projectPath}/src/palettes/world.pxl`, worldPalette);
+
+  // 3. Generate shared character palette
+  const charPalette = await generateCharacterPalette();
+  await fs.writeFile(`${projectPath}/src/palettes/characters.pxl`, charPalette);
+}
+```
+
+### Rendering (WASM)
+
+```typescript
+// On-demand rendering using WASM (server or client):
+
+import { render_to_png, validate, list_sprites } from '@pixelsrc/wasm';
+
+async function renderSprite(source: string, spriteName?: string): Promise<Uint8Array> {
+  // Validate first
+  const errors = validate(source);
+  if (errors.length > 0) {
+    throw new PixelsrcValidationError(errors);
+  }
+
+  // Render to PNG bytes
+  return render_to_png(source, spriteName);
+}
+```
+
+### Shared Palettes
+
+Characters reference shared palettes for visual consistency:
+
+```json
+// src/palettes/characters.pxl
+{"type": "palette", "name": "character_base", "colors": {
+  "--skin-light": "#FFCC99",
+  "--skin-medium": "#DEB887",
+  "--skin-dark": "#8B5A2B",
+  "{_}": "transparent",
+  "{outline}": "#2C1810",
+  "{eye}": "#000000"
+}}
+
+// src/characters/hero.pxl
+{"type": "sprite", "name": "hero_idle", "palette": "@include:../palettes/characters.pxl:character_base", ...}
+```
 
 ## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│                           WORLD GENERATION                               │
+│                      GENERATION & VALIDATION PIPELINE                    │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                          │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────┐              │
-│  │   Claude     │───▶│  Pixelsrc    │───▶│  Validation  │              │
-│  │  (generate)  │    │  (.pxl)      │    │  (pxl CLI)   │              │
-│  └──────────────┘    └──────────────┘    └──────────────┘              │
-│         │                   │                   │                        │
-│         │                   │                   ▼                        │
-│         │                   │           ┌──────────────┐                │
-│         │                   │           │  Validation  │                │
-│         │                   │           │   Failed?    │                │
-│         │                   │           └──────────────┘                │
-│         │                   │                   │                        │
-│         │                   │         yes │     │ no                    │
-│         │                   │             ▼     ▼                        │
-│         │                   │    ┌──────────────────┐                   │
-│         │                   │    │  GenAI Repair    │                   │
-│         │                   │    │  (suggestions +  │                   │
-│         │                   │    │   fix attempt)   │                   │
-│         │                   │    └──────────────────┘                   │
-│         │                   │             │                              │
-│         │                   │             │ retry (max 3)               │
-│         │                   │             └──────────┐                   │
-│         ▼                   ▼                        ▼                   │
+│  │   Claude     │───▶│  Pixelsrc    │───▶│  Structural  │              │
+│  │  (generate)  │    │  (.pxl)      │    │  Validation  │              │
+│  └──────────────┘    └──────────────┘    │  (pxl CLI)   │              │
+│         ▲                                 └──────┬───────┘              │
+│         │                                        │                       │
+│         │                                        ▼                       │
+│         │                                 ┌──────────────┐              │
+│         │                                 │   Valid?     │              │
+│         │                                 └──────┬───────┘              │
+│         │                                   yes  │  no                   │
+│         │         ┌──────────────────────────────┼──────────┐           │
+│         │         │                              ▼          │           │
+│         │         │                      ┌──────────────┐   │           │
+│         │         │                      │ GenAI Repair │   │           │
+│         │         │                      │ (suggest +   │───┘           │
+│         │         │                      │  fix, max 3) │  retry        │
+│         │         │                      └──────────────┘               │
+│         │         ▼                                                      │
+│         │  ┌──────────────┐    ┌──────────────┐                         │
+│         │  │ Render PNG   │───▶│   Visual     │                         │
+│         │  │ (pxl render) │    │  Validation  │                         │
+│         │  └──────────────┘    │  (Claude)    │                         │
+│         │                      └──────┬───────┘                         │
+│         │                             │                                  │
+│         │                             ▼                                  │
+│         │                      ┌──────────────┐                         │
+│         │                      │ Looks good?  │                         │
+│         │                      └──────┬───────┘                         │
+│         │                        yes  │  no                              │
+│         │                        ┌────┴────┐                             │
+│         │                        │         │                             │
+│         │                        │         └─────────────────────┐      │
+│         │                        ▼                               │      │
+│         │                 ┌──────────────┐                       │      │
+│         │                 │   SUCCESS    │                       │      │
+│         │                 └──────┬───────┘                       │      │
+│         │                        │                               │      │
+│         └────────────────────────┼───────────────────────────────┘      │
+│                   regenerate     │                    visual feedback    │
+│                   with feedback  │                                       │
+│                                  ▼                                       │
 │  ┌─────────────────────────────────────────────────────────────────┐   │
 │  │                     SQLite Database                              │   │
 │  │  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐              │   │
@@ -68,24 +228,18 @@ Integrate pixelsrc into Reckoning for procedurally generated pixel art portraits
 │  │  .pxl src    │───▶│ @pixelsrc/   │───▶│   Canvas     │              │
 │  │  from API    │    │    wasm      │    │   Element    │              │
 │  └──────────────┘    └──────────────┘    └──────────────┘              │
-│                             │                    │                       │
-│                             │                    ▼                       │
-│                             │           ┌──────────────┐                │
-│                             │           │  Animation   │                │
-│                             │           │   Loop       │◀──┐            │
-│                             │           └──────────────┘   │            │
-│                             │                    │          │            │
-│                             │                    ▼          │            │
-│                             │           ┌──────────────┐   │            │
-│                             │           │  TTS Event   │───┘            │
-│                             │           │  (speaking)  │                │
-│                             │           └──────────────┘                │
-│                             │                                            │
-│                             ▼                                            │
-│                      ┌──────────────┐                                   │
-│                      │  PNG Cache   │                                   │
-│                      │ (pre-render) │                                   │
-│                      └──────────────┘                                   │
+│                                                  │                       │
+│                                                  ▼                       │
+│                                          ┌──────────────┐               │
+│                                          │  Animation   │               │
+│                                          │   Loop       │◀──┐           │
+│                                          └──────────────┘   │           │
+│                                                  │          │           │
+│                                                  ▼          │           │
+│                                          ┌──────────────┐   │           │
+│                                          │  TTS Event   │───┘           │
+│                                          │  (speaking)  │               │
+│                                          └──────────────┘               │
 │                                                                          │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -98,13 +252,23 @@ Integrate pixelsrc into Reckoning for procedurally generated pixel art portraits
 // packages/shared/src/game/types.ts
 
 /**
- * Pixelsrc art asset with source and cached render
+ * Reference to pixelsrc art in the game's project directory
+ */
+export interface PixelArtRef {
+  /** Relative path within the pixelsrc project (e.g., "characters/hero.pxl") */
+  path: string;
+  /** Primary sprite name for static display */
+  spriteName: string;
+  /** Animation metadata if this is an animated asset */
+  animation?: PixelArtAnimation;
+}
+
+/**
+ * Full pixelsrc art asset (used in API responses)
  */
 export interface PixelArt {
-  /** The .pxl source (JSONL format) */
+  /** The .pxl source (JSONL format) - loaded from filesystem */
   source: string;
-  /** Pre-rendered PNG as base64 data URI (cached) */
-  cachedPng?: string;
   /** Animation metadata if this is an animated asset */
   animation?: PixelArtAnimation;
 }
@@ -139,22 +303,31 @@ export interface KeyframeData {
 // Extend Character
 export interface Character {
   // ... existing fields ...
-  /** Generated pixel art portrait */
-  pixelArt?: PixelArt;
+  /** Reference to pixel art in game's pixelsrc project */
+  pixelArtRef?: PixelArtRef;
 }
 
 // Extend NPC
 export interface NPC {
   // ... existing fields ...
-  /** Generated pixel art portrait */
-  pixelArt?: PixelArt;
+  /** Reference to pixel art in game's pixelsrc project */
+  pixelArtRef?: PixelArtRef;
 }
 
 // Extend Area
 export interface Area {
   // ... existing fields ...
-  /** Generated pixel art scene */
-  pixelArt?: PixelArt;
+  /** Reference to pixel art scene in game's pixelsrc project */
+  pixelArtRef?: PixelArtRef;
+}
+
+// Game state tracks pixelsrc project
+export interface GameState {
+  // ... existing fields ...
+  /** Path to game's pixelsrc project */
+  pixelsrcProject?: string;
+  /** Current act number (for art evolution) */
+  act: number;
 }
 ```
 
@@ -167,10 +340,12 @@ New service at `packages/server/src/services/pixelsrc/`:
 ```
 packages/server/src/services/pixelsrc/
 ├── index.ts           # Public API
+├── project.ts         # Project directory management
 ├── generator.ts       # Claude prompt builder for pixelsrc generation
-├── validator.ts       # Wrapper around pxl CLI for validation
+├── validator.ts       # WASM-based validation
+├── visual-validator.ts # Claude visual review of rendered PNG
 ├── repair.ts          # GenAI-powered repair loop
-├── renderer.ts        # Pre-render to PNG (optional caching)
+├── renderer.ts        # WASM-based rendering
 └── prompts/
     ├── character.ts   # Character portrait prompts
     ├── npc.ts         # NPC portrait prompts
@@ -217,25 +392,26 @@ export class PixelsrcGenerator {
 ```typescript
 // validator.ts
 
+import { validate } from '@pixelsrc/wasm';
+
 export interface ValidationResult {
   valid: boolean;
   errors: ValidationError[];
   warnings: ValidationWarning[];
-  suggestions: Suggestion[];
 }
 
 export class PixelsrcValidator {
   /**
-   * Validate pixelsrc source using pxl CLI
-   * Runs: pxl validate --json <tempfile>
+   * Validate pixelsrc source using WASM
    */
-  async validate(source: string): Promise<ValidationResult>;
-
-  /**
-   * Get suggestions for fixing issues
-   * Runs: pxl suggest --json <tempfile>
-   */
-  async suggest(source: string): Promise<Suggestion[]>;
+  validate(source: string): ValidationResult {
+    const errors = validate(source);
+    return {
+      valid: errors.length === 0,
+      errors: errors.filter(e => e.severity === 'error'),
+      warnings: errors.filter(e => e.severity === 'warning'),
+    };
+  }
 }
 ```
 
@@ -273,6 +449,94 @@ export class PixelsrcRepairer {
     validationResult: ValidationResult,
     context: PortraitGenerationRequest | SceneGenerationRequest
   ): Promise<RepairResult>;
+}
+```
+
+#### Visual Validator
+
+After structural validation passes, render the PNG and have Claude visually verify it.
+
+```typescript
+// visual-validator.ts
+
+import { render_to_png } from '@pixelsrc/wasm';
+
+export interface VisualValidationResult {
+  approved: boolean;
+  feedback?: string;
+  issues?: VisualIssue[];
+}
+
+export interface VisualIssue {
+  severity: 'minor' | 'major' | 'critical';
+  description: string;
+  suggestion: string;
+}
+
+export class PixelsrcVisualValidator {
+  constructor(private aiProvider: AIProvider) {}
+
+  /**
+   * Render .pxl to PNG and have Claude visually verify it
+   *
+   * Process:
+   * 1. Render via WASM: render_to_png(source)
+   * 2. Convert to base64 data URI
+   * 3. Send to Claude with original description
+   * 4. Claude evaluates: does it look like what was requested?
+   * 5. Returns approval or feedback for regeneration
+   */
+  async validate(
+    source: string,
+    context: PortraitGenerationRequest | SceneGenerationRequest
+  ): Promise<VisualValidationResult> {
+    // Render at 4x scale for better visual inspection
+    const pngBytes = render_to_png(source, undefined, { scale: 4 });
+    const base64 = Buffer.from(pngBytes).toString('base64');
+    const dataUri = `data:image/png;base64,${base64}`;
+
+    // Send to Claude for visual review
+    const result = await this.aiProvider.execute({
+      prompt: this.buildVisualValidationPrompt(context, dataUri),
+      // ... image attachment
+    });
+
+    return this.parseVisualValidationResponse(result);
+  }
+}
+```
+
+**Visual Validation Prompt:**
+
+```
+You are reviewing a generated pixel art portrait. Evaluate whether it matches the description.
+
+ORIGINAL REQUEST:
+Name: {name}
+Class: {class}
+Description: {description}
+
+RENDERED IMAGE:
+[PNG image attached]
+
+EVALUATION CRITERIA:
+1. Does it resemble the described character (hair color, skin tone, clothing)?
+2. Is the face clearly visible and recognizable?
+3. Are proportions appropriate for a portrait?
+4. Is the overall quality acceptable (no obvious artifacts)?
+5. Does it convey the character's class/role?
+
+RESPOND WITH JSON:
+{
+  "approved": true/false,
+  "feedback": "brief explanation if not approved",
+  "issues": [
+    {
+      "severity": "minor|major|critical",
+      "description": "what's wrong",
+      "suggestion": "how to fix it"
+    }
+  ]
 }
 ```
 
@@ -463,6 +727,46 @@ scheduleFade(characterId: string): void {
 
 ## Prompt Engineering
 
+### Pixelsrc Primer for GenAI
+
+Generation prompts must include the pixelsrc format primer so Claude knows how to produce valid output. This primer should be fetched from the pixelsrc repo or bundled.
+
+**Source:** `~/workspace/ttp/docs/primer_brief.md` (or `pxl prime --brief` output)
+
+The primer includes:
+- JSONL format structure
+- Palette definition syntax (tokens, CSS variables, color-mix)
+- Sprite grid format (tokens, row arrays)
+- Animation keyframe syntax
+- Composition layer syntax
+- Common patterns and best practices
+
+```typescript
+// generator.ts
+
+export class PixelsrcGenerator {
+  private primer: string;
+
+  constructor(private aiProvider: AIProvider) {
+    // Load primer at startup (bundled or from file)
+    this.primer = loadPixelsrcPrimer();
+  }
+
+  private buildPrompt(request: PortraitGenerationRequest): string {
+    return `
+${this.primer}
+
+---
+
+Now generate a portrait for the following character:
+...
+    `;
+  }
+}
+```
+
+**Note:** The CLI (`pxl`) is not required for Reckoning integration, but GenAI agents working directly in the pixelsrc repo can install it via `cargo install pixelsrc` for testing and debugging.
+
 ### Character Portrait Prompt Structure
 
 ```
@@ -483,15 +787,14 @@ REQUIREMENTS:
 5. Face should be centered, looking slightly toward viewer
 6. Style: {style_hint based on class}
 
-PIXELSRC PRIMER:
-{output of pxl prime --brief}
-
 OUTPUT FORMAT:
 Return ONLY valid JSONL, no markdown code blocks.
 First line: palette definition
 Following lines: sprite definitions
 Final lines: animation definitions
 ```
+
+**Note:** The pixelsrc primer is prepended to this prompt automatically by `PixelsrcGenerator`.
 
 ### Scene Prompt Structure
 
@@ -509,10 +812,9 @@ REQUIREMENTS:
 3. Include atmospheric elements (torches, mist, etc.)
 4. Palette should support cycling for ambient animation
 5. Layer order: background → midground → foreground
-
-PIXELSRC PRIMER:
-{output of pxl prime --brief}
 ```
+
+**Note:** The pixelsrc primer is prepended to this prompt automatically by `PixelsrcGenerator`.
 
 ## Animation States
 
@@ -603,8 +905,7 @@ PIXELSRC PRIMER:
 ## Dependencies
 
 ### Server
-- `child_process` - Spawn pxl CLI for validation
-- `pxl` CLI - Must be installed and in PATH
+- `@pixelsrc/wasm` - NPM package for Node.js rendering and validation
 
 ### Client
 - `@pixelsrc/wasm` - NPM package for browser rendering
@@ -612,25 +913,37 @@ PIXELSRC PRIMER:
 ### Development
 - pixelsrc repo at `~/workspace/ttp` for reference and testing
 
+**Note:** No CLI installation required. All pixelsrc functionality accessed via WASM.
+
 ## Phases
 
 ### Phase 2a: Server Foundation
+- [ ] Add `@pixelsrc/wasm` dependency to server package
 - [ ] Create `packages/server/src/services/pixelsrc/` structure
-- [ ] Implement `PixelsrcValidator` (pxl CLI wrapper)
-- [ ] Implement `PixelsrcGenerator` (prompt builder)
-- [ ] Implement `PixelsrcRepairer` (retry loop)
-- [ ] Add `pixelArt` fields to Character, NPC, Area types
+- [ ] Implement `PixelsrcProjectManager` (directory creation, file management)
+- [ ] Implement `PixelsrcValidator` (WASM-based validation)
+- [ ] Implement `PixelsrcRenderer` (WASM-based PNG rendering)
+- [ ] Implement `PixelsrcGenerator` (prompt builder with pixelsrc primer)
+- [ ] Implement `PixelsrcRepairer` (retry loop with validation errors)
+- [ ] Implement `PixelsrcVisualValidator` (Claude visual review)
+- [ ] Add `pixelArtRef` fields to Character, NPC, Area types
+- [ ] Add `pixelsrcProject` and `act` fields to GameState
 
 ### Phase 2b: World Generation Integration
+- [ ] Create project directory structure during game creation
+- [ ] Generate world and character palettes based on theme
 - [ ] Modify `WorldGenerator` to include pixel art generation
+- [ ] Include pixelsrc primer in generation prompts (format guide)
+- [ ] Write generated .pxl files to project directories
 - [ ] Add generation prompts for characters and NPCs
 - [ ] Add validation/repair loop to generation pipeline
+- [ ] Add visual validation step after structural validation
 - [ ] Test with various character descriptions
 
 ### Phase 2c: API Endpoints
-- [ ] Add pixel art retrieval endpoint
-- [ ] Add pixel art regeneration endpoint
-- [ ] Add pixel art edit endpoint
+- [ ] Add pixel art retrieval endpoint (loads .pxl from filesystem)
+- [ ] Add pixel art regeneration endpoint (writes new .pxl, rebuilds)
+- [ ] Add project build status endpoint
 
 ### Phase 2d: Client WASM Setup
 - [ ] Add `@pixelsrc/wasm` dependency
@@ -648,10 +961,19 @@ PIXELSRC PRIMER:
 - [ ] Modify `SpeechBubble` to trigger animations
 - [ ] Add fallback for missing pixel art
 
-### Phase 2g: Scene Backgrounds (Future)
+### Phase 2g: Scene Backgrounds
 - [ ] Add scene generation prompts
 - [ ] Implement `AreaPanel` background rendering
 - [ ] Add ambient animation support
+
+### Phase 2h: Art Evolution System
+- [ ] Implement Act transition detection
+- [ ] Implement major event detection
+- [ ] Archive current art to `evolved/act-{n}/` on Act transition
+- [ ] Create variant generation using pixelsrc composition
+- [ ] Write new/modified .pxl files and rebuild
+- [ ] Add art history tracking (reference previous versions in prompts)
+- [ ] Implement contextual art updates (battle damage, mood changes)
 
 ## Testing Strategy
 
@@ -669,12 +991,123 @@ PIXELSRC PRIMER:
 - Avatars animate during TTS
 - Fallback to initials when no art
 
+## Art Evolution System
+
+Characters and scenes evolve visually as the game progresses, using pixelsrc's composition and variant capabilities.
+
+### Triggers
+
+| Trigger | Description | Art Change |
+|---------|-------------|------------|
+| **Act Transition** | Major story milestone | Full portrait refresh with accumulated changes |
+| **Major Event** | Battle, betrayal, discovery | Contextual modifications |
+| **Status Effect** | Poisoned, cursed, blessed | Overlay effects, palette shifts |
+| **Equipment Change** | New armor, weapons | Composition layer updates |
+| **Emotional Arc** | Character development | Expression/pose variants |
+
+### Implementation
+
+```typescript
+// art-evolution.ts
+
+export interface ArtEvolutionContext {
+  /** Current game act (1, 2, 3, etc.) */
+  act: number;
+  /** Recent significant events */
+  recentEvents: GameEvent[];
+  /** Character's current state */
+  characterState: {
+    health: number;
+    statusEffects: string[];
+    equipment: Equipment[];
+    emotionalState: string;
+  };
+  /** Previous art versions for continuity */
+  artHistory: PixelArt[];
+}
+
+export interface ArtEvolutionRequest {
+  entityId: string;
+  entityType: 'character' | 'npc' | 'area';
+  context: ArtEvolutionContext;
+  /** Type of evolution */
+  evolutionType: 'act_transition' | 'major_event' | 'status_change' | 'equipment' | 'emotion';
+}
+
+export class ArtEvolutionService {
+  /**
+   * Determine if art should evolve based on game events
+   */
+  shouldEvolve(context: ArtEvolutionContext): boolean;
+
+  /**
+   * Generate evolved art using pixelsrc composition
+   *
+   * Strategies:
+   * 1. Variant: Recolor existing art (mood, damage)
+   * 2. Composition: Layer new elements (equipment, effects)
+   * 3. Regenerate: Full new portrait (act transitions)
+   */
+  async evolve(request: ArtEvolutionRequest): Promise<PixelArt>;
+}
+```
+
+### Evolution Strategies
+
+**1. Variants (Palette Swaps)**
+- Battle damage: Darken palette, add red tints
+- Mood changes: Warm/cool color shifts
+- Corruption/blessing: Purple/gold tints
+
+```json
+{"type": "variant", "name": "hero_damaged", "base": "hero_idle", "palette": {
+  "{skin}": "color-mix(in oklch, var(--skin-tone) 80%, #8B0000)",
+  "{shirt}": "color-mix(in oklch, var(--shirt-color) 70%, #333)"
+}}
+```
+
+**2. Compositions (Layered Elements)**
+- New equipment: Overlay armor/weapons
+- Status effects: Add particle overlays
+- Scars/marks: Additional sprite layers
+
+```json
+{"type": "composition", "name": "hero_armored", "size": [64, 64], "layers": [
+  {"sprite": "hero_idle"},
+  {"sprite": "plate_armor_overlay", "blend": "normal"},
+  {"sprite": "sword_equipped", "offset": [48, 32]}
+]}
+```
+
+**3. Full Regeneration (New Art)**
+- Act transitions: Significant visual refresh
+- Major transformations: Complete redesign
+- Preserve recognizable elements from previous versions
+
+### Art History
+
+Store previous versions for:
+- Visual continuity (reference previous versions in prompts)
+- Player nostalgia (view character evolution)
+- Rollback if needed
+
+```typescript
+export interface PixelArtHistory {
+  current: PixelArt;
+  versions: {
+    source: string;
+    createdAt: string;
+    trigger: string;
+    act: number;
+  }[];
+}
+```
+
 ## Open Questions
 
-1. **pxl CLI installation** - Should we bundle it, or require manual install?
-2. **Caching strategy** - Redis for pre-rendered PNGs, or client-side only?
-3. **Edit UI** - Should DMs be able to edit .pxl source directly in-game?
-4. **Regeneration triggers** - Auto-regenerate on character description change?
+1. **Art history retention** - How many previous versions to keep?
+2. **Evolution frequency** - Rate-limit to avoid too many changes?
+3. **Player agency** - Can players reject art evolution?
 
 ## Related Documents
 
