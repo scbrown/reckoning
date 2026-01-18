@@ -175,6 +175,36 @@ CREATE TABLE IF NOT EXISTS relationships (
 CREATE INDEX IF NOT EXISTS idx_relationships_from ON relationships(game_id, from_type, from_id);
 CREATE INDEX IF NOT EXISTS idx_relationships_to ON relationships(game_id, to_type, to_id);
 
+-- Pending evolutions table (Entity Evolution system)
+-- Queues evolution suggestions for DM review before application
+CREATE TABLE IF NOT EXISTS pending_evolutions (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  turn INTEGER NOT NULL,
+  evolution_type TEXT NOT NULL,  -- 'trait_add', 'trait_remove', 'relationship_change'
+  entity_type TEXT NOT NULL,     -- 'player', 'character', 'npc', 'location'
+  entity_id TEXT NOT NULL,
+
+  -- For trait evolutions
+  trait TEXT,
+
+  -- For relationship evolutions
+  target_type TEXT,
+  target_id TEXT,
+  dimension TEXT,  -- 'trust', 'respect', 'affection', 'fear', 'resentment', 'debt'
+  old_value REAL,
+  new_value REAL,
+
+  reason TEXT NOT NULL,  -- AI-generated explanation for the suggestion
+  source_event_id TEXT REFERENCES events(id),
+  status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'approved', 'edited', 'refused'
+  dm_notes TEXT,
+
+  created_at TEXT DEFAULT (datetime('now')),
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_pending_evolutions_game ON pending_evolutions(game_id, status);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

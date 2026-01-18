@@ -345,4 +345,167 @@ describe('Database Schema', () => {
     expect(rel.resentment).toBe(0.0);
     expect(rel.debt).toBe(0.0);
   });
+
+  it('should create pending_evolutions table with correct columns', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('pending_evolutions')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('id');
+    expect(columnNames).toContain('game_id');
+    expect(columnNames).toContain('turn');
+    expect(columnNames).toContain('evolution_type');
+    expect(columnNames).toContain('entity_type');
+    expect(columnNames).toContain('entity_id');
+    expect(columnNames).toContain('trait');
+    expect(columnNames).toContain('target_type');
+    expect(columnNames).toContain('target_id');
+    expect(columnNames).toContain('dimension');
+    expect(columnNames).toContain('old_value');
+    expect(columnNames).toContain('new_value');
+    expect(columnNames).toContain('reason');
+    expect(columnNames).toContain('source_event_id');
+    expect(columnNames).toContain('status');
+    expect(columnNames).toContain('dm_notes');
+    expect(columnNames).toContain('created_at');
+    expect(columnNames).toContain('resolved_at');
+  });
+
+  it('should create index for pending_evolutions table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const indexes = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name LIKE 'idx_pending_evolutions%'
+    `).all();
+    const indexNames = indexes.map((idx: { name: string }) => idx.name);
+
+    expect(indexNames).toContain('idx_pending_evolutions_game');
+  });
+
+  it('should set correct default status for pending_evolutions', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+
+    // Insert a trait evolution without specifying status
+    db.exec(`
+      INSERT INTO pending_evolutions (id, game_id, turn, evolution_type, entity_type, entity_id, trait, reason)
+      VALUES ('evo-1', 'game-1', 1, 'trait_add', 'player', 'player-1', 'merciful', 'Spared the enemy')
+    `);
+
+    const evo = db.prepare(`SELECT status FROM pending_evolutions WHERE id = 'evo-1'`).get() as { status: string };
+    expect(evo.status).toBe('pending');
+  });
+
+  it('should store trait evolution correctly', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+
+    // Insert a trait evolution
+    db.exec(`
+      INSERT INTO pending_evolutions (id, game_id, turn, evolution_type, entity_type, entity_id, trait, reason, status)
+      VALUES ('evo-1', 'game-1', 5, 'trait_add', 'npc', 'npc-1', 'bitter', 'Betrayed by the party', 'pending')
+    `);
+
+    const evo = db.prepare(`SELECT * FROM pending_evolutions WHERE id = 'evo-1'`).get() as {
+      evolution_type: string;
+      entity_type: string;
+      entity_id: string;
+      trait: string;
+      reason: string;
+    };
+
+    expect(evo.evolution_type).toBe('trait_add');
+    expect(evo.entity_type).toBe('npc');
+    expect(evo.entity_id).toBe('npc-1');
+    expect(evo.trait).toBe('bitter');
+    expect(evo.reason).toBe('Betrayed by the party');
+  });
+
+  it('should store relationship evolution correctly', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+
+    // Insert a relationship evolution
+    db.exec(`
+      INSERT INTO pending_evolutions (id, game_id, turn, evolution_type, entity_type, entity_id, target_type, target_id, dimension, old_value, new_value, reason, status)
+      VALUES ('evo-1', 'game-1', 3, 'relationship_change', 'npc', 'npc-1', 'player', 'player-1', 'trust', 0.5, 0.3, 'Player lied to the NPC', 'pending')
+    `);
+
+    const evo = db.prepare(`SELECT * FROM pending_evolutions WHERE id = 'evo-1'`).get() as {
+      evolution_type: string;
+      target_type: string;
+      target_id: string;
+      dimension: string;
+      old_value: number;
+      new_value: number;
+    };
+
+    expect(evo.evolution_type).toBe('relationship_change');
+    expect(evo.target_type).toBe('player');
+    expect(evo.target_id).toBe('player-1');
+    expect(evo.dimension).toBe('trust');
+    expect(evo.old_value).toBe(0.5);
+    expect(evo.new_value).toBe(0.3);
+  });
+
+  it('should cascade delete pending_evolutions when game is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and pending evolution
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO pending_evolutions (id, game_id, turn, evolution_type, entity_type, entity_id, trait, reason)
+      VALUES ('evo-1', 'game-1', 1, 'trait_add', 'player', 'player-1', 'merciful', 'Test')
+    `);
+
+    // Verify evolution exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM pending_evolutions WHERE game_id = 'game-1'`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the game
+    db.exec(`DELETE FROM games WHERE id = 'game-1'`);
+
+    // Evolution should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM pending_evolutions WHERE game_id = 'game-1'`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
 });
