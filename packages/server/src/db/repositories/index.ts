@@ -42,3 +42,15 @@ export {
   type AddTraitInput,
   type TraitCatalogEntry,
 } from './trait-repository.js';
+export {
+  PendingEvolutionRepository,
+  type EvolutionType,
+  type EvolutionStatus,
+  type RelationshipDimension as EvolutionRelationshipDimension,
+  type PendingEvolution,
+  type CreateTraitEvolutionInput,
+  type CreateRelationshipEvolutionInput,
+  type CreateEvolutionInput,
+  type ResolveEvolutionInput,
+  type UpdateEvolutionInput,
+} from './pending-evolution-repository.js';
