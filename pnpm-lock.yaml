@@ -32,6 +32,9 @@ importers:
       '@reckoning/shared':
         specifier: workspace:*
         version: link:../shared
+      '@stiwi/pixelsrc-wasm':
+        specifier: file:../../../../../../../workspace/ttp/wasm
+        version: file:../../../../../workspace/ttp/wasm
     devDependencies:
       '@playwright/test':
         specifier: ^1.57.0

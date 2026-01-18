@@ -18,7 +18,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@reckoning/shared": "workspace:*"
+    "@reckoning/shared": "workspace:*",
+    "@stiwi/pixelsrc-wasm": "file:../../../../../../../workspace/ttp/wasm"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
