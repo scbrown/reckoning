@@ -38,7 +38,7 @@ Add:
 - EvolutionService for trait/relationship management
 - DM approval flow for suggested evolutions
 
-See: [Phase A: Entity Evolution](./phase-a-entity-evolution.md)
+See: [Entity Evolution](./entity-evolution.md)
 
 ### Phase B: Structured Events
 **Goal**: Enable queryable event patterns for AI context.
@@ -49,7 +49,7 @@ Enhance:
 - Query methods for pattern detection (mercy count, betrayal history, etc.)
 - Background observers for emergence detection
 
-See: [Phase B: Structured Events](./phase-b-structured-events.md)
+See: [Structured Events](./structured-events.md)
 
 ### Phase C: Narrative Structure
 **Goal**: Group turns into scenes with optional branching.
@@ -60,7 +60,7 @@ Add:
 - SceneManager service
 - Scene-based context for AI generation
 
-See: [Phase C: Narrative Structure](./phase-c-narrative-structure.md)
+See: [Narrative Structure](./narrative-structure.md)
 
 ### Phase D: Export Layer (Backlog)
 **Goal**: Git-diffable game state for persistence and sharing.
@@ -273,7 +273,16 @@ Each phase is **additive** - no breaking changes to existing functionality:
 
 ## Related Documents
 
-- [Phase A: Entity Evolution](./phase-a-entity-evolution.md)
-- [Phase B: Structured Events](./phase-b-structured-events.md)
-- [Phase C: Narrative Structure](./phase-c-narrative-structure.md)
+- [Entity Evolution](./entity-evolution.md)
+- [Structured Events](./structured-events.md)
+- [Narrative Structure](./narrative-structure.md)
+- [Export Layer](./export-layer.md)
 - [Chronicle Vision](ssh://git@git.lan/stiwi/chronicle.git/docs/product.md) - Long-term vision
+
+## Task Breakdown
+
+See [tasks/](./tasks/) for detailed task breakdowns with dependencies:
+- [tasks/entity-evolution.md](./tasks/entity-evolution.md)
+- [tasks/structured-events.md](./tasks/structured-events.md)
+- [tasks/narrative-structure.md](./tasks/narrative-structure.md)
+- [tasks/export-layer.md](./tasks/export-layer.md)

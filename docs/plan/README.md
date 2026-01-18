@@ -28,10 +28,10 @@ This directory contains detailed implementation plans for each development phase
 | [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Complete |
 | [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Complete |
 | [Phase 3](./phase-3-party-world.md) | Party System, Beats & World Gen | Planning |
-| [Phase A](./phase-a-entity-evolution.md) | Entity Evolution (Traits & Relationships) | Planning |
-| [Phase B](./phase-b-structured-events.md) | Structured Events & Pattern Detection | Planning |
-| [Phase C](./phase-c-narrative-structure.md) | Narrative Structure (Scenes) | Planning |
-| [Phase D](./phase-d-export-layer.md) | Export Layer & Git Persistence | Backlog |
+| [Entity Evolution](./entity-evolution.md) | Traits & Relationships | Planning |
+| [Structured Events](./structured-events.md) | Pattern Detection & Emergence | Planning |
+| [Narrative Structure](./narrative-structure.md) | Scenes & Story Graph | Planning |
+| [Export Layer](./export-layer.md) | Git Persistence | Backlog |
 | Phase 5 | Pattern Engine | Not Started |
 | Phase 6 | Trial System | Not Started |
 | Phase 7 | UI & Rendering | Not Started |
@@ -102,23 +102,44 @@ Starting with the Text-to-Speech engine provides:
 3. **Isolated complexity** - TTS is self-contained, good for proving out the architecture
 4. **API integration practice** - Sets patterns for other external services (AI, etc.)
 
+## Task Breakdown
+
+Each epic has a detailed task breakdown in the [tasks/](./tasks/) directory:
+
+| Epic | Tasks | Description |
+|------|-------|-------------|
+| [entity-evolution](./tasks/entity-evolution.md) | 15 | Traits, relationships, DM approval |
+| [structured-events](./tasks/structured-events.md) | 12 | Pattern detection, emergence |
+| [narrative-structure](./tasks/narrative-structure.md) | 15 | Scenes, connections, requirements |
+| [export-layer](./tasks/export-layer.md) | 10 | Git persistence (backlog) |
+
+See [tasks/dependency-diagram.md](./tasks/dependency-diagram.md) for the full dependency graph.
+
 ## How to Use These Documents
 
-Each phase document contains:
+Each plan document contains:
 - **Goals**: What we're trying to achieve
 - **Database Schema**: Tables and migrations needed
 - **Services**: New services and modifications
 - **Integration Points**: How it connects to existing code
-- **Tasks**: Specific implementation items
-- **Acceptance Criteria**: How we know it's done
+
+Each task document contains:
+- **Task dependency graph**: Visual representation of task order
+- **Individual tasks**: Well-defined, testable work items
+- **Acceptance criteria**: How we know it's done
+- **Cross-epic dependencies**: Tasks that depend on other epics
 
 ## Task Tracking
 
-Phase documents inform task creation in beads:
+Tasks are designed for beads:
 ```bash
-# Add tasks from a phase
-just add-task "Implement TraitRepository"
+# Create task from breakdown
+bd create "EVOL-001: Create entity_traits migration" \
+  --epic entity-evolution
+
+# Add dependency
+bd dep EVOL-005 EVOL-004
 
 # Track progress
-bd list
+bd list --epic entity-evolution
 ```
