@@ -16,3 +16,11 @@ export type {
   EvolutionEvent,
   EvolutionEventEmitter,
 } from './types.js';
+export {
+  computeLabels,
+  getShortLabel,
+  getLabelValence,
+  type RelationshipLabel,
+  type LabelScore,
+  type ComputedLabels,
+} from './label-computation.js';
