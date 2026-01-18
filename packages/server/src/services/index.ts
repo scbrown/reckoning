@@ -60,3 +60,28 @@ export type {
   EvolutionEvent,
   EvolutionEventEmitter,
 } from './evolution/index.js';
+
+export {
+  ArtEvolutionService,
+  TRAIT_VISUAL_MAPPINGS,
+  type ArtEvolutionServiceConfig,
+} from './art-evolution/index.js';
+export type {
+  ArtEvolutionTrigger,
+  ArtEvolutionStrategy,
+  ArtEvolutionTriggerContext,
+  ArtEvolutionRequest,
+  ArtEvolutionResult,
+  ArtEvolutionParams,
+  PaletteModification,
+  CompositionLayer,
+  ArtArchiveEntry,
+  ArtEvolutionHistory,
+  ArtEvolutionEvent,
+  ArtEvolutionEventEmitter,
+  TraitVisualMapping,
+  ActTransitionData,
+  MajorEventData,
+  StatusEffectData,
+  EquipmentChangeData,
+} from './art-evolution/index.js';
