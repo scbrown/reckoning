@@ -10,6 +10,7 @@ import { AreaRepository } from '../db/repositories/area-repository.js';
 import { PartyRepository } from '../db/repositories/party-repository.js';
 import { SaveRepository } from '../db/repositories/save-repository.js';
 import { EditorStateRepository } from '../db/repositories/editor-state-repository.js';
+import { RelationshipRepository } from '../db/repositories/relationship-repository.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -599,5 +600,386 @@ describe('EditorStateRepository', () => {
     expect(state?.pending).toBeNull();
     expect(state?.editedContent).toBeNull();
     expect(state?.status).toBe('idle');
+  });
+});
+
+describe('RelationshipRepository', () => {
+  let db: Database.Database;
+  let repo: RelationshipRepository;
+  let gameId: string;
+
+  beforeEach(() => {
+    db = createTestDatabase();
+    repo = new RelationshipRepository(db);
+
+    db.prepare(`
+      INSERT INTO games (id, player_id, current_area_id, turn)
+      VALUES ('game-1', 'player-1', 'area-1', 0)
+    `).run();
+    gameId = 'game-1';
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  describe('upsert', () => {
+    it('should create a new relationship with default values', () => {
+      const rel = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+
+      expect(rel.id).toBeDefined();
+      expect(rel.gameId).toBe(gameId);
+      expect(rel.from.type).toBe('player');
+      expect(rel.from.id).toBe('player-1');
+      expect(rel.to.type).toBe('npc');
+      expect(rel.to.id).toBe('npc-1');
+      expect(rel.trust).toBe(0.5);
+      expect(rel.respect).toBe(0.5);
+      expect(rel.affection).toBe(0.5);
+      expect(rel.fear).toBe(0.0);
+      expect(rel.resentment).toBe(0.0);
+      expect(rel.debt).toBe(0.0);
+      expect(rel.updatedTurn).toBe(1);
+    });
+
+    it('should create a relationship with custom dimension values', () => {
+      const rel = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+        trust: 0.8,
+        fear: 0.2,
+      });
+
+      expect(rel.trust).toBe(0.8);
+      expect(rel.fear).toBe(0.2);
+      expect(rel.respect).toBe(0.5); // default
+    });
+
+    it('should update existing relationship', () => {
+      const original = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+        trust: 0.5,
+      });
+
+      const updated = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 2,
+        trust: 0.3,
+      });
+
+      expect(updated.id).toBe(original.id);
+      expect(updated.trust).toBe(0.3);
+      expect(updated.updatedTurn).toBe(2);
+    });
+  });
+
+  describe('findBetween', () => {
+    it('should find relationship between two entities', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+
+      const found = repo.findBetween(
+        gameId,
+        { type: 'player', id: 'player-1' },
+        { type: 'npc', id: 'npc-1' }
+      );
+
+      expect(found).not.toBeNull();
+      expect(found?.from.id).toBe('player-1');
+      expect(found?.to.id).toBe('npc-1');
+    });
+
+    it('should return null if relationship does not exist', () => {
+      const found = repo.findBetween(
+        gameId,
+        { type: 'player', id: 'player-1' },
+        { type: 'npc', id: 'npc-1' }
+      );
+
+      expect(found).toBeNull();
+    });
+
+    it('should not find reverse relationship', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+
+      const found = repo.findBetween(
+        gameId,
+        { type: 'npc', id: 'npc-1' },
+        { type: 'player', id: 'player-1' }
+      );
+
+      expect(found).toBeNull();
+    });
+  });
+
+  describe('findByEntity', () => {
+    it('should find relationships where entity is the source', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-2' },
+        updatedTurn: 1,
+      });
+
+      const found = repo.findByEntity(gameId, { type: 'player', id: 'player-1' });
+
+      expect(found).toHaveLength(2);
+    });
+
+    it('should find relationships where entity is the target', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'npc-1' },
+        to: { type: 'player', id: 'player-1' },
+        updatedTurn: 1,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'npc-2' },
+        to: { type: 'player', id: 'player-1' },
+        updatedTurn: 1,
+      });
+
+      const found = repo.findByEntity(gameId, { type: 'player', id: 'player-1' });
+
+      expect(found).toHaveLength(2);
+    });
+
+    it('should find relationships in both directions', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'npc-2' },
+        to: { type: 'player', id: 'player-1' },
+        updatedTurn: 1,
+      });
+
+      const found = repo.findByEntity(gameId, { type: 'player', id: 'player-1' });
+
+      expect(found).toHaveLength(2);
+    });
+  });
+
+  describe('findByThreshold', () => {
+    beforeEach(() => {
+      // Create relationships with varying trust levels
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+        trust: 0.9,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-2' },
+        updatedTurn: 1,
+        trust: 0.5,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-3' },
+        updatedTurn: 1,
+        trust: 0.2,
+      });
+    });
+
+    it('should find relationships with dimension >= threshold', () => {
+      const found = repo.findByThreshold(gameId, 'trust', 0.5, '>=');
+
+      expect(found).toHaveLength(2);
+      expect(found.every(r => r.trust >= 0.5)).toBe(true);
+    });
+
+    it('should find relationships with dimension > threshold', () => {
+      const found = repo.findByThreshold(gameId, 'trust', 0.5, '>');
+
+      expect(found).toHaveLength(1);
+      expect(found[0].trust).toBe(0.9);
+    });
+
+    it('should find relationships with dimension <= threshold', () => {
+      const found = repo.findByThreshold(gameId, 'trust', 0.5, '<=');
+
+      expect(found).toHaveLength(2);
+      expect(found.every(r => r.trust <= 0.5)).toBe(true);
+    });
+
+    it('should find relationships with dimension < threshold', () => {
+      const found = repo.findByThreshold(gameId, 'trust', 0.5, '<');
+
+      expect(found).toHaveLength(1);
+      expect(found[0].trust).toBe(0.2);
+    });
+
+    it('should throw error for invalid dimension', () => {
+      expect(() => {
+        repo.findByThreshold(gameId, 'invalid' as 'trust', 0.5, '>=');
+      }).toThrow('Invalid dimension');
+    });
+
+    it('should throw error for invalid operator', () => {
+      expect(() => {
+        repo.findByThreshold(gameId, 'trust', 0.5, '==' as '>=');
+      }).toThrow('Invalid operator');
+    });
+  });
+
+  describe('updateDimension', () => {
+    it('should update a specific dimension', () => {
+      const rel = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+        trust: 0.5,
+      });
+
+      const updated = repo.updateDimension(rel.id, 'trust', 0.8, 2);
+
+      expect(updated).not.toBeNull();
+      expect(updated?.trust).toBe(0.8);
+      expect(updated?.updatedTurn).toBe(2);
+    });
+
+    it('should return null if relationship does not exist', () => {
+      const result = repo.updateDimension('non-existent', 'trust', 0.5, 1);
+      expect(result).toBeNull();
+    });
+
+    it('should throw error for invalid dimension', () => {
+      const rel = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+
+      expect(() => {
+        repo.updateDimension(rel.id, 'invalid' as 'trust', 0.5, 1);
+      }).toThrow('Invalid dimension');
+    });
+
+    it('should throw error for value out of range', () => {
+      const rel = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+
+      expect(() => {
+        repo.updateDimension(rel.id, 'trust', 1.5, 1);
+      }).toThrow('Dimension value must be between 0.0 and 1.0');
+
+      expect(() => {
+        repo.updateDimension(rel.id, 'trust', -0.5, 1);
+      }).toThrow('Dimension value must be between 0.0 and 1.0');
+    });
+  });
+
+  describe('delete', () => {
+    it('should delete a relationship', () => {
+      const rel = repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+
+      repo.delete(rel.id);
+
+      const found = repo.findById(rel.id);
+      expect(found).toBeNull();
+    });
+  });
+
+  describe('deleteByGame', () => {
+    it('should delete all relationships in a game', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-2' },
+        updatedTurn: 1,
+      });
+
+      repo.deleteByGame(gameId);
+
+      const found = repo.findByEntity(gameId, { type: 'player', id: 'player-1' });
+      expect(found).toHaveLength(0);
+    });
+  });
+
+  describe('deleteByEntity', () => {
+    it('should delete all relationships involving an entity', () => {
+      repo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'npc-1' },
+        updatedTurn: 1,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'npc-2' },
+        to: { type: 'player', id: 'player-1' },
+        updatedTurn: 1,
+      });
+      repo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'npc-1' },
+        to: { type: 'npc', id: 'npc-2' },
+        updatedTurn: 1,
+      });
+
+      repo.deleteByEntity(gameId, { type: 'player', id: 'player-1' });
+
+      // Player relationships should be deleted
+      const playerRels = repo.findByEntity(gameId, { type: 'player', id: 'player-1' });
+      expect(playerRels).toHaveLength(0);
+
+      // NPC-to-NPC relationship should still exist
+      const npcRels = repo.findByEntity(gameId, { type: 'npc', id: 'npc-1' });
+      expect(npcRels).toHaveLength(1);
+    });
   });
 });

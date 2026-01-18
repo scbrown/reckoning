@@ -23,3 +23,14 @@ export {
   type CreateCharacterInput,
   PARTY_LIMITS,
 } from './character-repository.js';
+export {
+  RelationshipRepository,
+  type EntityType,
+  type RelationshipDimension,
+  type Entity,
+  type Relationship,
+  type UpsertRelationshipInput,
+  type ThresholdOperator,
+  RELATIONSHIP_DIMENSIONS,
+  DIMENSION_DEFAULTS,
+} from './relationship-repository.js';
