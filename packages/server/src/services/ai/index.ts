@@ -29,12 +29,15 @@ export {
   DefaultContextBuilder,
   type ContextBuilder,
   type ContextBuildOptions,
+  type ContextBuilderOptions,
   type ExtendedGenerationContext,
+  type EntityEvolutionContext,
   type GameRepository,
   type EventRepository,
   type AreaRepository,
   type AreaWithDetails,
   type PartyRepository,
+  type EvolutionRepository,
 } from './context-builder.js';
 
 export {

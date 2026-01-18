@@ -17,6 +17,8 @@ import type {
   NPC,
   CanonicalEvent,
 } from '@reckoning/shared';
+import type { EntityType } from '../../db/repositories/trait-repository.js';
+import type { EntitySummary, AggregateLabel } from '../evolution/types.js';
 
 // =============================================================================
 // Repository Interfaces
@@ -69,6 +71,34 @@ export interface CharacterWithRole extends Character {
  */
 export interface PartyRepository {
   findByGame(gameId: string): CharacterWithRole[];
+}
+
+/**
+ * Repository for entity evolution data (traits and relationships)
+ */
+export interface EvolutionRepository {
+  /**
+   * Get evolution summary for an entity
+   */
+  getEntitySummary(gameId: string, entityType: EntityType, entityId: string): EntitySummary;
+}
+
+/**
+ * Evolution context for a named entity
+ */
+export interface EntityEvolutionContext {
+  /** Entity name for display */
+  name: string;
+  /** Entity ID */
+  id: string;
+  /** Active traits */
+  traits: string[];
+  /** Relationships with aggregate labels */
+  relationships: Array<{
+    targetName: string;
+    targetId: string;
+    label: AggregateLabel;
+  }>;
 }
 
 // =============================================================================
@@ -332,6 +362,12 @@ export interface ExtendedGenerationContext extends GenerationContext {
   party: CharacterWithRole[];
   /** NPCs present in the current area */
   npcsPresent: NPC[];
+  /** Player character evolution (traits and relationships) */
+  playerEvolution?: EntityEvolutionContext;
+  /** Party member evolutions (traits and relationships) */
+  partyEvolutions?: EntityEvolutionContext[];
+  /** NPC evolutions for NPCs in current area */
+  npcEvolutions?: EntityEvolutionContext[];
 }
 
 // =============================================================================
@@ -421,7 +457,8 @@ export class DefaultContextBuilder implements ContextBuilder {
     private gameRepo: GameRepository,
     private eventRepo: EventRepository,
     private areaRepo: AreaRepository,
-    private partyRepo: PartyRepository
+    private partyRepo: PartyRepository,
+    private evolutionRepo?: EvolutionRepository
   ) {}
 
   async build(
@@ -459,7 +496,62 @@ export class DefaultContextBuilder implements ContextBuilder {
     // 7. Build formatted party context
     const formattedPartyContext = buildPartyContext(party);
 
-    // 8. Return complete context
+    // 8. Build evolution context if repository available
+    let playerEvolution: EntityEvolutionContext | undefined;
+    let partyEvolutions: EntityEvolutionContext[] | undefined;
+    let npcEvolutions: EntityEvolutionContext[] | undefined;
+
+    if (this.evolutionRepo) {
+      // Build name lookup map for resolving relationship target names
+      const nameMap = new Map<string, string>();
+      for (const member of party) {
+        nameMap.set(member.id, member.name);
+      }
+      for (const npc of area.npcs) {
+        nameMap.set(npc.id, npc.name);
+      }
+
+      // Helper to convert EntitySummary to EntityEvolutionContext
+      const toEvolutionContext = (
+        summary: EntitySummary,
+        name: string
+      ): EntityEvolutionContext => ({
+        name,
+        id: summary.entityId,
+        traits: summary.traits,
+        relationships: summary.relationships.map((rel) => ({
+          targetName: nameMap.get(rel.targetId) ?? rel.targetId,
+          targetId: rel.targetId,
+          label: rel.label,
+        })),
+      });
+
+      // Get player evolution (player has role 'player')
+      const player = party.find((m) => m.role === 'player');
+      if (player) {
+        const summary = this.evolutionRepo.getEntitySummary(gameId, 'player', player.id);
+        playerEvolution = toEvolutionContext(summary, player.name);
+      }
+
+      // Get party member evolutions (non-player members)
+      const nonPlayerMembers = party.filter((m) => m.role !== 'player');
+      if (nonPlayerMembers.length > 0) {
+        partyEvolutions = nonPlayerMembers.map((member) => {
+          const summary = this.evolutionRepo!.getEntitySummary(gameId, 'character', member.id);
+          return toEvolutionContext(summary, member.name);
+        });
+      }
+
+      // Get NPC evolutions for NPCs in current area
+      if (area.npcs.length > 0) {
+        npcEvolutions = area.npcs.map((npc) => {
+          const summary = this.evolutionRepo!.getEntitySummary(gameId, 'npc', npc.id);
+          return toEvolutionContext(summary, npc.name);
+        });
+      }
+    }
+
+    // 9. Return complete context
     const context: ExtendedGenerationContext = {
       type,
       gameState: game,
@@ -470,11 +562,21 @@ export class DefaultContextBuilder implements ContextBuilder {
       npcsPresent: area.npcs,
     };
 
+    // Add optional fields
     if (historyContext !== undefined) {
       context.historyContext = historyContext;
     }
     if (options?.dmGuidance !== undefined) {
       context.dmGuidance = options.dmGuidance;
+    }
+    if (playerEvolution) {
+      context.playerEvolution = playerEvolution;
+    }
+    if (partyEvolutions && partyEvolutions.length > 0) {
+      context.partyEvolutions = partyEvolutions;
+    }
+    if (npcEvolutions && npcEvolutions.length > 0) {
+      context.npcEvolutions = npcEvolutions;
     }
 
     return context;
@@ -497,16 +599,29 @@ export class DefaultContextBuilder implements ContextBuilder {
 // =============================================================================
 
 /**
+ * Options for creating a context builder
+ */
+export interface ContextBuilderOptions {
+  /** Optional evolution repository for traits and relationships */
+  evolutionRepo?: EvolutionRepository;
+}
+
+/**
  * Create a context builder with injected database dependencies
  *
  * @param db - The database connection
+ * @param options - Optional configuration including evolution repository
  * @returns A configured ContextBuilder instance
  */
-export function createContextBuilder(db: Database): ContextBuilder {
+export function createContextBuilder(
+  db: Database,
+  options?: ContextBuilderOptions
+): ContextBuilder {
   return new DefaultContextBuilder(
     new SQLiteGameRepository(db),
     new SQLiteEventRepository(db),
     new SQLiteAreaRepository(db),
-    new SQLitePartyRepository(db)
+    new SQLitePartyRepository(db),
+    options?.evolutionRepo
   );
 }

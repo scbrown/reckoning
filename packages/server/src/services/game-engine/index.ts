@@ -22,7 +22,11 @@ import { createContextBuilder } from '../ai/context-builder.js';
 import {
   GameRepository,
   PartyRepository,
+  TraitRepository,
+  RelationshipRepository,
+  PendingEvolutionRepository,
 } from '../../db/repositories/index.js';
+import { EvolutionService } from '../evolution/index.js';
 import { ContentPipeline } from './content-pipeline.js';
 import { EventLoop } from './event-loop.js';
 import { StateManager } from './state-manager.js';
@@ -89,8 +93,17 @@ export class GameEngine {
     this.gameRepo = new GameRepository(db);
     this.partyRepo = new PartyRepository(db);
 
-    // Create context builder with DB
-    const contextBuilder = createContextBuilder(db);
+    // Create evolution service for traits and relationships
+    const evolutionService = new EvolutionService({
+      traitRepo: new TraitRepository(db),
+      relationshipRepo: new RelationshipRepository(db),
+      pendingRepo: new PendingEvolutionRepository(db),
+    });
+
+    // Create context builder with evolution service
+    const contextBuilder = createContextBuilder(db, {
+      evolutionRepo: evolutionService,
+    });
 
     // Initialize components
     this.pipeline = new ContentPipeline(contextBuilder, aiProvider);

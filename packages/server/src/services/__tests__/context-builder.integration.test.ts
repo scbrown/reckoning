@@ -6,8 +6,10 @@
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import Database from 'better-sqlite3';
-import { createContextBuilder } from '../ai/context-builder.js';
+import { createContextBuilder, type EvolutionRepository } from '../ai/context-builder.js';
 import { runMigrations } from '../../db/index.js';
+import type { EntitySummary } from '../evolution/types.js';
+import type { EntityType } from '../../db/repositories/trait-repository.js';
 
 describe('ContextBuilder Integration Tests', () => {
   let db: Database.Database;
@@ -362,6 +364,198 @@ describe('ContextBuilder Integration Tests', () => {
       expect(context.currentArea.exits).toEqual([]);
       expect(context.currentArea.objects).toEqual([]);
       expect(context.currentArea.npcs).toEqual([]);
+    });
+  });
+
+  describe('evolution context integration', () => {
+    // Mock evolution repository for testing
+    function createMockEvolutionRepo(
+      summaries: Map<string, EntitySummary>
+    ): EvolutionRepository {
+      return {
+        getEntitySummary(
+          _gameId: string,
+          entityType: EntityType,
+          entityId: string
+        ): EntitySummary {
+          const key = `${entityType}:${entityId}`;
+          return (
+            summaries.get(key) ?? {
+              entityType,
+              entityId,
+              traits: [],
+              relationships: [],
+            }
+          );
+        },
+      };
+    }
+
+    it('should include player evolution when repository provided', async () => {
+      const summaries = new Map<string, EntitySummary>();
+      summaries.set('player:char-001', {
+        entityType: 'player',
+        entityId: 'char-001',
+        traits: ['battle-hardened', 'hopeful'],
+        relationships: [
+          {
+            targetType: 'npc',
+            targetId: 'maren_01',
+            label: 'friend',
+            dimensions: {
+              trust: 0.7,
+              respect: 0.6,
+              affection: 0.65,
+              fear: 0.0,
+              resentment: 0.0,
+              debt: 0.0,
+            },
+          },
+        ],
+      });
+
+      const evolutionRepo = createMockEvolutionRepo(summaries);
+      const builder = createContextBuilder(db, { evolutionRepo });
+
+      const context = await builder.build('test-game-001', 'narration');
+
+      expect(context.playerEvolution).toBeDefined();
+      expect(context.playerEvolution?.name).toBe('Theron');
+      expect(context.playerEvolution?.traits).toEqual(['battle-hardened', 'hopeful']);
+      expect(context.playerEvolution?.relationships).toHaveLength(1);
+      expect(context.playerEvolution?.relationships[0].label).toBe('friend');
+      expect(context.playerEvolution?.relationships[0].targetName).toBe('Maren');
+    });
+
+    it('should include party member evolutions', async () => {
+      const summaries = new Map<string, EntitySummary>();
+      // Player
+      summaries.set('player:char-001', {
+        entityType: 'player',
+        entityId: 'char-001',
+        traits: ['hopeful'],
+        relationships: [],
+      });
+      // Party member (Elara)
+      summaries.set('character:char-002', {
+        entityType: 'character',
+        entityId: 'char-002',
+        traits: ['scholarly', 'guarded'],
+        relationships: [],
+      });
+
+      const evolutionRepo = createMockEvolutionRepo(summaries);
+      const builder = createContextBuilder(db, { evolutionRepo });
+
+      const context = await builder.build('test-game-001', 'narration');
+
+      expect(context.partyEvolutions).toBeDefined();
+      expect(context.partyEvolutions).toHaveLength(1);
+      expect(context.partyEvolutions?.[0].name).toBe('Elara');
+      expect(context.partyEvolutions?.[0].traits).toEqual(['scholarly', 'guarded']);
+    });
+
+    it('should include NPC evolutions for NPCs in current area', async () => {
+      const summaries = new Map<string, EntitySummary>();
+      // Player (required)
+      summaries.set('player:char-001', {
+        entityType: 'player',
+        entityId: 'char-001',
+        traits: [],
+        relationships: [],
+      });
+      // NPC (Maren)
+      summaries.set('npc:maren_01', {
+        entityType: 'npc',
+        entityId: 'maren_01',
+        traits: ['street-wise', 'merciful'],
+        relationships: [
+          {
+            targetType: 'player',
+            targetId: 'char-001',
+            label: 'ally',
+            dimensions: {
+              trust: 0.65,
+              respect: 0.7,
+              affection: 0.4,
+              fear: 0.0,
+              resentment: 0.0,
+              debt: 0.0,
+            },
+          },
+        ],
+      });
+
+      const evolutionRepo = createMockEvolutionRepo(summaries);
+      const builder = createContextBuilder(db, { evolutionRepo });
+
+      const context = await builder.build('test-game-001', 'narration');
+
+      expect(context.npcEvolutions).toBeDefined();
+      expect(context.npcEvolutions).toHaveLength(1);
+      expect(context.npcEvolutions?.[0].name).toBe('Maren');
+      expect(context.npcEvolutions?.[0].traits).toEqual(['street-wise', 'merciful']);
+      expect(context.npcEvolutions?.[0].relationships[0].label).toBe('ally');
+    });
+
+    it('should not include evolution data when no repository provided', async () => {
+      const builder = createContextBuilder(db);
+
+      const context = await builder.build('test-game-001', 'narration');
+
+      expect(context.playerEvolution).toBeUndefined();
+      expect(context.partyEvolutions).toBeUndefined();
+      expect(context.npcEvolutions).toBeUndefined();
+    });
+
+    it('should resolve relationship target names from name map', async () => {
+      const summaries = new Map<string, EntitySummary>();
+      summaries.set('player:char-001', {
+        entityType: 'player',
+        entityId: 'char-001',
+        traits: [],
+        relationships: [
+          // Relationship with party member
+          {
+            targetType: 'character',
+            targetId: 'char-002',
+            label: 'devoted',
+            dimensions: {
+              trust: 0.8,
+              respect: 0.8,
+              affection: 0.75,
+              fear: 0.0,
+              resentment: 0.0,
+              debt: 0.0,
+            },
+          },
+          // Relationship with unknown entity (should use ID as fallback)
+          {
+            targetType: 'npc',
+            targetId: 'unknown-npc',
+            label: 'wary',
+            dimensions: {
+              trust: 0.2,
+              respect: 0.3,
+              affection: 0.1,
+              fear: 0.3,
+              resentment: 0.0,
+              debt: 0.0,
+            },
+          },
+        ],
+      });
+
+      const evolutionRepo = createMockEvolutionRepo(summaries);
+      const builder = createContextBuilder(db, { evolutionRepo });
+
+      const context = await builder.build('test-game-001', 'narration');
+
+      expect(context.playerEvolution?.relationships).toHaveLength(2);
+      // Known entity should have resolved name
+      expect(context.playerEvolution?.relationships[0].targetName).toBe('Elara');
+      // Unknown entity should fall back to ID
+      expect(context.playerEvolution?.relationships[1].targetName).toBe('unknown-npc');
     });
   });
 });
