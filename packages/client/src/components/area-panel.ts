@@ -2,12 +2,19 @@
  * Area Panel Component
  *
  * Displays the current area with location info, exits, and NPCs.
+ * Supports pixel art scene backgrounds with fallback to text-only display.
  */
 
-import type { Area, AreaExit, NPC, NPCDisposition } from '@reckoning/shared';
+import type { Area, AreaExit, NPC, NPCDisposition, PixelArt } from '@reckoning/shared';
+import { SceneBackground, type SceneBackgroundConfig } from './scene-background.js';
+import type { PixelsrcRenderer } from '../services/pixelsrc/index.js';
 
 export interface AreaPanelConfig {
   containerId: string;
+  /** Optional pixelsrc renderer for scene backgrounds */
+  renderer?: PixelsrcRenderer;
+  /** Scene background configuration */
+  sceneConfig?: SceneBackgroundConfig;
 }
 
 /**
@@ -66,6 +73,10 @@ const MOCK_AREA: Area = {
 export class AreaPanel {
   private container: HTMLElement;
   private area: Area;
+  private renderer: PixelsrcRenderer | undefined;
+  private sceneConfig: SceneBackgroundConfig;
+  private sceneBackground: SceneBackground | null = null;
+  private currentPixelArt: PixelArt | null = null;
 
   constructor(config: AreaPanelConfig) {
     const container = document.getElementById(config.containerId);
@@ -74,6 +85,8 @@ export class AreaPanel {
     }
     this.container = container;
     this.area = MOCK_AREA;
+    this.renderer = config.renderer;
+    this.sceneConfig = config.sceneConfig ?? {};
     this.injectStyles();
   }
 
@@ -85,13 +98,22 @@ export class AreaPanel {
    * Render the component
    */
   render(): void {
+    // Clean up existing scene background
+    if (this.sceneBackground) {
+      this.sceneBackground.destroy();
+      this.sceneBackground = null;
+    }
+
+    const hasSceneBackground = this.currentPixelArt !== null && this.renderer !== undefined;
+
     this.container.innerHTML = `
       <div class="area-panel">
         <div class="area-panel-header">
           <h3>${this.escapeHtml(this.area.name)}</h3>
         </div>
         <div class="area-panel-content">
-          <div class="area-description">
+          ${hasSceneBackground ? '<div class="area-scene-container" id="area-scene-container"></div>' : ''}
+          <div class="area-description ${hasSceneBackground ? 'has-scene' : ''}">
             ${this.escapeHtml(this.area.description)}
           </div>
 
@@ -111,13 +133,60 @@ export class AreaPanel {
         </div>
       </div>
     `;
+
+    // Initialize scene background if we have pixel art and a renderer
+    if (hasSceneBackground && this.currentPixelArt && this.renderer) {
+      this.initSceneBackground();
+    }
+  }
+
+  /**
+   * Initialize the scene background component
+   */
+  private initSceneBackground(): void {
+    if (!this.currentPixelArt || !this.renderer) {
+      return;
+    }
+
+    const sceneContainer = document.getElementById('area-scene-container');
+    if (!sceneContainer) {
+      return;
+    }
+
+    try {
+      this.sceneBackground = new SceneBackground(
+        this.currentPixelArt,
+        this.renderer,
+        this.area.pixelArtRef?.spriteName,
+        this.sceneConfig
+      );
+
+      sceneContainer.appendChild(this.sceneBackground.getElement());
+    } catch (error) {
+      console.error('AreaPanel: Failed to initialize scene background', error);
+      // Scene background failed, but text fallback is already rendered
+    }
   }
 
   /**
    * Update the displayed area
+   *
+   * @param area - The area to display
+   * @param pixelArt - Optional pixel art for scene background (loaded from server)
    */
-  setArea(area: Area): void {
+  setArea(area: Area, pixelArt?: PixelArt): void {
     this.area = area;
+    this.currentPixelArt = pixelArt ?? null;
+    this.render();
+  }
+
+  /**
+   * Update the scene pixel art without changing the area
+   *
+   * @param pixelArt - The pixel art to display, or null to remove
+   */
+  setPixelArt(pixelArt: PixelArt | null): void {
+    this.currentPixelArt = pixelArt;
     this.render();
   }
 
@@ -129,9 +198,28 @@ export class AreaPanel {
   }
 
   /**
+   * Check if the area has a scene background
+   */
+  hasSceneBackground(): boolean {
+    return this.sceneBackground !== null;
+  }
+
+  /**
+   * Get the scene background component (for external animation control)
+   */
+  getSceneBackground(): SceneBackground | null {
+    return this.sceneBackground;
+  }
+
+  /**
    * Cleanup
    */
   destroy(): void {
+    if (this.sceneBackground) {
+      this.sceneBackground.destroy();
+      this.sceneBackground = null;
+    }
+    this.currentPixelArt = null;
     this.container.innerHTML = '';
   }
 
@@ -227,6 +315,23 @@ export class AreaPanel {
         flex: 1;
       }
 
+      /* Scene background container */
+      .area-scene-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0.5rem;
+        background: #0a0a0f;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        min-height: 192px;
+      }
+
+      .area-scene-container canvas {
+        max-width: 100%;
+        height: auto;
+      }
+
       .area-description {
         font-size: 0.85rem;
         color: #b0b0b0;
@@ -235,6 +340,13 @@ export class AreaPanel {
         background: #1a1a1a;
         border: 1px solid #2a2a2a;
         border-radius: 6px;
+      }
+
+      /* When scene background is present, make description more compact */
+      .area-description.has-scene {
+        background: rgba(26, 26, 26, 0.9);
+        font-size: 0.8rem;
+        padding: 0.5rem 0.75rem;
       }
 
       .area-section h4 {

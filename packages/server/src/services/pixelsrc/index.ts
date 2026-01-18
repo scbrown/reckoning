@@ -11,3 +11,10 @@ export {
   type RenderOptions,
   type RenderResult,
 } from './renderer.js';
+
+export {
+  PixelsrcGenerator,
+  type SceneGenerationContext,
+  type SceneGenerationPrompt,
+  type SceneArchetype,
+} from './generator.js';

@@ -14,6 +14,7 @@ import {
   type WorldGenerationOutput,
 } from './schemas.js';
 import { buildWorldPrompt, type WorldGenerationContext } from './prompts/world.js';
+import { PixelsrcGenerator } from '../pixelsrc/index.js';
 
 // =============================================================================
 // Types
@@ -71,10 +72,14 @@ export interface WorldGenerationError {
  * 5. Returns the complete generated world for DM review
  */
 export class WorldGenerator {
+  private pixelsrcGenerator: PixelsrcGenerator;
+
   constructor(
     private aiProvider: AIProvider,
     private areaRepo: AreaRepository
-  ) {}
+  ) {
+    this.pixelsrcGenerator = new PixelsrcGenerator();
+  }
 
   /**
    * Generate a new world for a party
@@ -245,12 +250,23 @@ export class WorldGenerator {
 
     // Create all areas first (without exits)
     for (const areaOutput of output.areas) {
+      // Generate pixelArtRef for scene background
+      const pixelArtRef = this.pixelsrcGenerator.generateSceneRef({
+        areaId: areaOutput.id,
+        areaName: areaOutput.name,
+        description: areaOutput.description,
+        tags: areaOutput.tags,
+      });
+
       const area = this.areaRepo.create({
         id: areaOutput.id,
         name: areaOutput.name,
         description: areaOutput.description,
         tags: areaOutput.tags,
       });
+
+      // Add pixelArtRef to the area (computed from area properties, not persisted)
+      area.pixelArtRef = pixelArtRef;
       areas.push(area);
     }
 
