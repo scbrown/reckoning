@@ -168,6 +168,12 @@
         flex-shrink: 0;
       }
 
+      #evolution-panel {
+        flex: 1;
+        min-height: 200px;
+        overflow: hidden;
+      }
+
       /* Responsive Layout - Stack on smaller screens */
       @media (max-width: 1024px) {
         .app-main {
@@ -421,6 +427,7 @@
           <section class="right-panel">
             <div id="playback-controls"></div>
             <div id="controls"></div>
+            <div id="evolution-panel"></div>
           </section>
         </main>
       </div>

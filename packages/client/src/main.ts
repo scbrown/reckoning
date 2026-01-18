@@ -26,6 +26,7 @@ import { AreaPanel } from './components/area-panel.js';
 import { StatusBar } from './components/status-bar.js';
 import { BeatEditor } from './components/beat-editor.js';
 import { SpeechBubble } from './components/speech-bubble.js';
+import { EvolutionApprovalPanel, type PendingEvolution } from './components/evolution-approval-panel.js';
 
 // =============================================================================
 // Services
@@ -56,6 +57,7 @@ let areaPanel: AreaPanel | null = null;
 let statusBar: StatusBar | null = null;
 let beatEditor: BeatEditor | null = null;
 let speechBubble: SpeechBubble | null = null;
+let evolutionPanel: EvolutionApprovalPanel | null = null;
 
 // =============================================================================
 // DOM Elements
@@ -238,6 +240,17 @@ function initializeUIComponents(): void {
 
   // Speech Bubble (no container needed - creates bubbles dynamically)
   speechBubble = new SpeechBubble();
+
+  // Evolution Approval Panel
+  evolutionPanel = new EvolutionApprovalPanel(
+    { containerId: 'evolution-panel' },
+    {
+      onApprove: handleEvolutionApprove,
+      onEdit: handleEvolutionEdit,
+      onRefuse: handleEvolutionRefuse,
+    }
+  );
+  evolutionPanel.render();
 }
 
 function destroyUIComponents(): void {
@@ -251,6 +264,7 @@ function destroyUIComponents(): void {
   statusBar?.destroy();
   beatEditor?.destroy();
   speechBubble?.destroy();
+  evolutionPanel?.destroy();
 
   // Clear all avatar instances (but don't destroy the manager itself)
   avatarManager.clearAll();
@@ -265,6 +279,7 @@ function destroyUIComponents(): void {
   statusBar = null;
   beatEditor = null;
   speechBubble = null;
+  evolutionPanel = null;
 }
 
 // =============================================================================
@@ -305,6 +320,12 @@ async function handleGameStarted(): Promise<void> {
     showError(event.error || 'Generation failed');
   });
 
+  // Refresh pending evolutions on generation complete
+  // (evolutions are created during content generation)
+  sseService.on('generation_complete', () => {
+    refreshPendingEvolutions();
+  });
+
   // Subscribe to state changes
   stateManager?.subscribe((state) => {
     // Update controls based on pending content
@@ -326,6 +347,8 @@ async function handleGameStarted(): Promise<void> {
     if (gameId) {
       console.log('[Main] Triggering first generation for game:', gameId);
       await gameService.next(gameId);
+      // Refresh pending evolutions after game start
+      await refreshPendingEvolutions();
     }
   } catch (error) {
     console.error('[Main] Failed to trigger first generation:', error);
@@ -341,6 +364,8 @@ async function handleGameLoaded(): Promise<void> {
   const gameId = stateManager?.getState().gameId;
   if (gameId) {
     saveLoadModal?.setGameId(gameId);
+    // Refresh pending evolutions after game load
+    await refreshPendingEvolutions();
   }
 
   // Subscribe to state changes
@@ -453,6 +478,84 @@ async function handlePlaybackModeChange(mode: PlaybackMode): Promise<void> {
   } catch (error) {
     console.error('[Main] Playback mode change failed:', error);
     showError(error instanceof Error ? error.message : 'Failed to change playback mode');
+  }
+}
+
+// =============================================================================
+// Evolution Event Handlers
+// =============================================================================
+
+async function handleEvolutionApprove(evolutionId: string, dmNotes?: string): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) return;
+
+  try {
+    await gameService.approveEvolution(gameId, evolutionId, dmNotes);
+    console.log('[Main] Evolution approved:', evolutionId);
+    // Refresh pending evolutions
+    await refreshPendingEvolutions();
+  } catch (error) {
+    console.error('[Main] Evolution approval failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to approve evolution');
+  }
+}
+
+async function handleEvolutionEdit(
+  evolutionId: string,
+  changes: Partial<PendingEvolution>,
+  dmNotes?: string
+): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) return;
+
+  try {
+    // Build changes object with only defined properties
+    const editChanges: { trait?: string; newValue?: number; reason?: string } = {};
+    if (changes.trait !== undefined) editChanges.trait = changes.trait;
+    if (changes.newValue !== undefined) editChanges.newValue = changes.newValue;
+    if (changes.reason !== undefined) editChanges.reason = changes.reason;
+
+    await gameService.editEvolution(
+      gameId,
+      evolutionId,
+      editChanges,
+      dmNotes
+    );
+    console.log('[Main] Evolution edited:', evolutionId);
+    // Refresh pending evolutions
+    await refreshPendingEvolutions();
+  } catch (error) {
+    console.error('[Main] Evolution edit failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to edit evolution');
+  }
+}
+
+async function handleEvolutionRefuse(evolutionId: string, dmNotes?: string): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) return;
+
+  try {
+    await gameService.refuseEvolution(gameId, evolutionId, dmNotes);
+    console.log('[Main] Evolution refused:', evolutionId);
+    // Refresh pending evolutions
+    await refreshPendingEvolutions();
+  } catch (error) {
+    console.error('[Main] Evolution refusal failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to refuse evolution');
+  }
+}
+
+async function refreshPendingEvolutions(): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId || !evolutionPanel) return;
+
+  try {
+    const result = await gameService.getPendingEvolutions(gameId);
+    // Map DTO to component type (they're compatible)
+    evolutionPanel.setPendingEvolutions(result.evolutions as PendingEvolution[]);
+  } catch (error) {
+    // Log but don't show error toast - evolution API might not be available yet
+    console.warn('[Main] Failed to fetch pending evolutions:', error);
   }
 }
 

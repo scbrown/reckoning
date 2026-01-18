@@ -20,7 +20,11 @@ import {
   SaveRepository,
   EventRepository,
   PartyRepository,
+  PendingEvolutionRepository,
+  TraitRepository,
+  RelationshipRepository,
 } from '../db/repositories/index.js';
+import { EvolutionService } from '../services/evolution/evolution-service.js';
 import {
   broadcastManager,
   setupSSEResponse,
@@ -71,6 +75,23 @@ interface NextRequest {
 
 interface ControlRequest {
   mode: PlaybackMode;
+}
+
+interface EvolutionApproveRequest {
+  dmNotes?: string;
+}
+
+interface EvolutionEditRequest {
+  changes: {
+    trait?: string;
+    newValue?: number;
+    reason?: string;
+  };
+  dmNotes?: string;
+}
+
+interface EvolutionRefuseRequest {
+  dmNotes?: string;
 }
 
 // =============================================================================
@@ -203,6 +224,42 @@ const controlSchema = {
   },
 };
 
+const evolutionApproveSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      dmNotes: { type: 'string', maxLength: 1000 },
+    },
+  },
+};
+
+const evolutionEditSchema = {
+  body: {
+    type: 'object',
+    required: ['changes'],
+    properties: {
+      changes: {
+        type: 'object',
+        properties: {
+          trait: { type: 'string', maxLength: 100 },
+          newValue: { type: 'number', minimum: 0, maximum: 1 },
+          reason: { type: 'string', maxLength: 500 },
+        },
+      },
+      dmNotes: { type: 'string', maxLength: 1000 },
+    },
+  },
+};
+
+const evolutionRefuseSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      dmNotes: { type: 'string', maxLength: 1000 },
+    },
+  },
+};
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -233,6 +290,16 @@ export async function gameRoutes(fastify: FastifyInstance) {
   const saveRepo = new SaveRepository(db);
   const eventRepo = new EventRepository(db);
   const partyRepo = new PartyRepository(db);
+  const pendingEvolutionRepo = new PendingEvolutionRepository(db);
+  const traitRepo = new TraitRepository(db);
+  const relationshipRepo = new RelationshipRepository(db);
+
+  // Evolution service for managing entity evolutions
+  const evolutionService = new EvolutionService({
+    traitRepo,
+    relationshipRepo,
+    pendingRepo: pendingEvolutionRepo,
+  });
 
   /**
    * POST /api/game/new
@@ -799,6 +866,143 @@ export async function gameRoutes(fastify: FastifyInstance) {
       } catch (error) {
         request.log.error(error, 'Failed to get status');
         return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to get status');
+      }
+    }
+  );
+
+  // ===========================================================================
+  // Evolution Routes
+  // ===========================================================================
+
+  /**
+   * GET /api/game/:id/evolutions/pending
+   * Get pending evolutions for a game
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/:id/evolutions/pending',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = request.params;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        const evolutions = evolutionService.getPendingEvolutions(id, true);
+
+        return reply.send({ evolutions });
+      } catch (error) {
+        request.log.error(error, 'Failed to get pending evolutions');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to get pending evolutions');
+      }
+    }
+  );
+
+  /**
+   * POST /api/game/:id/evolutions/:evolutionId/approve
+   * Approve a pending evolution
+   */
+  fastify.post<{ Params: { id: string; evolutionId: string }; Body: EvolutionApproveRequest }>(
+    '/:id/evolutions/:evolutionId/approve',
+    { schema: evolutionApproveSchema },
+    async (
+      request: FastifyRequest<{ Params: { id: string; evolutionId: string }; Body: EvolutionApproveRequest }>,
+      reply: FastifyReply
+    ) => {
+      const { id, evolutionId } = request.params;
+      const { dmNotes } = request.body;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        evolutionService.approve(evolutionId, dmNotes);
+
+        // Get the updated evolution
+        const evolution = pendingEvolutionRepo.findById(evolutionId);
+
+        return reply.send({ evolution });
+      } catch (error) {
+        request.log.error(error, 'Failed to approve evolution');
+        if (error instanceof Error && error.message.includes('not found')) {
+          return sendError(reply, 404, 'EVOLUTION_NOT_FOUND', error.message);
+        }
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to approve evolution');
+      }
+    }
+  );
+
+  /**
+   * POST /api/game/:id/evolutions/:evolutionId/edit
+   * Edit and approve a pending evolution
+   */
+  fastify.post<{ Params: { id: string; evolutionId: string }; Body: EvolutionEditRequest }>(
+    '/:id/evolutions/:evolutionId/edit',
+    { schema: evolutionEditSchema },
+    async (
+      request: FastifyRequest<{ Params: { id: string; evolutionId: string }; Body: EvolutionEditRequest }>,
+      reply: FastifyReply
+    ) => {
+      const { id, evolutionId } = request.params;
+      const { changes, dmNotes } = request.body;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        evolutionService.edit(evolutionId, changes, dmNotes);
+
+        // Get the updated evolution
+        const evolution = pendingEvolutionRepo.findById(evolutionId);
+
+        return reply.send({ evolution });
+      } catch (error) {
+        request.log.error(error, 'Failed to edit evolution');
+        if (error instanceof Error && error.message.includes('not found')) {
+          return sendError(reply, 404, 'EVOLUTION_NOT_FOUND', error.message);
+        }
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to edit evolution');
+      }
+    }
+  );
+
+  /**
+   * POST /api/game/:id/evolutions/:evolutionId/refuse
+   * Refuse a pending evolution
+   */
+  fastify.post<{ Params: { id: string; evolutionId: string }; Body: EvolutionRefuseRequest }>(
+    '/:id/evolutions/:evolutionId/refuse',
+    { schema: evolutionRefuseSchema },
+    async (
+      request: FastifyRequest<{ Params: { id: string; evolutionId: string }; Body: EvolutionRefuseRequest }>,
+      reply: FastifyReply
+    ) => {
+      const { id, evolutionId } = request.params;
+      const { dmNotes } = request.body;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        evolutionService.refuse(evolutionId, dmNotes);
+
+        // Get the updated evolution
+        const evolution = pendingEvolutionRepo.findById(evolutionId);
+
+        return reply.send({ evolution });
+      } catch (error) {
+        request.log.error(error, 'Failed to refuse evolution');
+        if (error instanceof Error && error.message.includes('not found')) {
+          return sendError(reply, 404, 'EVOLUTION_NOT_FOUND', error.message);
+        }
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to refuse evolution');
       }
     }
   );

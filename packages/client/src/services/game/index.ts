@@ -20,6 +20,47 @@ import type { SaveSlot } from './types.js';
 export type { SaveSlot };
 
 /**
+ * Evolution types
+ */
+export type EvolutionType = 'trait_add' | 'trait_remove' | 'relationship_change';
+export type EvolutionStatus = 'pending' | 'approved' | 'edited' | 'refused';
+export type EntityType = 'player' | 'npc' | 'location' | 'item';
+export type RelationshipDimension = 'trust' | 'respect' | 'affection' | 'fear' | 'resentment' | 'debt';
+
+/**
+ * Pending evolution data from API
+ */
+export interface PendingEvolutionDTO {
+  id: string;
+  gameId: string;
+  turn: number;
+  evolutionType: EvolutionType;
+  entityType: EntityType;
+  entityId: string;
+  trait?: string;
+  targetType?: EntityType;
+  targetId?: string;
+  dimension?: RelationshipDimension;
+  oldValue?: number;
+  newValue?: number;
+  reason: string;
+  sourceEventId?: string;
+  status: EvolutionStatus;
+  dmNotes?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+/**
+ * Evolution edit request
+ */
+export interface EvolutionEditDTO {
+  trait?: string;
+  newValue?: number;
+  reason?: string;
+}
+
+/**
  * Error thrown by GameService operations
  */
 export class GameServiceError extends Error {
@@ -301,6 +342,79 @@ export class GameService {
     return this.request<{ system: SystemStatus; observation: GameObservation }>(
       'GET',
       `/game/${gameId}/status`
+    );
+  }
+
+  // ===========================================================================
+  // Evolution Management
+  // ===========================================================================
+
+  /**
+   * Get pending evolutions for a game
+   * @param gameId - The game ID
+   */
+  async getPendingEvolutions(
+    gameId: string
+  ): Promise<{ evolutions: PendingEvolutionDTO[] }> {
+    return this.request<{ evolutions: PendingEvolutionDTO[] }>(
+      'GET',
+      `/game/${gameId}/evolutions/pending`
+    );
+  }
+
+  /**
+   * Approve a pending evolution
+   * @param gameId - The game ID
+   * @param evolutionId - The evolution ID to approve
+   * @param dmNotes - Optional DM notes
+   */
+  async approveEvolution(
+    gameId: string,
+    evolutionId: string,
+    dmNotes?: string
+  ): Promise<{ evolution: PendingEvolutionDTO }> {
+    return this.request<{ evolution: PendingEvolutionDTO }>(
+      'POST',
+      `/game/${gameId}/evolutions/${evolutionId}/approve`,
+      { dmNotes }
+    );
+  }
+
+  /**
+   * Edit and approve a pending evolution
+   * @param gameId - The game ID
+   * @param evolutionId - The evolution ID to edit
+   * @param changes - Changes to apply
+   * @param dmNotes - Optional DM notes
+   */
+  async editEvolution(
+    gameId: string,
+    evolutionId: string,
+    changes: EvolutionEditDTO,
+    dmNotes?: string
+  ): Promise<{ evolution: PendingEvolutionDTO }> {
+    return this.request<{ evolution: PendingEvolutionDTO }>(
+      'POST',
+      `/game/${gameId}/evolutions/${evolutionId}/edit`,
+      { changes, dmNotes }
+    );
+  }
+
+  /**
+   * Refuse a pending evolution
+   * @param gameId - The game ID
+   * @param evolutionId - The evolution ID to refuse
+   * @param dmNotes - Optional DM notes explaining refusal
+   */
+  async refuseEvolution(
+    gameId: string,
+    evolutionId: string,
+    dmNotes?: string
+  ): Promise<{ evolution: PendingEvolutionDTO }> {
+    return this.request<{ evolution: PendingEvolutionDTO }>(
+      'POST',
+      `/game/${gameId}/evolutions/${evolutionId}/refuse`,
+      { dmNotes }
     );
   }
 }

@@ -404,12 +404,6 @@ export class ContentPipeline {
    *
    * If JSON parsing fails, falls back to treating the response as plain text.
    */
-  private parseResponse(
-    response: string,
-    generationType: GenerationType
-  ): GeneratedContent {
-    return this.parseResponseWithRaw(response, generationType).generatedContent;
-  }
 
   /**
    * Parse AI response into GeneratedContent and return raw parsed object.
@@ -478,15 +472,6 @@ export class ContentPipeline {
    * - Extra text before/after JSON
    * - Partial JSON with missing fields
    */
-  private tryParseJsonResponse(response: string): {
-    eventType: EventType;
-    content: string;
-    speaker: string | null;
-    suggestedActions?: string[];
-  } | null {
-    const result = this.tryParseJsonResponseWithRaw(response);
-    return result ? result.parsed : null;
-  }
 
   /**
    * Try to parse AI response as JSON and return both parsed content and raw object.
