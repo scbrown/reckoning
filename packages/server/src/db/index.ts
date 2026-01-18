@@ -44,6 +44,23 @@ export function getDatabase(): Database.Database {
 }
 
 /**
+ * Check if a column exists in a table
+ */
+function columnExists(database: Database.Database, table: string, column: string): boolean {
+  const columns = database.pragma(`table_info(${table})`) as Array<{ name: string }>;
+  return columns.some(col => col.name === column);
+}
+
+/**
+ * Add a column to a table if it doesn't exist
+ */
+function addColumnIfNotExists(database: Database.Database, table: string, column: string, type: string): void {
+  if (!columnExists(database, table, column)) {
+    database.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+  }
+}
+
+/**
  * Run database migrations (schema creation)
  */
 export function runMigrations(database: Database.Database): void {
@@ -52,6 +69,16 @@ export function runMigrations(database: Database.Database): void {
 
   // Execute schema (all statements)
   database.exec(schema);
+
+  // Migration: SEVT-001 - Add structured event fields
+  // These columns are added via ALTER TABLE for existing databases
+  // (CREATE TABLE IF NOT EXISTS won't modify existing tables)
+  addColumnIfNotExists(database, 'events', 'action', 'TEXT');
+  addColumnIfNotExists(database, 'events', 'actor_type', 'TEXT');
+  addColumnIfNotExists(database, 'events', 'actor_id', 'TEXT');
+  addColumnIfNotExists(database, 'events', 'target_type', 'TEXT');
+  addColumnIfNotExists(database, 'events', 'target_id', 'TEXT');
+  addColumnIfNotExists(database, 'events', 'tags', 'TEXT');
 }
 
 /**

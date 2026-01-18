@@ -107,10 +107,20 @@ CREATE TABLE IF NOT EXISTS events (
   original_generated TEXT,
   speaker TEXT,
   location_id TEXT NOT NULL,
-  witnesses TEXT  -- JSON array
+  witnesses TEXT,  -- JSON array of entity IDs who witnessed this event
+  -- Structured event fields (SEVT-001)
+  action TEXT,      -- Action verb (e.g., 'attack', 'speak', 'move')
+  actor_type TEXT,  -- Type of actor: 'player', 'character', 'npc', 'system'
+  actor_id TEXT,    -- ID of the acting entity
+  target_type TEXT, -- Type of target: 'player', 'character', 'npc', 'area', 'object'
+  target_id TEXT,   -- ID of the target entity
+  tags TEXT         -- JSON array of tags for categorization
 );
 CREATE INDEX IF NOT EXISTS idx_events_game ON events(game_id);
 CREATE INDEX IF NOT EXISTS idx_events_turn ON events(game_id, turn);
+CREATE INDEX IF NOT EXISTS idx_events_action ON events(action);
+CREATE INDEX IF NOT EXISTS idx_events_actor ON events(actor_type, actor_id);
+CREATE INDEX IF NOT EXISTS idx_events_target ON events(target_type, target_id);
 
 -- Saves table
 CREATE TABLE IF NOT EXISTS saves (

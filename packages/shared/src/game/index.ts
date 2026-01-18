@@ -27,6 +27,8 @@ export type {
 // Event types (SSE types are exported from ../sse/index.ts)
 export type {
   EventType,
+  ActorType,
+  TargetType,
   CanonicalEvent,
 } from './events.js';
 

@@ -23,6 +23,16 @@ export type EventType =
   | 'dm_injection';
 
 /**
+ * Types of entities that can act in events
+ */
+export type ActorType = 'player' | 'character' | 'npc' | 'system';
+
+/**
+ * Types of entities that can be targets of events
+ */
+export type TargetType = 'player' | 'character' | 'npc' | 'area' | 'object';
+
+/**
  * A canonical event recorded in the game history
  *
  * Canonical events represent objective facts about what happened.
@@ -49,6 +59,20 @@ export interface CanonicalEvent {
   locationId: string;
   /** IDs of characters/NPCs who witnessed this event */
   witnesses: string[];
+
+  // Structured event fields (SEVT-001)
+  /** Action verb describing what happened (e.g., 'attack', 'speak', 'move') */
+  action?: string;
+  /** Type of the acting entity */
+  actorType?: ActorType;
+  /** ID of the acting entity */
+  actorId?: string;
+  /** Type of the target entity */
+  targetType?: TargetType;
+  /** ID of the target entity */
+  targetId?: string;
+  /** Tags for categorization and querying */
+  tags?: string[];
 }
 
 // =============================================================================
