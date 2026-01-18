@@ -48,3 +48,15 @@ export {
   PixelsrcRenderError,
 } from './pixelsrc/index.js';
 export type { RenderOptions, RenderResult } from './pixelsrc/index.js';
+
+export { EvolutionService, type EvolutionServiceConfig } from './evolution/index.js';
+export type {
+  EvolutionSuggestion,
+  GameEventRef,
+  AggregateLabel,
+  EntitySummary,
+  RelationshipSummary,
+  RelationshipDimensions,
+  EvolutionEvent,
+  EvolutionEventEmitter,
+} from './evolution/index.js';

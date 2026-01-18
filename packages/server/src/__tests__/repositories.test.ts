@@ -12,6 +12,9 @@ import { SaveRepository } from '../db/repositories/save-repository.js';
 import { EditorStateRepository } from '../db/repositories/editor-state-repository.js';
 import { RelationshipRepository } from '../db/repositories/relationship-repository.js';
 import { TraitRepository } from '../db/repositories/trait-repository.js';
+import { PendingEvolutionRepository } from '../db/repositories/pending-evolution-repository.js';
+import { EvolutionService } from '../services/evolution/evolution-service.js';
+import type { EvolutionEvent } from '../services/evolution/types.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1235,5 +1238,825 @@ describe('TraitRepository', () => {
     expect(traits[0].trait).toBe('honorable');
     expect(traits[1].trait).toBe('merciful');
     expect(traits[2].trait).toBe('ruthless');
+  });
+});
+
+describe('PendingEvolutionRepository', () => {
+  let db: Database.Database;
+  let repo: PendingEvolutionRepository;
+  let gameId: string;
+
+  beforeEach(() => {
+    db = createTestDatabase();
+    repo = new PendingEvolutionRepository(db);
+
+    db.prepare(`
+      INSERT INTO games (id, player_id, current_area_id, turn)
+      VALUES ('game-1', 'player-1', 'area-1', 0)
+    `).run();
+    gameId = 'game-1';
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  describe('create', () => {
+    it('should create a trait_add pending evolution', () => {
+      const pending = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Showed mercy to the enemy',
+      });
+
+      expect(pending.id).toBeDefined();
+      expect(pending.gameId).toBe(gameId);
+      expect(pending.turn).toBe(1);
+      expect(pending.evolutionType).toBe('trait_add');
+      expect(pending.entityType).toBe('player');
+      expect(pending.entityId).toBe('player-1');
+      expect(pending.trait).toBe('honorable');
+      expect(pending.reason).toBe('Showed mercy to the enemy');
+      expect(pending.status).toBe('pending');
+      expect(pending.createdAt).toBeDefined();
+    });
+
+    it('should create a relationship_change pending evolution', () => {
+      const pending = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'relationship_change',
+        entityType: 'npc',
+        entityId: 'npc-1',
+        targetType: 'player',
+        targetId: 'player-1',
+        dimension: 'respect',
+        oldValue: 0.5,
+        newValue: 0.7,
+        reason: 'Witnessed player honorable combat',
+      });
+
+      expect(pending.evolutionType).toBe('relationship_change');
+      expect(pending.targetType).toBe('player');
+      expect(pending.targetId).toBe('player-1');
+      expect(pending.dimension).toBe('respect');
+      expect(pending.oldValue).toBe(0.5);
+      expect(pending.newValue).toBe(0.7);
+    });
+  });
+
+  describe('findById', () => {
+    it('should find a pending evolution by ID', () => {
+      const created = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test reason',
+      });
+
+      const found = repo.findById(created.id);
+
+      expect(found).not.toBeNull();
+      expect(found?.id).toBe(created.id);
+      expect(found?.trait).toBe('honorable');
+    });
+
+    it('should return null for non-existent ID', () => {
+      const found = repo.findById('non-existent');
+      expect(found).toBeNull();
+    });
+  });
+
+  describe('findByGame', () => {
+    it('should find all pending evolutions for a game', () => {
+      repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test 1',
+      });
+      repo.create({
+        gameId,
+        turn: 2,
+        evolutionType: 'trait_remove',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'naive',
+        reason: 'Test 2',
+      });
+
+      const all = repo.findByGame(gameId);
+      expect(all).toHaveLength(2);
+    });
+
+    it('should filter by status', () => {
+      const pending1 = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test 1',
+      });
+      repo.create({
+        gameId,
+        turn: 2,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'merciful',
+        reason: 'Test 2',
+      });
+      repo.resolve(pending1.id, 'approved');
+
+      const pending = repo.findByGame(gameId, 'pending');
+      expect(pending).toHaveLength(1);
+      expect(pending[0].trait).toBe('merciful');
+    });
+  });
+
+  describe('findByEntity', () => {
+    it('should find evolutions for a specific entity', () => {
+      repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test 1',
+      });
+      repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'npc',
+        entityId: 'npc-1',
+        trait: 'ruthless',
+        reason: 'Test 2',
+      });
+
+      const playerEvols = repo.findByEntity(gameId, 'player', 'player-1');
+      expect(playerEvols).toHaveLength(1);
+      expect(playerEvols[0].trait).toBe('honorable');
+    });
+  });
+
+  describe('findByTurn', () => {
+    it('should find evolutions for a specific turn', () => {
+      repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Turn 1',
+      });
+      repo.create({
+        gameId,
+        turn: 2,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'merciful',
+        reason: 'Turn 2',
+      });
+
+      const turn1 = repo.findByTurn(gameId, 1);
+      expect(turn1).toHaveLength(1);
+      expect(turn1[0].trait).toBe('honorable');
+    });
+  });
+
+  describe('update', () => {
+    it('should update pending evolution fields', () => {
+      const created = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Original reason',
+      });
+
+      const updated = repo.update(created.id, {
+        trait: 'merciful',
+        reason: 'Updated reason',
+      });
+
+      expect(updated?.trait).toBe('merciful');
+      expect(updated?.reason).toBe('Updated reason');
+    });
+
+    it('should return null for non-existent ID', () => {
+      const result = repo.update('non-existent', { trait: 'test' });
+      expect(result).toBeNull();
+    });
+  });
+
+  describe('resolve', () => {
+    it('should resolve as approved', () => {
+      const created = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test',
+      });
+
+      repo.resolve(created.id, 'approved', 'Good suggestion');
+
+      const found = repo.findById(created.id);
+      expect(found?.status).toBe('approved');
+      expect(found?.dmNotes).toBe('Good suggestion');
+      expect(found?.resolvedAt).toBeDefined();
+    });
+
+    it('should resolve as refused', () => {
+      const created = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test',
+      });
+
+      repo.resolve(created.id, 'refused', 'Does not fit character');
+
+      const found = repo.findById(created.id);
+      expect(found?.status).toBe('refused');
+      expect(found?.dmNotes).toBe('Does not fit character');
+    });
+  });
+
+  describe('countByStatus', () => {
+    it('should count evolutions by status', () => {
+      const p1 = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test 1',
+      });
+      repo.create({
+        gameId,
+        turn: 2,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'merciful',
+        reason: 'Test 2',
+      });
+      repo.resolve(p1.id, 'approved');
+
+      const counts = repo.countByStatus(gameId);
+      expect(counts.pending).toBe(1);
+      expect(counts.approved).toBe(1);
+      expect(counts.refused).toBe(0);
+      expect(counts.edited).toBe(0);
+    });
+  });
+
+  describe('delete', () => {
+    it('should delete a pending evolution', () => {
+      const created = repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test',
+      });
+
+      repo.delete(created.id);
+
+      const found = repo.findById(created.id);
+      expect(found).toBeNull();
+    });
+  });
+
+  describe('deleteByGame', () => {
+    it('should delete all evolutions for a game', () => {
+      repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Test 1',
+      });
+      repo.create({
+        gameId,
+        turn: 2,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'merciful',
+        reason: 'Test 2',
+      });
+
+      repo.deleteByGame(gameId);
+
+      const all = repo.findByGame(gameId);
+      expect(all).toHaveLength(0);
+    });
+  });
+});
+
+describe('EvolutionService', () => {
+  let db: Database.Database;
+  let traitRepo: TraitRepository;
+  let relationshipRepo: RelationshipRepository;
+  let pendingRepo: PendingEvolutionRepository;
+  let service: EvolutionService;
+  let gameId: string;
+  let emittedEvents: EvolutionEvent[];
+
+  function createEvent(id: string, turn: number): { id: string; turn: number; gameId: string } {
+    db.prepare(`
+      INSERT INTO events (id, game_id, turn, event_type, content, location_id)
+      VALUES (?, ?, ?, 'narration', 'Test event', 'area-1')
+    `).run(id, gameId, turn);
+    return { id, turn, gameId };
+  }
+
+  beforeEach(() => {
+    db = createTestDatabase();
+    traitRepo = new TraitRepository(db);
+    relationshipRepo = new RelationshipRepository(db);
+    pendingRepo = new PendingEvolutionRepository(db);
+    emittedEvents = [];
+
+    service = new EvolutionService({
+      traitRepo,
+      relationshipRepo,
+      pendingRepo,
+      eventEmitter: {
+        emit: (event) => emittedEvents.push(event),
+      },
+    });
+
+    db.prepare(`
+      INSERT INTO games (id, player_id, current_area_id, turn)
+      VALUES ('game-1', 'player-1', 'area-1', 0)
+    `).run();
+    gameId = 'game-1';
+  });
+
+  afterEach(() => {
+    db.close();
+  });
+
+  describe('detectEvolutions', () => {
+    it('should create pending evolutions from AI suggestions', () => {
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'trait_add',
+            entityType: 'player',
+            entityId: 'player-1',
+            trait: 'merciful',
+            reason: 'Spared the wounded enemy',
+          },
+        ]
+      );
+
+      expect(pending).toHaveLength(1);
+      expect(pending[0].trait).toBe('merciful');
+      expect(pending[0].status).toBe('pending');
+      expect(emittedEvents).toHaveLength(1);
+      expect(emittedEvents[0].type).toBe('evolution:created');
+    });
+
+    it('should resolve relationship change deltas to absolute values', () => {
+      // Create existing relationship
+      relationshipRepo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'guard' },
+        to: { type: 'player', id: 'player-1' },
+        updatedTurn: 0,
+        respect: 0.5,
+      });
+
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'relationship_change',
+            entityType: 'npc',
+            entityId: 'guard',
+            targetType: 'player',
+            targetId: 'player-1',
+            dimension: 'respect',
+            change: 0.2,
+            reason: 'Witnessed honorable combat',
+          },
+        ]
+      );
+
+      expect(pending).toHaveLength(1);
+      expect(pending[0].oldValue).toBe(0.5);
+      expect(pending[0].newValue).toBe(0.7);
+    });
+
+    it('should clamp relationship values to valid range', () => {
+      relationshipRepo.upsert({
+        gameId,
+        from: { type: 'npc', id: 'guard' },
+        to: { type: 'player', id: 'player-1' },
+        updatedTurn: 0,
+        fear: 0.9,
+      });
+
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'relationship_change',
+            entityType: 'npc',
+            entityId: 'guard',
+            targetType: 'player',
+            targetId: 'player-1',
+            dimension: 'fear',
+            change: 0.3, // Would go to 1.2, should clamp to 1.0
+            reason: 'Terrifying display of power',
+          },
+        ]
+      );
+
+      expect(pending[0].newValue).toBe(1.0);
+    });
+  });
+
+  describe('approve', () => {
+    it('should apply trait_add evolution when approved', () => {
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'trait_add',
+            entityType: 'player',
+            entityId: 'player-1',
+            trait: 'merciful',
+            reason: 'Test',
+          },
+        ]
+      );
+
+      service.approve(pending[0].id, 'Good call');
+
+      // Check trait was added
+      const traits = traitRepo.findByEntity(gameId, 'player', 'player-1');
+      expect(traits).toHaveLength(1);
+      expect(traits[0].trait).toBe('merciful');
+
+      // Check status updated
+      const resolved = pendingRepo.findById(pending[0].id);
+      expect(resolved?.status).toBe('approved');
+      expect(resolved?.dmNotes).toBe('Good call');
+
+      // Check event emitted
+      expect(emittedEvents.filter(e => e.type === 'evolution:approved')).toHaveLength(1);
+    });
+
+    it('should apply trait_remove evolution when approved', () => {
+      // First add a trait
+      traitRepo.addTrait({
+        gameId,
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'naive',
+        turn: 0,
+      });
+
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'trait_remove',
+            entityType: 'player',
+            entityId: 'player-1',
+            trait: 'naive',
+            reason: 'Gained experience',
+          },
+        ]
+      );
+
+      service.approve(pending[0].id);
+
+      const traits = traitRepo.findByEntity(gameId, 'player', 'player-1');
+      expect(traits).toHaveLength(0);
+    });
+
+    it('should apply relationship_change evolution when approved', () => {
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'relationship_change',
+            entityType: 'npc',
+            entityId: 'guard',
+            targetType: 'player',
+            targetId: 'player-1',
+            dimension: 'respect',
+            change: 0.2,
+            reason: 'Honorable combat',
+          },
+        ]
+      );
+
+      service.approve(pending[0].id);
+
+      const rel = relationshipRepo.findBetween(
+        gameId,
+        { type: 'npc', id: 'guard' },
+        { type: 'player', id: 'player-1' }
+      );
+      expect(rel).not.toBeNull();
+      expect(rel?.respect).toBe(0.7); // Default 0.5 + 0.2
+    });
+
+    it('should throw if evolution not found', () => {
+      expect(() => service.approve('non-existent')).toThrow('Pending evolution not found');
+    });
+
+    it('should throw if evolution already resolved', () => {
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'trait_add',
+            entityType: 'player',
+            entityId: 'player-1',
+            trait: 'merciful',
+            reason: 'Test',
+          },
+        ]
+      );
+
+      service.approve(pending[0].id);
+
+      expect(() => service.approve(pending[0].id)).toThrow('Cannot approve evolution with status');
+    });
+  });
+
+  describe('edit', () => {
+    it('should update and then apply evolution', () => {
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'trait_add',
+            entityType: 'player',
+            entityId: 'player-1',
+            trait: 'merciful',
+            reason: 'Original reason',
+          },
+        ]
+      );
+
+      service.edit(pending[0].id, { trait: 'honorable', reason: 'Better fit' }, 'Modified');
+
+      const traits = traitRepo.findByEntity(gameId, 'player', 'player-1');
+      expect(traits).toHaveLength(1);
+      expect(traits[0].trait).toBe('honorable');
+
+      const resolved = pendingRepo.findById(pending[0].id);
+      expect(resolved?.status).toBe('edited');
+      expect(resolved?.dmNotes).toBe('Modified');
+
+      expect(emittedEvents.filter(e => e.type === 'evolution:edited')).toHaveLength(1);
+    });
+  });
+
+  describe('refuse', () => {
+    it('should mark evolution as refused without applying', () => {
+      const pending = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          {
+            evolutionType: 'trait_add',
+            entityType: 'player',
+            entityId: 'player-1',
+            trait: 'merciful',
+            reason: 'Test',
+          },
+        ]
+      );
+
+      service.refuse(pending[0].id, 'Does not fit character');
+
+      // No trait should be added
+      const traits = traitRepo.findByEntity(gameId, 'player', 'player-1');
+      expect(traits).toHaveLength(0);
+
+      const resolved = pendingRepo.findById(pending[0].id);
+      expect(resolved?.status).toBe('refused');
+      expect(resolved?.dmNotes).toBe('Does not fit character');
+
+      expect(emittedEvents.filter(e => e.type === 'evolution:refused')).toHaveLength(1);
+    });
+  });
+
+  describe('getEntitySummary', () => {
+    it('should return traits and relationships for entity', () => {
+      // Add traits
+      traitRepo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'honorable', turn: 1 });
+      traitRepo.addTrait({ gameId, entityType: 'player', entityId: 'player-1', trait: 'merciful', turn: 2 });
+
+      // Add relationship
+      relationshipRepo.upsert({
+        gameId,
+        from: { type: 'player', id: 'player-1' },
+        to: { type: 'npc', id: 'guard' },
+        updatedTurn: 1,
+        trust: 0.8,
+        respect: 0.7,
+        affection: 0.6,
+      });
+
+      const summary = service.getEntitySummary(gameId, 'player', 'player-1');
+
+      expect(summary.traits).toContain('honorable');
+      expect(summary.traits).toContain('merciful');
+      expect(summary.relationships).toHaveLength(1);
+      expect(summary.relationships[0].targetType).toBe('npc');
+      expect(summary.relationships[0].targetId).toBe('guard');
+      expect(summary.relationships[0].label).toBe('ally'); // High trust + respect
+    });
+  });
+
+  describe('computeAggregateLabel', () => {
+    it('should return devoted for high trust + affection + respect', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.8,
+        respect: 0.7,
+        affection: 0.8,
+        fear: 0.0,
+        resentment: 0.0,
+        debt: 0.0,
+      });
+      expect(label).toBe('devoted');
+    });
+
+    it('should return terrified for high fear + resentment', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.2,
+        respect: 0.3,
+        affection: 0.1,
+        fear: 0.8,
+        resentment: 0.6,
+        debt: 0.0,
+      });
+      expect(label).toBe('terrified');
+    });
+
+    it('should return rival for high respect + resentment', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.4,
+        respect: 0.7,
+        affection: 0.3,
+        fear: 0.2,
+        resentment: 0.6,
+        debt: 0.0,
+      });
+      expect(label).toBe('rival');
+    });
+
+    it('should return ally for high trust + respect', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.7,
+        respect: 0.7,
+        affection: 0.4,
+        fear: 0.0,
+        resentment: 0.0,
+        debt: 0.0,
+      });
+      expect(label).toBe('ally');
+    });
+
+    it('should return friend for high affection + trust', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.6,
+        respect: 0.4,
+        affection: 0.7,
+        fear: 0.0,
+        resentment: 0.0,
+        debt: 0.0,
+      });
+      expect(label).toBe('friend');
+    });
+
+    it('should return indebted for high debt', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.5,
+        respect: 0.5,
+        affection: 0.5,
+        fear: 0.0,
+        resentment: 0.0,
+        debt: 0.7,
+      });
+      expect(label).toBe('indebted');
+    });
+
+    it('should return wary for low trust', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.2,
+        respect: 0.5,
+        affection: 0.3,
+        fear: 0.2,
+        resentment: 0.2,
+        debt: 0.0,
+      });
+      expect(label).toBe('wary');
+    });
+
+    it('should return indifferent for neutral values', () => {
+      const label = service.computeAggregateLabel({
+        trust: 0.5,
+        respect: 0.5,
+        affection: 0.5,
+        fear: 0.0,
+        resentment: 0.0,
+        debt: 0.0,
+      });
+      expect(label).toBe('indifferent');
+    });
+  });
+
+  describe('getPendingEvolutions', () => {
+    it('should return only pending evolutions by default', () => {
+      const p1 = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          { evolutionType: 'trait_add', entityType: 'player', entityId: 'player-1', trait: 'honorable', reason: 'Test 1' },
+        ]
+      );
+      service.detectEvolutions(
+        gameId,
+        createEvent('event-2', 2),
+        [
+          { evolutionType: 'trait_add', entityType: 'player', entityId: 'player-1', trait: 'merciful', reason: 'Test 2' },
+        ]
+      );
+      service.approve(p1[0].id);
+
+      const pending = service.getPendingEvolutions(gameId);
+      expect(pending).toHaveLength(1);
+      expect(pending[0].trait).toBe('merciful');
+    });
+
+    it('should return all evolutions when pendingOnly is false', () => {
+      const p1 = service.detectEvolutions(
+        gameId,
+        createEvent('event-1', 1),
+        [
+          { evolutionType: 'trait_add', entityType: 'player', entityId: 'player-1', trait: 'honorable', reason: 'Test 1' },
+        ]
+      );
+      service.detectEvolutions(
+        gameId,
+        createEvent('event-2', 2),
+        [
+          { evolutionType: 'trait_add', entityType: 'player', entityId: 'player-1', trait: 'merciful', reason: 'Test 2' },
+        ]
+      );
+      service.approve(p1[0].id);
+
+      const all = service.getPendingEvolutions(gameId, false);
+      expect(all).toHaveLength(2);
+    });
   });
 });
