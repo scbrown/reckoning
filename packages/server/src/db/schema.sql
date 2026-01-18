@@ -148,6 +148,33 @@ CREATE TABLE IF NOT EXISTS entity_traits (
 CREATE INDEX IF NOT EXISTS idx_entity_traits_entity ON entity_traits(game_id, entity_type, entity_id);
 CREATE INDEX IF NOT EXISTS idx_entity_traits_trait ON entity_traits(game_id, trait);
 
+-- Relationships table (Entity Evolution system)
+-- Tracks multi-dimensional relationships between entities
+CREATE TABLE IF NOT EXISTS relationships (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  from_type TEXT NOT NULL,  -- 'player', 'character', 'npc', 'location'
+  from_id TEXT NOT NULL,
+  to_type TEXT NOT NULL,
+  to_id TEXT NOT NULL,
+
+  -- Dimensions (0.0 to 1.0)
+  trust REAL NOT NULL DEFAULT 0.5 CHECK (trust >= 0.0 AND trust <= 1.0),
+  respect REAL NOT NULL DEFAULT 0.5 CHECK (respect >= 0.0 AND respect <= 1.0),
+  affection REAL NOT NULL DEFAULT 0.5 CHECK (affection >= 0.0 AND affection <= 1.0),
+  fear REAL NOT NULL DEFAULT 0.0 CHECK (fear >= 0.0 AND fear <= 1.0),
+  resentment REAL NOT NULL DEFAULT 0.0 CHECK (resentment >= 0.0 AND resentment <= 1.0),
+  debt REAL NOT NULL DEFAULT 0.0 CHECK (debt >= 0.0 AND debt <= 1.0),
+
+  updated_turn INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+
+  UNIQUE(game_id, from_type, from_id, to_type, to_id)
+);
+CREATE INDEX IF NOT EXISTS idx_relationships_from ON relationships(game_id, from_type, from_id);
+CREATE INDEX IF NOT EXISTS idx_relationships_to ON relationships(game_id, to_type, to_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (
