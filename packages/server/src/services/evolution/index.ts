@@ -24,3 +24,10 @@ export {
   type LabelScore,
   type ComputedLabels,
 } from './label-computation.js';
+export {
+  detectTraitsFromEvent,
+  detectRelationshipsFromEvent,
+  detectTraitsFromPatterns,
+  type TraitDetection,
+  type RelationshipDetection,
+} from './system-evolution-detector.js';
