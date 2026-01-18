@@ -2,18 +2,22 @@
 
 ## Overview
 
-The Reckoning will integrate with **Chronicle**, a stateful narrative engine that handles story structure, play state, asset management, and comic generation. This fundamentally changes Reckoning's architecture—it becomes a thin interface layer while Chronicle owns all narrative state.
+The Reckoning will integrate with **Chronicle**, a stateful narrative engine that handles story structure, play state, entity evolution, and comic generation. This fundamentally changes Reckoning's architecture—it becomes a thin interface layer while Chronicle owns all narrative state.
 
 ## What Is Chronicle?
 
 Chronicle is a WASM module that provides:
-- **Story graph** with branching and convergence (powered by beads)
+- **Story graph** with parallel quest lines and cross-dependencies (powered by chronicle-graph)
+- **Entity Evolution System** - Tracks how characters, scenes, and relationships transform through play
 - **Scene and dialogue storage**
-- **Character definitions** with emotion-to-sprite mappings
+- **Character definitions** with traits, relationships, and emotion-to-sprite mappings
+- **Evolution Rules** - Generated with the world, define how choices affect traits/relationships
 - **Asset storage** (pixelsrc definitions) with pre-rendering
 - **Play state tracking** (position, context flags, history)
+- **Query & Eventing Layer** - Efficient queries and event streams for AI decisions
 - **Scene rendering** via pixelsrc
 - **Comic generation** from playthroughs
+- **Self-contained persistence** - IndexedDB in browser, optional Git sync via OAuth
 
 Repository: `ssh://git@git.lan/stiwi/chronicle.git`
 
@@ -245,14 +249,207 @@ export class ChronicleService {
 4. **Unified state**: One source of truth (Chronicle)
 5. **Offline capable**: After initial generation, Chronicle has everything
 
+## Entity Evolution Integration
+
+Chronicle's Entity Evolution System directly supports Reckoning's Four Pillars. This is where the philosophical vision meets implementation.
+
+### How Evolution Maps to the Four Pillars
+
+| Reckoning Pillar | Chronicle Feature |
+|------------------|-------------------|
+| **Unreliable Self** | Perspective layer on evolution events; same event viewed differently |
+| **History as Text** | Dual-layer history (events + derived state); text-based, AI-queryable |
+| **Pattern Engine** | Evolution queries for trait patterns; relationship tracking |
+| **Living Chronicle & Trial** | Evolution summaries; thread tracking for emergent narratives |
+
+### Structured Events (Reckoning → Chronicle)
+
+Reckoning constructs structured events from AI-generated narrative and sends them to Chronicle:
+
+```typescript
+interface GameEvent {
+  id: string;
+  turn: number;
+  type: EventType;           // PlayerChoice, NPCAction, CombatResult, etc.
+  action: string;            // "spare_enemy", "steal_item", "betray_ally"
+  actor: EntityId;
+  targets: EntityId[];
+  witnesses: EntityId[];
+  location: LocationId;
+  tags: string[];
+  narrative?: string;        // For logging, not rule evaluation
+}
+
+// Reckoning sends event, Chronicle evaluates rules
+const result = await chronicle.submitEvent(event);
+// result: { triggeredRules, pendingEvolutions, appliedEffects }
+```
+
+### Evolution Rules (Generated with World)
+
+When Reckoning generates a new world, it also generates evolution rules that are stored in Chronicle:
+
+```typescript
+// During world generation
+async function generateWorld(): Promise<void> {
+  // AI generates world content...
+  const world = await ai.generateWorld(config);
+
+  // AI also generates evolution rules for this world
+  const rules = await ai.generateEvolutionRules(world);
+
+  // Send both to Chronicle
+  await chronicle.createStory(world.config);
+  for (const rule of rules) {
+    await chronicle.addRule(rule);
+  }
+}
+```
+
+Rules are **hidden from the player** - they see narrative choices, not trait mechanics.
+
+### DM Approval Flow for Evolution
+
+Chronicle auto-detects evolution events, but the DM has final say:
+
+```
+Game Event → Chronicle Detects → Pending Queue → DM Reviews
+                                                    │
+                                        ┌───────────┼───────────┐
+                                        ▼           ▼           ▼
+                                    [Approve]   [Edit]     [Refuse]
+```
+
+This integrates with Reckoning's existing DM editor pattern - evolution suggestions appear alongside narrative content for review.
+
+### Multi-Dimensional Relationships
+
+Chronicle tracks relationships with numeric dimensions:
+
+```typescript
+interface RelationshipDimensions {
+  trust: number;      // 0.0 - 1.0
+  respect: number;
+  affection: number;
+  fear: number;
+  resentment: number;
+  debt: number;
+}
+
+// Aggregate labels computed from dimensions
+type AggregateLabel =
+  | 'devoted' | 'allied' | 'friendly' | 'respectful'
+  | 'intimidated' | 'rival' | 'complicated' | 'obligated'
+  | 'terrified' | 'hostile' | 'contemptuous'
+  | 'indifferent' | 'ambivalent';
+```
+
+This enables nuanced NPC reactions - an NPC can respect you but also fear you.
+
+### Reckoning's Background Processes
+
+Reckoning runs background processes that query Chronicle to make AI decisions:
+
+**Villain Emergence Observer:**
+```typescript
+class EmergenceObserver {
+  constructor(private chronicle: Chronicle, private ai: AIService) {
+    // Subscribe to relationship changes
+    chronicle.events.watchThreshold(
+      { dimension: 'resentment', gte: 0.6 },
+      (event) => this.evaluateEmergence(event.entity)
+    );
+  }
+
+  async evaluateEmergence(entityId: EntityId) {
+    // Query Chronicle for full context
+    const summary = await chronicle.getEvolutionSummary(entityId);
+    const threads = await chronicle.query.threads({
+      where: { involves: entityId, status: 'open' }
+    });
+
+    // AI decides if this should become a villain
+    const potential = await ai.evaluate({
+      prompt: "Evaluate villain emergence potential",
+      context: { summary, threads }
+    });
+
+    if (potential.score > 0.7) {
+      await this.proposeVillainArc(entityId, potential);
+    }
+  }
+}
+```
+
+**Pattern Engine Integration:**
+```typescript
+// Query Chronicle for player patterns
+const mercyCount = await chronicle.query.events({
+  where: { action: { in: ['spare_enemy', 'show_mercy', 'forgive'] } }
+}).length;
+
+const hasTraitMerciful = await chronicle.getTraits('protagonist')
+  .includes('merciful');
+
+// Use for Pattern Engine targeting
+if (mercyCount > 3 && hasTraitMerciful) {
+  // Generate scenario that challenges mercy
+}
+```
+
+### Context Building for AI Generation
+
+When generating narrative, Reckoning queries Chronicle for rich context:
+
+```typescript
+async function buildGenerationContext(sceneId: SceneId): Promise<Context> {
+  const sceneContext = await chronicle.getSceneContext(sceneId);
+
+  return {
+    scene: sceneContext.scene,
+    characters: sceneContext.characters.map(c => ({
+      name: c.character.name,
+      traits: c.traits,
+      relationships: c.relevantRelationships.map(r =>
+        `${r.aggregateLabel} toward ${r.to.name}`
+      ),
+    })),
+    callbackOpportunities: sceneContext.callbackOpportunities,
+    activeThreads: sceneContext.activeThreads,
+  };
+}
+```
+
+### Persistence: Chronicle Owns It
+
+Chronicle handles its own persistence - Reckoning has **zero involvement**:
+
+- **Primary storage**: IndexedDB (browser) or filesystem (Node)
+- **Git sync**: Optional, OAuth on demand, no tokens stored
+- **Reckoning's role**: Just calls `chronicle.init()` and uses the API
+
+```typescript
+// Reckoning initialization - that's it
+const chronicle = new Chronicle();
+await chronicle.init('story-id');
+await chronicle.load();
+
+// Player wants to backup to GitHub
+// Chronicle handles everything including OAuth popup
+await chronicle.syncToGit('user/my-story', 'Session end backup');
+```
+
 ## Open Questions
 
 1. **WASM in Node.js**: Need to verify chronicle-wasm works in Node.js (server-side)
 2. **State size**: How large can Chronicle's exported state get?
 3. **Streaming**: Can Chronicle stream scene renders for large scenes?
+4. **Rule generation prompts**: What prompts generate good evolution rules during world gen?
+5. **Evolution UI**: How does DM review pending evolutions alongside narrative?
 
 ## Related Documents
 
 - [Chronicle Product Overview](ssh://git@git.lan/stiwi/chronicle.git/docs/product.md)
 - [Chronicle Architecture](ssh://git@git.lan/stiwi/chronicle.git/docs/arch.md)
-- [Chronicle Integration API](ssh://git@git.lan/stiwi/chronicle.git/docs/integration.md)
+- [Chronicle Entity Evolution](ssh://git@git.lan/stiwi/chronicle.git/docs/plan/entity-evolution.md)
+- [Chronicle Story Graph](ssh://git@git.lan/stiwi/chronicle.git/docs/plan/story-graph.md)

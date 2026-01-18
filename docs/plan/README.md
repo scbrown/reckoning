@@ -28,10 +28,33 @@ This directory contains detailed implementation plans for each development phase
 | [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Complete |
 | [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Complete |
 | [Phase 3](./phase-3-party-world.md) | Party System, Beats & World Gen | Planning |
-| Phase 4 | History & Perspective System | Not Started |
-| Phase 5 | Pattern Engine | Not Started |
+| [Phase 4](./chronicle-integration.md) | Chronicle Integration | Planning |
+| Phase 5 | Pattern Engine (via Chronicle) | Not Started |
 | Phase 6 | Trial System | Not Started |
 | Phase 7 | UI & Rendering | Not Started |
+
+## Chronicle Integration
+
+**Phase 4 is the pivotal integration phase.** Reckoning transitions from owning state to being an interface layer over Chronicle.
+
+Chronicle provides:
+- **Entity Evolution System** - Traits, relationships, scene transforms
+- **Evolution Rules** - Generated with world, evaluated on structured events
+- **Query & Eventing** - Rich context for AI generation, background processes
+- **Self-contained Persistence** - IndexedDB + optional Git sync
+
+See [Chronicle Integration Plan](./chronicle-integration.md) for full details.
+
+### Key Architectural Shift
+
+```
+BEFORE: Reckoning owns everything (SQLite)
+AFTER:  Reckoning = Interface, Chronicle = State
+
+Reckoning → submitEvent() → Chronicle → evaluates rules → pendingEvolutions
+                                      → Reckoning queries for AI context
+                                      → Reckoning subscribes to events
+```
 
 ## Phase 0: Foundation
 
