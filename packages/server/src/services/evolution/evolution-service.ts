@@ -3,7 +3,7 @@ import type { RelationshipRepository } from '../../db/repositories/relationship-
 import type {
   PendingEvolutionRepository,
   PendingEvolution,
-  UpdatePendingEvolutionInput,
+  UpdateEvolutionInput,
 } from '../../db/repositories/pending-evolution-repository.js';
 import type {
   EvolutionSuggestion,
@@ -99,23 +99,44 @@ export class EvolutionService {
           }
         }
 
-        const createInput: import('../../db/repositories/pending-evolution-repository.js').CreatePendingEvolutionInput = {
-          gameId,
-          turn: event.turn,
-          evolutionType: suggestion.evolutionType,
-          entityType: suggestion.entityType,
-          entityId: suggestion.entityId,
-          reason: suggestion.reason,
-          sourceEventId: event.id,
-        };
-        if (suggestion.trait) createInput.trait = suggestion.trait;
-        if (suggestion.targetType) createInput.targetType = suggestion.targetType;
-        if (suggestion.targetId) createInput.targetId = suggestion.targetId;
-        if (suggestion.dimension) createInput.dimension = suggestion.dimension;
-        if (oldValue !== undefined) createInput.oldValue = oldValue;
-        if (newValue !== undefined) createInput.newValue = newValue;
+        let created: PendingEvolution;
 
-        const created = this.pendingRepo.create(createInput);
+        if (suggestion.evolutionType === 'relationship_change') {
+          // Relationship evolution
+          if (!suggestion.targetType || !suggestion.targetId || !suggestion.dimension ||
+              oldValue === undefined || newValue === undefined) {
+            throw new Error('Relationship evolution requires targetType, targetId, dimension, oldValue, and newValue');
+          }
+          created = this.pendingRepo.create({
+            gameId,
+            turn: event.turn,
+            evolutionType: 'relationship_change',
+            entityType: suggestion.entityType,
+            entityId: suggestion.entityId,
+            reason: suggestion.reason,
+            sourceEventId: event.id,
+            targetType: suggestion.targetType,
+            targetId: suggestion.targetId,
+            dimension: suggestion.dimension,
+            oldValue,
+            newValue,
+          });
+        } else {
+          // Trait evolution (trait_add or trait_remove)
+          if (!suggestion.trait) {
+            throw new Error('Trait evolution requires trait');
+          }
+          created = this.pendingRepo.create({
+            gameId,
+            turn: event.turn,
+            evolutionType: suggestion.evolutionType,
+            entityType: suggestion.entityType,
+            entityId: suggestion.entityId,
+            reason: suggestion.reason,
+            sourceEventId: event.id,
+            trait: suggestion.trait,
+          });
+        }
 
         pending.push(created);
         this.emitEvent({ type: 'evolution:created', pending: created });
@@ -145,7 +166,9 @@ export class EvolutionService {
     this.applyEvolution(pending);
 
     // Mark as approved
-    this.pendingRepo.resolve(pendingId, 'approved', dmNotes);
+    const resolveInput: import('../../db/repositories/pending-evolution-repository.js').ResolveEvolutionInput = { status: 'approved' };
+    if (dmNotes !== undefined) resolveInput.dmNotes = dmNotes;
+    this.pendingRepo.resolve(pendingId, resolveInput);
 
     // Re-fetch to get updated state
     const updated = this.pendingRepo.findById(pendingId);
@@ -161,7 +184,7 @@ export class EvolutionService {
    * @param changes - Changes to apply before approval
    * @param dmNotes - Optional notes from the DM
    */
-  edit(pendingId: string, changes: UpdatePendingEvolutionInput, dmNotes?: string): void {
+  edit(pendingId: string, changes: UpdateEvolutionInput, dmNotes?: string): void {
     const pending = this.pendingRepo.findById(pendingId);
     if (!pending) {
       throw new Error(`Pending evolution not found: ${pendingId}`);
@@ -184,7 +207,9 @@ export class EvolutionService {
     this.applyEvolution(updated);
 
     // Mark as edited (approved with modifications)
-    this.pendingRepo.resolve(pendingId, 'edited', dmNotes);
+    const editResolveInput: import('../../db/repositories/pending-evolution-repository.js').ResolveEvolutionInput = { status: 'edited' };
+    if (dmNotes !== undefined) editResolveInput.dmNotes = dmNotes;
+    this.pendingRepo.resolve(pendingId, editResolveInput);
 
     // Re-fetch to get updated state
     const final = this.pendingRepo.findById(pendingId);
@@ -209,7 +234,9 @@ export class EvolutionService {
       throw new Error(`Cannot refuse evolution with status: ${pending.status}`);
     }
 
-    this.pendingRepo.resolve(pendingId, 'refused', dmNotes);
+    const refuseResolveInput: import('../../db/repositories/pending-evolution-repository.js').ResolveEvolutionInput = { status: 'refused' };
+    if (dmNotes !== undefined) refuseResolveInput.dmNotes = dmNotes;
+    this.pendingRepo.resolve(pendingId, refuseResolveInput);
 
     // Re-fetch to get updated state
     const updated = this.pendingRepo.findById(pendingId);
@@ -338,7 +365,10 @@ export class EvolutionService {
    * @returns Array of pending evolutions
    */
   getPendingEvolutions(gameId: string, pendingOnly: boolean = true): PendingEvolution[] {
-    return this.pendingRepo.findByGame(gameId, pendingOnly ? 'pending' : undefined);
+    if (pendingOnly) {
+      return this.pendingRepo.findPending(gameId, 'pending');
+    }
+    return this.pendingRepo.findByGame(gameId);
   }
 
   /**
