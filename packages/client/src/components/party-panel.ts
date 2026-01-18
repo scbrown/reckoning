@@ -19,6 +19,16 @@ export interface PartyPanelConfig {
  */
 const MOCK_PARTY_MEMBERS: Character[] = [
   {
+    id: 'mock-char-1',
+    name: 'Kira Ironheart',
+    description: 'A brave warrior with unwavering resolve.',
+    class: 'Warrior',
+    stats: {
+      health: 85,
+      maxHealth: 100,
+    },
+  },
+  {
     id: 'mock-char-2',
     name: 'Lyra Shadowmend',
     description: 'A mysterious healer wrapped in dark robes.',
@@ -56,13 +66,13 @@ export class PartyPanel {
       throw new Error(`Container element #${config.containerId} not found`);
     }
     this.container = container;
-    this.members = [];
     this.playerId = config.playerId;
     this.stateManager = stateManager || null;
     this.injectStyles();
 
     // Subscribe to state changes if stateManager provided
     if (this.stateManager) {
+      this.members = [];
       this.unsubscribe = this.stateManager.subscribe((state) => {
         this.handleStateChange(state);
       });
@@ -70,6 +80,9 @@ export class PartyPanel {
       // Initialize with current state
       const initialState = this.stateManager.getState();
       this.handleStateChange(initialState);
+    } else {
+      // Initialize with mock data when no state manager is provided
+      this.members = [...MOCK_PARTY_MEMBERS];
     }
   }
 
@@ -127,7 +140,7 @@ export class PartyPanel {
    */
   render(): void {
     const membersContent = this.members.length > 0
-      ? this.members.map((member, index) => this.renderCharacterCard(member, index === 0)).join('')
+      ? this.members.map((member) => this.renderCharacterCard(member, member.id === this.playerId)).join('')
       : `<div class="party-panel-empty">
           <p>No party members yet.</p>
           <p class="empty-hint">Start a new game to create your character.</p>
