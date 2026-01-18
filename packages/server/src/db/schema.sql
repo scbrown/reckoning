@@ -132,6 +132,22 @@ CREATE TABLE IF NOT EXISTS editor_state (
   updated_at TEXT DEFAULT (datetime('now'))
 );
 
+-- Entity traits table (Entity Evolution system)
+CREATE TABLE IF NOT EXISTS entity_traits (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  entity_type TEXT NOT NULL,  -- 'player', 'character', 'npc', 'location'
+  entity_id TEXT NOT NULL,
+  trait TEXT NOT NULL,
+  acquired_turn INTEGER NOT NULL,
+  source_event_id TEXT REFERENCES events(id),
+  status TEXT NOT NULL DEFAULT 'active',  -- 'active', 'faded', 'removed'
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(game_id, entity_type, entity_id, trait)
+);
+CREATE INDEX IF NOT EXISTS idx_entity_traits_entity ON entity_traits(game_id, entity_type, entity_id);
+CREATE INDEX IF NOT EXISTS idx_entity_traits_trait ON entity_traits(game_id, trait);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (
