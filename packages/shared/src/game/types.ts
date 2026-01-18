@@ -24,6 +24,10 @@ export interface GameState {
   createdAt: string;
   /** When the game was last updated */
   updatedAt: string;
+  /** Path to game's pixelsrc project */
+  pixelsrcProject?: string;
+  /** Current act number (for art evolution) */
+  act?: number;
 }
 
 /**
@@ -62,6 +66,8 @@ export interface Area {
   npcs: NPC[];
   /** Searchable tags for categorization */
   tags: string[];
+  /** Reference to pixel art scene in game's pixelsrc project */
+  pixelArtRef?: PixelArtRef;
 }
 
 /**
@@ -126,6 +132,8 @@ export interface Character {
   stats: CharacterStats;
   /** ElevenLabs voice ID for TTS (optional) */
   voiceId?: string;
+  /** Reference to pixel art in game's pixelsrc project */
+  pixelArtRef?: PixelArtRef;
 }
 
 /**
@@ -160,6 +168,8 @@ export interface NPC {
   disposition: NPCDisposition;
   /** Searchable tags for categorization */
   tags: string[];
+  /** Reference to pixel art in game's pixelsrc project */
+  pixelArtRef?: PixelArtRef;
 }
 
 /**
@@ -171,3 +181,65 @@ export type NPCDisposition =
   | 'neutral'
   | 'friendly'
   | 'allied';
+
+// =============================================================================
+// Pixelsrc Art Types
+// =============================================================================
+
+/**
+ * Reference to pixelsrc art in the game's project directory
+ */
+export interface PixelArtRef {
+  /** Relative path within the pixelsrc project (e.g., "characters/hero.pxl") */
+  path: string;
+  /** Primary sprite name for static display */
+  spriteName: string;
+  /** Animation metadata if this is an animated asset */
+  animation?: PixelArtAnimation;
+}
+
+/**
+ * Full pixelsrc art asset (used in API responses)
+ */
+export interface PixelArt {
+  /** The .pxl source (JSONL format) - loaded from filesystem */
+  source: string;
+  /** Animation metadata if this is an animated asset */
+  animation?: PixelArtAnimation;
+}
+
+/**
+ * Animation metadata for client-side playback
+ */
+export interface PixelArtAnimation {
+  /** Named animation states (e.g., 'idle', 'talking', 'emote') */
+  states: Record<string, AnimationState>;
+  /** Default state to play */
+  defaultState: string;
+}
+
+/**
+ * Configuration for a single animation state
+ */
+export interface AnimationState {
+  /** Keyframe percentages to sprite/transform data */
+  keyframes: Record<string, KeyframeData>;
+  /** Duration in ms */
+  duration: number;
+  /** CSS timing function */
+  timingFunction?: string;
+  /** Whether to loop */
+  loop?: boolean;
+}
+
+/**
+ * Data for a single animation keyframe
+ */
+export interface KeyframeData {
+  /** Sprite name to display at this keyframe */
+  sprite?: string;
+  /** CSS transform to apply */
+  transform?: string;
+  /** Opacity value (0-1) */
+  opacity?: number;
+}

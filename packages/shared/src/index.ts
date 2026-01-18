@@ -17,5 +17,4 @@ export type {
   SSEEvent,
   SSEEventType,
   SSEEventByType,
-  SSEEvent,
 } from './sse/index.js';

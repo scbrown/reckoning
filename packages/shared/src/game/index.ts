@@ -16,6 +16,12 @@ export type {
   CharacterStats,
   NPC,
   NPCDisposition,
+  // Pixelsrc art types
+  PixelArtRef,
+  PixelArt,
+  PixelArtAnimation,
+  AnimationState,
+  KeyframeData,
 } from './types.js';
 
 // Event types (SSE types are exported from ../sse/index.ts)
