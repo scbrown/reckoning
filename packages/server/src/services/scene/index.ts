@@ -12,4 +12,5 @@ export type {
   CreateSceneManagedInput,
   StartSceneInput,
   CompleteSceneInput,
+  RequirementContext,
 } from './types.js';

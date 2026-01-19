@@ -63,6 +63,7 @@ export {
   SceneConnectionRepository,
   type ConnectionType,
   type ConnectionRequirements,
+  type RelationshipRequirement,
   type SceneConnection,
   type CreateSceneConnectionInput,
   CONNECTION_TYPES,

@@ -14,12 +14,26 @@ export const CONNECTION_TYPES: readonly ConnectionType[] = [
 ] as const;
 
 /**
+ * Relationship requirement for scene connections
+ */
+export interface RelationshipRequirement {
+  entityType: 'player' | 'character' | 'npc' | 'location';
+  entityId: string;
+  dimension: 'trust' | 'respect' | 'affection' | 'fear' | 'resentment' | 'debt';
+  minValue?: number;
+  maxValue?: number;
+}
+
+/**
  * Requirements for traversing a connection (stored as JSON)
  */
 export interface ConnectionRequirements {
-  items?: string[];
+  /** Flags that must be set (all must be true) */
   flags?: string[];
-  stats?: Record<string, number>;
+  /** Traits the player must have (all must be present) */
+  traits?: string[];
+  /** Relationship thresholds that must be met */
+  relationships?: RelationshipRequirement[];
 }
 
 /**

@@ -1,6 +1,9 @@
 import type { SceneRepository, Scene } from '../../db/repositories/scene-repository.js';
 import type { SceneAvailabilityRepository } from '../../db/repositories/scene-availability-repository.js';
-import type { SceneConnectionRepository } from '../../db/repositories/scene-connection-repository.js';
+import type {
+  SceneConnectionRepository,
+  ConnectionRequirements,
+} from '../../db/repositories/scene-connection-repository.js';
 import type { GameRepository } from '../../db/repositories/game-repository.js';
 import type {
   SceneEventEmitter,
@@ -8,6 +11,7 @@ import type {
   CreateSceneManagedInput,
   StartSceneInput,
   CompleteSceneInput,
+  RequirementContext,
 } from './types.js';
 
 /**
@@ -315,6 +319,80 @@ export class SceneManager {
     }
 
     return scenes;
+  }
+
+  /**
+   * Evaluate scene connection requirements against current game state.
+   *
+   * Requirements are ANDed together:
+   * - All specified flags must be set (true)
+   * - All specified traits must be present on the player
+   * - All relationship thresholds must be met
+   *
+   * @param requirements - The connection requirements to evaluate (null/undefined = always passes)
+   * @param context - The current game state context
+   * @returns true if all requirements are met, false otherwise
+   */
+  evaluateRequirements(
+    requirements: ConnectionRequirements | null | undefined,
+    context: RequirementContext
+  ): boolean {
+    // Null/undefined requirements always pass
+    if (!requirements) {
+      return true;
+    }
+
+    // Check flags: all must be set (true)
+    if (requirements.flags && requirements.flags.length > 0) {
+      for (const flag of requirements.flags) {
+        if (!context.flags[flag]) {
+          return false;
+        }
+      }
+    }
+
+    // Check traits: player must have all specified traits
+    if (requirements.traits && requirements.traits.length > 0) {
+      for (const trait of requirements.traits) {
+        if (!context.playerTraits.includes(trait)) {
+          return false;
+        }
+      }
+    }
+
+    // Check relationships: dimension values must meet thresholds
+    if (requirements.relationships && requirements.relationships.length > 0) {
+      for (const req of requirements.relationships) {
+        // Find matching relationship (player -> target entity)
+        const relationship = context.relationships.find(
+          r =>
+            r.from.type === 'player' &&
+            r.to.type === req.entityType &&
+            r.to.id === req.entityId
+        );
+
+        // Missing relationship fails the requirement
+        if (!relationship) {
+          return false;
+        }
+
+        // Get the dimension value
+        const value = relationship[req.dimension];
+
+        // Check minValue if specified
+        if (req.minValue !== undefined && value < req.minValue) {
+          return false;
+        }
+
+        // Check maxValue if specified
+        if (req.maxValue !== undefined && value > req.maxValue) {
+          return false;
+        }
+      }
+    }
+
+    // All requirements passed
+    return true;
   }
 
   private emitEvent(event: import('./types.js').SceneEvent): void {

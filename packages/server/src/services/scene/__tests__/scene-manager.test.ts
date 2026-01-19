@@ -8,7 +8,9 @@ import { SceneRepository } from '../../../db/repositories/scene-repository.js';
 import { SceneAvailabilityRepository } from '../../../db/repositories/scene-availability-repository.js';
 import { SceneConnectionRepository } from '../../../db/repositories/scene-connection-repository.js';
 import { GameRepository } from '../../../db/repositories/game-repository.js';
-import type { SceneEvent, SceneEventEmitter } from '../types.js';
+import type { SceneEvent, SceneEventEmitter, RequirementContext } from '../types.js';
+import type { ConnectionRequirements } from '../../../db/repositories/scene-connection-repository.js';
+import type { Relationship } from '../../../db/repositories/relationship-repository.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -497,6 +499,365 @@ describe('SceneManager', () => {
       });
 
       expect(scene.id).toBeDefined();
+    });
+  });
+
+  describe('evaluateRequirements', () => {
+    // Helper to create a basic context
+    const createContext = (overrides: Partial<RequirementContext> = {}): RequirementContext => ({
+      flags: {},
+      playerTraits: [],
+      relationships: [],
+      ...overrides,
+    });
+
+    // Helper to create a relationship
+    const createRelationship = (
+      toType: 'player' | 'character' | 'npc' | 'location',
+      toId: string,
+      dimensions: Partial<Pick<Relationship, 'trust' | 'respect' | 'affection' | 'fear' | 'resentment' | 'debt'>> = {}
+    ): Relationship => ({
+      id: 'rel-1',
+      gameId: 'game-1',
+      from: { type: 'player', id: 'player-1' },
+      to: { type: toType, id: toId },
+      trust: 0.5,
+      respect: 0.5,
+      affection: 0.5,
+      fear: 0.0,
+      resentment: 0.0,
+      debt: 0.0,
+      updatedTurn: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      ...dimensions,
+    });
+
+    describe('null/undefined requirements', () => {
+      it('should return true for null requirements', () => {
+        const context = createContext();
+        expect(manager.evaluateRequirements(null, context)).toBe(true);
+      });
+
+      it('should return true for undefined requirements', () => {
+        const context = createContext();
+        expect(manager.evaluateRequirements(undefined, context)).toBe(true);
+      });
+
+      it('should return true for empty requirements object', () => {
+        const context = createContext();
+        expect(manager.evaluateRequirements({}, context)).toBe(true);
+      });
+    });
+
+    describe('flag requirements', () => {
+      it('should return true when all flags are set', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key', 'talked_to_guard'],
+        };
+        const context = createContext({
+          flags: { has_key: true, talked_to_guard: true, other_flag: true },
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return false when a flag is missing', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key', 'talked_to_guard'],
+        };
+        const context = createContext({
+          flags: { has_key: true },
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return false when a flag is false', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key'],
+        };
+        const context = createContext({
+          flags: { has_key: false },
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return true for empty flags array', () => {
+        const requirements: ConnectionRequirements = {
+          flags: [],
+        };
+        const context = createContext();
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+    });
+
+    describe('trait requirements', () => {
+      it('should return true when player has all traits', () => {
+        const requirements: ConnectionRequirements = {
+          traits: ['merciful', 'brave'],
+        };
+        const context = createContext({
+          playerTraits: ['merciful', 'brave', 'cunning'],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return false when player is missing a trait', () => {
+        const requirements: ConnectionRequirements = {
+          traits: ['merciful', 'brave'],
+        };
+        const context = createContext({
+          playerTraits: ['merciful'],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return false when player has no traits', () => {
+        const requirements: ConnectionRequirements = {
+          traits: ['merciful'],
+        };
+        const context = createContext({
+          playerTraits: [],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return true for empty traits array', () => {
+        const requirements: ConnectionRequirements = {
+          traits: [],
+        };
+        const context = createContext();
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+    });
+
+    describe('relationship requirements', () => {
+      it('should return true when relationship meets minValue threshold', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          relationships: [createRelationship('npc', 'captain', { trust: 0.8 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return true when relationship equals minValue threshold', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          relationships: [createRelationship('npc', 'captain', { trust: 0.6 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return false when relationship is below minValue threshold', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          relationships: [createRelationship('npc', 'captain', { trust: 0.4 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return false when relationship with entity does not exist', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          relationships: [createRelationship('npc', 'merchant', { trust: 0.8 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return true when relationship meets maxValue threshold', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'enemy', dimension: 'fear', maxValue: 0.3 },
+          ],
+        };
+        const context = createContext({
+          relationships: [createRelationship('npc', 'enemy', { fear: 0.2 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return false when relationship exceeds maxValue threshold', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'enemy', dimension: 'fear', maxValue: 0.3 },
+          ],
+        };
+        const context = createContext({
+          relationships: [createRelationship('npc', 'enemy', { fear: 0.5 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should check both minValue and maxValue when specified', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'merchant', dimension: 'trust', minValue: 0.4, maxValue: 0.8 },
+          ],
+        };
+
+        // Within range
+        expect(
+          manager.evaluateRequirements(requirements, createContext({
+            relationships: [createRelationship('npc', 'merchant', { trust: 0.6 })],
+          }))
+        ).toBe(true);
+
+        // Below minValue
+        expect(
+          manager.evaluateRequirements(requirements, createContext({
+            relationships: [createRelationship('npc', 'merchant', { trust: 0.2 })],
+          }))
+        ).toBe(false);
+
+        // Above maxValue
+        expect(
+          manager.evaluateRequirements(requirements, createContext({
+            relationships: [createRelationship('npc', 'merchant', { trust: 0.9 })],
+          }))
+        ).toBe(false);
+      });
+
+      it('should check multiple relationship requirements (all must pass)', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+            { entityType: 'npc', entityId: 'merchant', dimension: 'respect', minValue: 0.5 },
+          ],
+        };
+        const context = createContext({
+          relationships: [
+            createRelationship('npc', 'captain', { trust: 0.8 }),
+            createRelationship('npc', 'merchant', { respect: 0.7 }),
+          ],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return false if any relationship requirement fails', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+            { entityType: 'npc', entityId: 'merchant', dimension: 'respect', minValue: 0.5 },
+          ],
+        };
+        const context = createContext({
+          relationships: [
+            createRelationship('npc', 'captain', { trust: 0.8 }),
+            createRelationship('npc', 'merchant', { respect: 0.3 }), // Fails
+          ],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return true for empty relationships array', () => {
+        const requirements: ConnectionRequirements = {
+          relationships: [],
+        };
+        const context = createContext();
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+    });
+
+    describe('combined requirements', () => {
+      it('should return true when all requirement types pass', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key'],
+          traits: ['merciful'],
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          flags: { has_key: true },
+          playerTraits: ['merciful', 'brave'],
+          relationships: [createRelationship('npc', 'captain', { trust: 0.8 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(true);
+      });
+
+      it('should return false when flags fail but others pass', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key'],
+          traits: ['merciful'],
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          flags: { has_key: false }, // Fails
+          playerTraits: ['merciful'],
+          relationships: [createRelationship('npc', 'captain', { trust: 0.8 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return false when traits fail but others pass', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key'],
+          traits: ['merciful'],
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          flags: { has_key: true },
+          playerTraits: ['brave'], // Missing 'merciful'
+          relationships: [createRelationship('npc', 'captain', { trust: 0.8 })],
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
+
+      it('should return false when relationships fail but others pass', () => {
+        const requirements: ConnectionRequirements = {
+          flags: ['has_key'],
+          traits: ['merciful'],
+          relationships: [
+            { entityType: 'npc', entityId: 'captain', dimension: 'trust', minValue: 0.6 },
+          ],
+        };
+        const context = createContext({
+          flags: { has_key: true },
+          playerTraits: ['merciful'],
+          relationships: [createRelationship('npc', 'captain', { trust: 0.3 })], // Fails
+        });
+
+        expect(manager.evaluateRequirements(requirements, context)).toBe(false);
+      });
     });
   });
 });
