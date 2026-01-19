@@ -134,10 +134,32 @@ export type {
   CompleteSceneInput,
 } from './scene/index.js';
 
-export { TomlExporter, type TomlExporterConfig } from './export/index.js';
 export {
+  TomlExporter,
+  JsonExporter,
   EXPORT_VERSION,
+  EXPORT_FORMAT_VERSION,
+  EXPORT_FORMAT_NAME,
+  type TomlExporterConfig,
+  type JsonExporterConfig,
   type ExportFormat,
   type TomlExportOptions,
   type ExportResult,
+  type JsonExportOptions,
+  type JsonExport,
+  type JsonExportResult,
+  type ExportedGame,
+  type ExportedCharacter,
+  type ExportedParty,
+  type ExportedNPC,
+  type ExportedArea,
+  type ExportedScenes,
+  type ExportedScene,
+  type ExportedSceneConnection,
+  type ExportedTraits,
+  type ExportedRelationship,
+  type ExportedEvent,
+  type ExportedPendingEvolution,
+  type ExportedEmergenceNotification,
+  type ExportedFlags,
 } from './export/index.js';
