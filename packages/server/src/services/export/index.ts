@@ -7,6 +7,7 @@
 
 export { TomlExporter, type TomlExporterConfig } from './toml-exporter.js';
 export { JsonExporter, type JsonExporterConfig } from './json-exporter.js';
+export { GitIntegrationService, type GitIntegrationConfig } from './git-integration.js';
 
 export {
   EXPORT_VERSION,
@@ -45,4 +46,10 @@ export {
   type ExportedPendingEvolution,
   type ExportedEmergenceNotification,
   type ExportedFlags,
+  // Git integration types
+  type GitProvider,
+  type GitOAuthConfig,
+  type GitRemoteConfig,
+  type GitIntegrationOptions,
+  type GitIntegrationResult,
 } from './types.js';
