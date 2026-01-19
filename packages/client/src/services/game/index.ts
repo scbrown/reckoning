@@ -28,6 +28,91 @@ export type EntityType = 'player' | 'npc' | 'location' | 'item';
 export type RelationshipDimension = 'trust' | 'respect' | 'affection' | 'fear' | 'resentment' | 'debt';
 
 /**
+ * Scene types
+ */
+export type SceneStatus = 'active' | 'completed' | 'abandoned';
+export type ConnectionType = 'path' | 'conditional' | 'hidden' | 'one-way' | 'teleport';
+
+/**
+ * Scene data from API
+ */
+export interface SceneDTO {
+  id: string;
+  gameId: string;
+  name: string | null;
+  description: string | null;
+  sceneType: string | null;
+  locationId: string | null;
+  startedTurn: number;
+  completedTurn: number | null;
+  status: SceneStatus;
+  mood: string | null;
+  stakes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * Scene summary with metadata
+ */
+export interface SceneSummaryDTO {
+  scene: SceneDTO;
+  eventCount: number;
+  isCurrentScene: boolean;
+  isUnlocked: boolean;
+  unlockedTurn: number | null;
+}
+
+/**
+ * Scene connection data
+ */
+export interface SceneConnectionDTO {
+  id: string;
+  gameId: string;
+  fromSceneId: string;
+  toSceneId: string;
+  connectionType: ConnectionType;
+  requirements: ConnectionRequirementsDTO | null;
+  description: string | null;
+  createdAt: string;
+}
+
+/**
+ * Connection requirements
+ */
+export interface ConnectionRequirementsDTO {
+  items?: string[];
+  flags?: string[];
+  stats?: Record<string, number>;
+}
+
+/**
+ * Create scene request
+ */
+export interface CreateSceneDTO {
+  turn: number;
+  name?: string;
+  description?: string;
+  sceneType?: string;
+  locationId?: string;
+  mood?: string;
+  stakes?: string;
+  autoUnlock?: boolean;
+  unlockedBy?: string;
+}
+
+/**
+ * Create connection request
+ */
+export interface CreateConnectionDTO {
+  fromSceneId: string;
+  toSceneId: string;
+  connectionType?: ConnectionType;
+  description?: string;
+  requirements?: ConnectionRequirementsDTO;
+}
+
+/**
  * Pending evolution data from API
  */
 export interface PendingEvolutionDTO {
@@ -415,6 +500,150 @@ export class GameService {
       'POST',
       `/game/${gameId}/evolutions/${evolutionId}/refuse`,
       { dmNotes }
+    );
+  }
+
+  // ===========================================================================
+  // Scene Management
+  // ===========================================================================
+
+  /**
+   * Get all scenes for a game
+   * @param gameId - The game ID
+   * @param limit - Maximum number of scenes to return
+   * @param offset - Offset for pagination
+   */
+  async getScenes(
+    gameId: string,
+    limit = 100,
+    offset = 0
+  ): Promise<{ scenes: SceneDTO[] }> {
+    return this.request<{ scenes: SceneDTO[] }>(
+      'GET',
+      `/scene/${gameId}?limit=${limit}&offset=${offset}`
+    );
+  }
+
+  /**
+   * Get available (unlocked) scenes for a game
+   * @param gameId - The game ID
+   */
+  async getAvailableScenes(
+    gameId: string
+  ): Promise<{ scenes: SceneSummaryDTO[] }> {
+    return this.request<{ scenes: SceneSummaryDTO[] }>(
+      'GET',
+      `/scene/${gameId}/available`
+    );
+  }
+
+  /**
+   * Get the current active scene for a game
+   * @param gameId - The game ID
+   */
+  async getCurrentScene(gameId: string): Promise<{ scene: SceneDTO | null }> {
+    return this.request<{ scene: SceneDTO | null }>(
+      'GET',
+      `/scene/${gameId}/current`
+    );
+  }
+
+  /**
+   * Get scene details with connections
+   * @param gameId - The game ID
+   * @param sceneId - The scene ID
+   */
+  async getSceneDetails(
+    gameId: string,
+    sceneId: string
+  ): Promise<SceneSummaryDTO & { connections: SceneConnectionDTO[]; connectedScenes: SceneSummaryDTO[] }> {
+    return this.request<SceneSummaryDTO & { connections: SceneConnectionDTO[]; connectedScenes: SceneSummaryDTO[] }>(
+      'GET',
+      `/scene/${gameId}/${sceneId}`
+    );
+  }
+
+  /**
+   * Create a new scene
+   * @param gameId - The game ID
+   * @param scene - Scene creation data
+   */
+  async createScene(
+    gameId: string,
+    scene: CreateSceneDTO
+  ): Promise<{ scene: SceneDTO }> {
+    return this.request<{ scene: SceneDTO }>(
+      'POST',
+      `/scene/${gameId}`,
+      scene
+    );
+  }
+
+  /**
+   * Start a scene, making it the current active scene
+   * @param gameId - The game ID
+   * @param sceneId - The scene ID to start
+   * @param turn - The turn number
+   */
+  async startScene(
+    gameId: string,
+    sceneId: string,
+    turn: number
+  ): Promise<{ scene: SceneDTO }> {
+    return this.request<{ scene: SceneDTO }>(
+      'POST',
+      `/scene/${gameId}/${sceneId}/start`,
+      { turn }
+    );
+  }
+
+  /**
+   * Complete a scene
+   * @param gameId - The game ID
+   * @param sceneId - The scene ID to complete
+   * @param turn - The turn number
+   */
+  async completeScene(
+    gameId: string,
+    sceneId: string,
+    turn: number
+  ): Promise<{ scene: SceneDTO }> {
+    return this.request<{ scene: SceneDTO }>(
+      'POST',
+      `/scene/${gameId}/${sceneId}/complete`,
+      { turn }
+    );
+  }
+
+  /**
+   * Get scene connections for a game
+   * @param gameId - The game ID
+   * @param fromSceneId - Optional filter by source scene
+   */
+  async getConnections(
+    gameId: string,
+    fromSceneId?: string
+  ): Promise<{ connections: SceneConnectionDTO[] }> {
+    const query = fromSceneId ? `?fromSceneId=${fromSceneId}` : '';
+    return this.request<{ connections: SceneConnectionDTO[] }>(
+      'GET',
+      `/scene/${gameId}/connections${query}`
+    );
+  }
+
+  /**
+   * Create a connection between two scenes
+   * @param gameId - The game ID
+   * @param connection - Connection creation data
+   */
+  async createConnection(
+    gameId: string,
+    connection: CreateConnectionDTO
+  ): Promise<{ connection: SceneConnectionDTO }> {
+    return this.request<{ connection: SceneConnectionDTO }>(
+      'POST',
+      `/scene/${gameId}/connections`,
+      connection
     );
   }
 }

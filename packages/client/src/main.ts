@@ -27,6 +27,8 @@ import { StatusBar } from './components/status-bar.js';
 import { BeatEditor } from './components/beat-editor.js';
 import { SpeechBubble } from './components/speech-bubble.js';
 import { EvolutionApprovalPanel, type PendingEvolution } from './components/evolution-approval-panel.js';
+import { ScenePanel } from './components/scene-panel.js';
+import type { CreateSceneDTO } from './services/game/index.js';
 
 // =============================================================================
 // Services
@@ -58,6 +60,7 @@ let statusBar: StatusBar | null = null;
 let beatEditor: BeatEditor | null = null;
 let speechBubble: SpeechBubble | null = null;
 let evolutionPanel: EvolutionApprovalPanel | null = null;
+let scenePanel: ScenePanel | null = null;
 
 // =============================================================================
 // DOM Elements
@@ -251,6 +254,18 @@ function initializeUIComponents(): void {
     }
   );
   evolutionPanel.render();
+
+  // Scene Panel
+  scenePanel = new ScenePanel(
+    { containerId: 'scene-panel' },
+    {
+      onSceneStart: handleSceneStart,
+      onSceneComplete: handleSceneComplete,
+      onSceneCreate: handleSceneCreate,
+      onSceneSelect: handleSceneSelect,
+    }
+  );
+  scenePanel.render();
 }
 
 function destroyUIComponents(): void {
@@ -265,6 +280,7 @@ function destroyUIComponents(): void {
   beatEditor?.destroy();
   speechBubble?.destroy();
   evolutionPanel?.destroy();
+  scenePanel?.destroy();
 
   // Clear all avatar instances (but don't destroy the manager itself)
   avatarManager.clearAll();
@@ -280,6 +296,7 @@ function destroyUIComponents(): void {
   beatEditor = null;
   speechBubble = null;
   evolutionPanel = null;
+  scenePanel = null;
 }
 
 // =============================================================================
@@ -347,8 +364,11 @@ async function handleGameStarted(): Promise<void> {
     if (gameId) {
       console.log('[Main] Triggering first generation for game:', gameId);
       await gameService.next(gameId);
-      // Refresh pending evolutions after game start
-      await refreshPendingEvolutions();
+      // Refresh pending evolutions and scenes after game start
+      await Promise.all([
+        refreshPendingEvolutions(),
+        refreshScenes(),
+      ]);
     }
   } catch (error) {
     console.error('[Main] Failed to trigger first generation:', error);
@@ -364,8 +384,11 @@ async function handleGameLoaded(): Promise<void> {
   const gameId = stateManager?.getState().gameId;
   if (gameId) {
     saveLoadModal?.setGameId(gameId);
-    // Refresh pending evolutions after game load
-    await refreshPendingEvolutions();
+    // Refresh pending evolutions and scenes after game load
+    await Promise.all([
+      refreshPendingEvolutions(),
+      refreshScenes(),
+    ]);
   }
 
   // Subscribe to state changes
@@ -556,6 +579,92 @@ async function refreshPendingEvolutions(): Promise<void> {
   } catch (error) {
     // Log but don't show error toast - evolution API might not be available yet
     console.warn('[Main] Failed to fetch pending evolutions:', error);
+  }
+}
+
+// =============================================================================
+// Scene Event Handlers
+// =============================================================================
+
+async function handleSceneStart(sceneId: string, turn: number): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) return;
+
+  try {
+    await gameService.startScene(gameId, sceneId, turn);
+    console.log('[Main] Scene started:', sceneId);
+    await refreshScenes();
+  } catch (error) {
+    console.error('[Main] Scene start failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to start scene');
+  }
+}
+
+async function handleSceneComplete(sceneId: string, turn: number): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) return;
+
+  try {
+    await gameService.completeScene(gameId, sceneId, turn);
+    console.log('[Main] Scene completed:', sceneId);
+    await refreshScenes();
+  } catch (error) {
+    console.error('[Main] Scene complete failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to complete scene');
+  }
+}
+
+async function handleSceneCreate(sceneData: CreateSceneDTO): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) return;
+
+  try {
+    const result = await gameService.createScene(gameId, sceneData);
+    console.log('[Main] Scene created:', result.scene.id);
+    await refreshScenes();
+  } catch (error) {
+    console.error('[Main] Scene create failed:', error);
+    showError(error instanceof Error ? error.message : 'Failed to create scene');
+  }
+}
+
+async function handleSceneSelect(sceneId: string): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId || !scenePanel) return;
+
+  try {
+    const details = await gameService.getSceneDetails(gameId, sceneId);
+    scenePanel.setSelectedSceneDetails(details);
+  } catch (error) {
+    console.error('[Main] Failed to get scene details:', error);
+    scenePanel.setSelectedSceneDetails(null);
+  }
+}
+
+async function refreshScenes(): Promise<void> {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId || !scenePanel) return;
+
+  try {
+    // Fetch current scene, available scenes, and all scenes in parallel
+    const [currentResult, availableResult, allResult] = await Promise.all([
+      gameService.getCurrentScene(gameId),
+      gameService.getAvailableScenes(gameId),
+      gameService.getScenes(gameId),
+    ]);
+
+    scenePanel.setCurrentScene(currentResult.scene);
+    scenePanel.setAvailableScenes(availableResult.scenes);
+    scenePanel.setAllScenes(allResult.scenes);
+
+    // Update current turn from state
+    const state = stateManager?.getState();
+    if (state?.session?.state.turn !== undefined) {
+      scenePanel.setCurrentTurn(state.session.state.turn);
+    }
+  } catch (error) {
+    // Log but don't show error toast - scene API might not be available yet
+    console.warn('[Main] Failed to fetch scenes:', error);
   }
 }
 
