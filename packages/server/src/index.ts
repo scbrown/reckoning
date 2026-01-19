@@ -11,6 +11,7 @@ import { gameRoutes } from './routes/game.js';
 import { partyRoutes } from './routes/party.js';
 import { evolutionRoutes } from './routes/evolution.js';
 import { chronicleRoutes } from './routes/chronicle.js';
+import { sceneRoutes } from './routes/scene.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../../..');
@@ -39,6 +40,7 @@ await server.register(gameRoutes, { prefix: '/api/game' });
 await server.register(partyRoutes, { prefix: '/api/party' });
 await server.register(evolutionRoutes, { prefix: '/api/evolution' });
 await server.register(chronicleRoutes, { prefix: '/api/chronicle' });
+await server.register(sceneRoutes, { prefix: '/api/scene' });
 
 /**
  * Try to start server on a port, incrementing if port is in use.
