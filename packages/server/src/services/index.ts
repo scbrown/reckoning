@@ -133,3 +133,11 @@ export type {
   StartSceneInput,
   CompleteSceneInput,
 } from './scene/index.js';
+
+export { TomlExporter, type TomlExporterConfig } from './export/index.js';
+export {
+  EXPORT_VERSION,
+  type ExportFormat,
+  type TomlExportOptions,
+  type ExportResult,
+} from './export/index.js';
