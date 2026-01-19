@@ -304,6 +304,23 @@ CREATE INDEX IF NOT EXISTS idx_scenes_status ON scenes(game_id, status);
 CREATE INDEX IF NOT EXISTS idx_scenes_turns ON scenes(game_id, started_turn, completed_turn);
 CREATE INDEX IF NOT EXISTS idx_scenes_location ON scenes(location_id);
 
+-- Scene connections table (NARR-002)
+-- Defines possible paths/transitions between scenes
+CREATE TABLE IF NOT EXISTS scene_connections (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  from_scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  to_scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  requirements TEXT,  -- JSON object describing conditions to traverse (items, flags, stats, etc.)
+  connection_type TEXT NOT NULL DEFAULT 'path',  -- 'path', 'conditional', 'hidden', 'one-way', 'teleport'
+  description TEXT,   -- Human-readable description of this connection
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_scene_connections_game ON scene_connections(game_id);
+CREATE INDEX IF NOT EXISTS idx_scene_connections_from ON scene_connections(from_scene_id);
+CREATE INDEX IF NOT EXISTS idx_scene_connections_to ON scene_connections(to_scene_id);
+CREATE INDEX IF NOT EXISTS idx_scene_connections_type ON scene_connections(connection_type);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

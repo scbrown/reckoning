@@ -749,4 +749,183 @@ describe('Database Schema', () => {
     count = db.prepare(`SELECT COUNT(*) as count FROM scenes WHERE game_id = 'game-1'`).get() as { count: number };
     expect(count.count).toBe(0);
   });
+
+  it('should create scene_connections table with correct columns', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('scene_connections')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('id');
+    expect(columnNames).toContain('game_id');
+    expect(columnNames).toContain('from_scene_id');
+    expect(columnNames).toContain('to_scene_id');
+    expect(columnNames).toContain('requirements');
+    expect(columnNames).toContain('connection_type');
+    expect(columnNames).toContain('description');
+    expect(columnNames).toContain('created_at');
+  });
+
+  it('should create indexes for scene_connections table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const indexes = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name LIKE 'idx_scene_connections%'
+    `).all();
+    const indexNames = indexes.map((idx: { name: string }) => idx.name);
+
+    expect(indexNames).toContain('idx_scene_connections_game');
+    expect(indexNames).toContain('idx_scene_connections_from');
+    expect(indexNames).toContain('idx_scene_connections_to');
+    expect(indexNames).toContain('idx_scene_connections_type');
+  });
+
+  it('should set correct default connection_type for scene_connections', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scenes first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-2', 'game-1', 5)
+    `);
+
+    // Insert connection without specifying connection_type
+    db.exec(`
+      INSERT INTO scene_connections (id, game_id, from_scene_id, to_scene_id)
+      VALUES ('conn-1', 'game-1', 'scene-1', 'scene-2')
+    `);
+
+    const conn = db.prepare(`SELECT connection_type FROM scene_connections WHERE id = 'conn-1'`).get() as { connection_type: string };
+    expect(conn.connection_type).toBe('path');
+  });
+
+  it('should store scene_connections with JSON requirements', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scenes first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-2', 'game-1', 5)
+    `);
+
+    // Insert connection with JSON requirements
+    const requirements = JSON.stringify({ items: ['key-1'], flags: ['door_unlocked'] });
+    db.exec(`
+      INSERT INTO scene_connections (id, game_id, from_scene_id, to_scene_id, requirements, connection_type, description)
+      VALUES ('conn-1', 'game-1', 'scene-1', 'scene-2', '${requirements}', 'conditional', 'A locked door requiring a key')
+    `);
+
+    const conn = db.prepare(`SELECT * FROM scene_connections WHERE id = 'conn-1'`).get() as {
+      requirements: string;
+      connection_type: string;
+      description: string;
+    };
+
+    expect(JSON.parse(conn.requirements)).toEqual({ items: ['key-1'], flags: ['door_unlocked'] });
+    expect(conn.connection_type).toBe('conditional');
+    expect(conn.description).toBe('A locked door requiring a key');
+  });
+
+  it('should cascade delete scene_connections when game is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game, scenes, and connection
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-2', 'game-1', 5)
+    `);
+    db.exec(`
+      INSERT INTO scene_connections (id, game_id, from_scene_id, to_scene_id)
+      VALUES ('conn-1', 'game-1', 'scene-1', 'scene-2')
+    `);
+
+    // Verify connection exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scene_connections WHERE game_id = 'game-1'`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the game
+    db.exec(`DELETE FROM games WHERE id = 'game-1'`);
+
+    // Connection should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scene_connections WHERE game_id = 'game-1'`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
+
+  it('should cascade delete scene_connections when scene is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game, scenes, and connection
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-2', 'game-1', 5)
+    `);
+    db.exec(`
+      INSERT INTO scene_connections (id, game_id, from_scene_id, to_scene_id)
+      VALUES ('conn-1', 'game-1', 'scene-1', 'scene-2')
+    `);
+
+    // Verify connection exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scene_connections`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the from_scene
+    db.exec(`DELETE FROM scenes WHERE id = 'scene-1'`);
+
+    // Connection should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scene_connections`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
 });
