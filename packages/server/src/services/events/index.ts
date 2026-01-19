@@ -20,3 +20,14 @@ export type {
   ActionClassifierConfig,
   PatternMatch,
 } from './types.js';
+
+export {
+  EmergenceObserver,
+  type EmergenceType,
+  type EmergenceOpportunity,
+  type EmergenceDetectionResult,
+  type EmergenceThresholds,
+  type EmergenceObserverConfig,
+  type EmergenceEvent,
+  type EmergenceEventEmitter,
+} from './emergence-observer.js';
