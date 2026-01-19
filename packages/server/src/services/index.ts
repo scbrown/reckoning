@@ -86,7 +86,7 @@ export type {
   EquipmentChangeData,
 } from './art-evolution/index.js';
 
-export { EventBuilder } from './events/index.js';
+export { EventBuilder, ActionClassifier } from './events/index.js';
 export type {
   WitnessRef,
   TargetRef,
@@ -94,4 +94,7 @@ export type {
   AIStructuredMetadata,
   BuildFromGenerationParams,
   StructuredEventData,
+  ClassificationResult,
+  ActionClassifierConfig,
+  PatternMatch,
 } from './events/index.js';

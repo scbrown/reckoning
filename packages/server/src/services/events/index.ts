@@ -13,3 +13,10 @@ export {
   type BuildFromGenerationParams,
   type StructuredEventData,
 } from './event-builder.js';
+
+export { ActionClassifier } from './action-classifier.js';
+export type {
+  ClassificationResult,
+  ActionClassifierConfig,
+  PatternMatch,
+} from './types.js';
