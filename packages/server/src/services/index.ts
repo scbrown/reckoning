@@ -98,3 +98,13 @@ export type {
   ActionClassifierConfig,
   PatternMatch,
 } from './events/index.js';
+
+export { PatternObserver } from './chronicle/index.js';
+export type {
+  PlayerPatterns,
+  BehavioralRatios,
+  ViolenceInitiationResult,
+  SocialApproach,
+  PatternObserverConfig,
+  PatternAnalysisOptions,
+} from './chronicle/index.js';
