@@ -282,6 +282,28 @@ CREATE TABLE IF NOT EXISTS emergence_notifications (
 CREATE INDEX IF NOT EXISTS idx_emergence_notifications_game ON emergence_notifications(game_id, status);
 CREATE INDEX IF NOT EXISTS idx_emergence_notifications_entity ON emergence_notifications(entity_id, emergence_type);
 
+-- Scenes table (NARR-001)
+-- Groups turns into narrative units for chronicle generation
+CREATE TABLE IF NOT EXISTS scenes (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  name TEXT,
+  description TEXT,
+  scene_type TEXT,  -- 'exploration', 'combat', 'dialogue', 'puzzle', 'transition', etc.
+  location_id TEXT REFERENCES areas(id),
+  started_turn INTEGER NOT NULL,
+  completed_turn INTEGER,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed', 'abandoned')),
+  mood TEXT,   -- 'tense', 'peaceful', 'ominous', 'celebratory', etc.
+  stakes TEXT,  -- JSON or prose describing what's at risk
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_scenes_game ON scenes(game_id);
+CREATE INDEX IF NOT EXISTS idx_scenes_status ON scenes(game_id, status);
+CREATE INDEX IF NOT EXISTS idx_scenes_turns ON scenes(game_id, started_turn, completed_turn);
+CREATE INDEX IF NOT EXISTS idx_scenes_location ON scenes(location_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

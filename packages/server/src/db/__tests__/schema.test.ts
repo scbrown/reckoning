@@ -613,4 +613,140 @@ describe('Database Schema', () => {
     count = db.prepare(`SELECT COUNT(*) as count FROM pending_evolutions WHERE game_id = 'game-1'`).get() as { count: number };
     expect(count.count).toBe(0);
   });
+
+  it('should create scenes table with correct columns', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('scenes')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('id');
+    expect(columnNames).toContain('game_id');
+    expect(columnNames).toContain('name');
+    expect(columnNames).toContain('description');
+    expect(columnNames).toContain('scene_type');
+    expect(columnNames).toContain('location_id');
+    expect(columnNames).toContain('started_turn');
+    expect(columnNames).toContain('completed_turn');
+    expect(columnNames).toContain('status');
+    expect(columnNames).toContain('mood');
+    expect(columnNames).toContain('stakes');
+    expect(columnNames).toContain('created_at');
+    expect(columnNames).toContain('updated_at');
+  });
+
+  it('should create indexes for scenes table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const indexes = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name LIKE 'idx_scenes%'
+    `).all();
+    const indexNames = indexes.map((idx: { name: string }) => idx.name);
+
+    expect(indexNames).toContain('idx_scenes_game');
+    expect(indexNames).toContain('idx_scenes_status');
+    expect(indexNames).toContain('idx_scenes_turns');
+    expect(indexNames).toContain('idx_scenes_location');
+  });
+
+  it('should enforce CHECK constraint on scenes status', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+
+    // Valid statuses should work
+    expect(() => {
+      db.exec(`
+        INSERT INTO scenes (id, game_id, started_turn, status)
+        VALUES ('scene-1', 'game-1', 1, 'active')
+      `);
+    }).not.toThrow();
+
+    expect(() => {
+      db.exec(`
+        INSERT INTO scenes (id, game_id, started_turn, status)
+        VALUES ('scene-2', 'game-1', 1, 'completed')
+      `);
+    }).not.toThrow();
+
+    expect(() => {
+      db.exec(`
+        INSERT INTO scenes (id, game_id, started_turn, status)
+        VALUES ('scene-3', 'game-1', 1, 'abandoned')
+      `);
+    }).not.toThrow();
+
+    // Invalid status should fail
+    expect(() => {
+      db.exec(`
+        INSERT INTO scenes (id, game_id, started_turn, status)
+        VALUES ('scene-4', 'game-1', 1, 'invalid_status')
+      `);
+    }).toThrow();
+  });
+
+  it('should set correct default status for scenes', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+
+    // Insert scene without specifying status
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    const scene = db.prepare(`SELECT status FROM scenes WHERE id = 'scene-1'`).get() as { status: string };
+    expect(scene.status).toBe('active');
+  });
+
+  it('should cascade delete scenes when game is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scene
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // Verify scene exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scenes WHERE game_id = 'game-1'`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the game
+    db.exec(`DELETE FROM games WHERE id = 'game-1'`);
+
+    // Scene should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scenes WHERE game_id = 'game-1'`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
 });
