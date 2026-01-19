@@ -71,3 +71,11 @@ export {
   SceneAvailabilityRepository,
   type SceneUnlockInfo,
 } from './scene-availability-repository.js';
+export {
+  SceneRepository,
+  type SceneStatus,
+  type Scene,
+  type CreateSceneInput,
+  type UpdateSceneInput,
+  type SceneEvent,
+} from './scene-repository.js';
