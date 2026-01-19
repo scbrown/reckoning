@@ -1378,9 +1378,9 @@ describe('PendingEvolutionRepository', () => {
         trait: 'merciful',
         reason: 'Test 2',
       });
-      repo.resolve(pending1.id, 'approved');
+      repo.resolve(pending1.id, { status: 'approved' });
 
-      const pending = repo.findByGame(gameId, 'pending');
+      const pending = repo.findPending(gameId, 'pending');
       expect(pending).toHaveLength(1);
       expect(pending[0].trait).toBe('merciful');
     });
@@ -1413,17 +1413,8 @@ describe('PendingEvolutionRepository', () => {
     });
   });
 
-  describe('findByTurn', () => {
-    it('should find evolutions for a specific turn', () => {
-      repo.create({
-        gameId,
-        turn: 1,
-        evolutionType: 'trait_add',
-        entityType: 'player',
-        entityId: 'player-1',
-        trait: 'honorable',
-        reason: 'Turn 1',
-      });
+  describe('findByGame ordering', () => {
+    it('should return evolutions ordered by turn', () => {
       repo.create({
         gameId,
         turn: 2,
@@ -1433,10 +1424,23 @@ describe('PendingEvolutionRepository', () => {
         trait: 'merciful',
         reason: 'Turn 2',
       });
+      repo.create({
+        gameId,
+        turn: 1,
+        evolutionType: 'trait_add',
+        entityType: 'player',
+        entityId: 'player-1',
+        trait: 'honorable',
+        reason: 'Turn 1',
+      });
 
-      const turn1 = repo.findByTurn(gameId, 1);
-      expect(turn1).toHaveLength(1);
-      expect(turn1[0].trait).toBe('honorable');
+      const all = repo.findByGame(gameId);
+      expect(all).toHaveLength(2);
+      // Should be ordered by turn ascending
+      expect(all[0].turn).toBe(1);
+      expect(all[0].trait).toBe('honorable');
+      expect(all[1].turn).toBe(2);
+      expect(all[1].trait).toBe('merciful');
     });
   });
 
@@ -1479,7 +1483,7 @@ describe('PendingEvolutionRepository', () => {
         reason: 'Test',
       });
 
-      repo.resolve(created.id, 'approved', 'Good suggestion');
+      repo.resolve(created.id, { status: 'approved', dmNotes: 'Good suggestion' });
 
       const found = repo.findById(created.id);
       expect(found?.status).toBe('approved');
@@ -1498,7 +1502,7 @@ describe('PendingEvolutionRepository', () => {
         reason: 'Test',
       });
 
-      repo.resolve(created.id, 'refused', 'Does not fit character');
+      repo.resolve(created.id, { status: 'refused', dmNotes: 'Does not fit character' });
 
       const found = repo.findById(created.id);
       expect(found?.status).toBe('refused');
@@ -1506,8 +1510,8 @@ describe('PendingEvolutionRepository', () => {
     });
   });
 
-  describe('countByStatus', () => {
-    it('should count evolutions by status', () => {
+  describe('findPending with status filter', () => {
+    it('should filter evolutions by status', () => {
       const p1 = repo.create({
         gameId,
         turn: 1,
@@ -1526,13 +1530,17 @@ describe('PendingEvolutionRepository', () => {
         trait: 'merciful',
         reason: 'Test 2',
       });
-      repo.resolve(p1.id, 'approved');
+      repo.resolve(p1.id, { status: 'approved' });
 
-      const counts = repo.countByStatus(gameId);
-      expect(counts.pending).toBe(1);
-      expect(counts.approved).toBe(1);
-      expect(counts.refused).toBe(0);
-      expect(counts.edited).toBe(0);
+      const pending = repo.findPending(gameId, 'pending');
+      const approved = repo.findPending(gameId, 'approved');
+      const refused = repo.findPending(gameId, 'refused');
+
+      expect(pending).toHaveLength(1);
+      expect(pending[0].trait).toBe('merciful');
+      expect(approved).toHaveLength(1);
+      expect(approved[0].trait).toBe('honorable');
+      expect(refused).toHaveLength(0);
     });
   });
 
