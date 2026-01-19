@@ -123,3 +123,13 @@ export type {
   PatternObserverConfig,
   PatternAnalysisOptions,
 } from './chronicle/index.js';
+
+export { SceneManager, type SceneManagerConfig } from './scene/index.js';
+export type {
+  SceneEvent,
+  SceneEventEmitter,
+  SceneSummary,
+  CreateSceneManagedInput,
+  StartSceneInput,
+  CompleteSceneInput,
+} from './scene/index.js';

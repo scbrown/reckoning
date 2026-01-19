@@ -102,6 +102,23 @@ export class GameRepository {
   }
 
   /**
+   * Set the current scene for a game
+   */
+  setCurrentSceneId(id: string, sceneId: string | null): void {
+    this.db.prepare(`
+      UPDATE games SET current_scene_id = ?, updated_at = ? WHERE id = ?
+    `).run(sceneId, new Date().toISOString(), id);
+  }
+
+  /**
+   * Get the current scene ID for a game
+   */
+  getCurrentSceneId(id: string): string | null {
+    const row = this.db.prepare('SELECT current_scene_id FROM games WHERE id = ?').get(id) as { current_scene_id: string | null } | undefined;
+    return row?.current_scene_id ?? null;
+  }
+
+  /**
    * Increment the turn counter and return the new value
    */
   incrementTurn(id: string): number {
