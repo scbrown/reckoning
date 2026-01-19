@@ -59,3 +59,11 @@ export {
   type CreateEmergenceNotificationInput,
   type ResolveNotificationInput,
 } from './emergence-notification-repository.js';
+export {
+  SceneConnectionRepository,
+  type ConnectionType,
+  type ConnectionRequirements,
+  type SceneConnection,
+  type CreateSceneConnectionInput,
+  CONNECTION_TYPES,
+} from './scene-connection-repository.js';
