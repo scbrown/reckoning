@@ -67,3 +67,7 @@ export {
   type CreateSceneConnectionInput,
   CONNECTION_TYPES,
 } from './scene-connection-repository.js';
+export {
+  SceneAvailabilityRepository,
+  type SceneUnlockInfo,
+} from './scene-availability-repository.js';
