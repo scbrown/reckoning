@@ -33,3 +33,19 @@ export {
   PALETTE_GENERATION_PRIMER,
   getPrimer,
 } from './primer.js';
+
+export {
+  PixelsrcValidator,
+  type ValidationResult,
+  type ValidationError,
+  type ValidationWarning,
+  type ValidationSeverity,
+} from './validator.js';
+
+export {
+  PixelsrcRepairer,
+  type RepairContext,
+  type RepairResult,
+  type RepairError,
+  type RepairerConfig,
+} from './repairer.js';
