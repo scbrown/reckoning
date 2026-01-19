@@ -21,6 +21,7 @@ import { Controls } from './components/controls.js';
 import { NarratorOutput } from './components/narrator-output.js';
 import { PlaybackControls } from './components/playback-controls.js';
 import { SaveLoadModal, createSaveLoadModal } from './components/save-load-modal.js';
+import { ExportImportModal, createExportImportModal } from './components/export-import-modal.js';
 import { PartyPanel } from './components/party-panel.js';
 import { AreaPanel } from './components/area-panel.js';
 import { StatusBar } from './components/status-bar.js';
@@ -54,6 +55,7 @@ let controls: Controls | null = null;
 let narratorOutput: NarratorOutput | null = null;
 let playbackControls: PlaybackControls | null = null;
 let saveLoadModal: SaveLoadModal | null = null;
+let exportImportModal: ExportImportModal | null = null;
 let partyPanel: PartyPanel | null = null;
 let areaPanel: AreaPanel | null = null;
 let statusBar: StatusBar | null = null;
@@ -79,6 +81,7 @@ const loadGameBtn = document.getElementById('load-game-btn');
 // Header buttons
 const saveBtn = document.getElementById('save-btn');
 const loadBtn = document.getElementById('load-btn');
+const exportBtn = document.getElementById('export-btn');
 const menuBtn = document.getElementById('menu-btn');
 
 // =============================================================================
@@ -219,6 +222,21 @@ function initializeUIComponents(): void {
     },
   });
 
+  // Export/Import Modal
+  exportImportModal = createExportImportModal({
+    onExport: async (options) => {
+      console.log('[Main] Game exported with options:', options);
+    },
+    onImport: async (file) => {
+      console.log('[Main] Importing game from file:', file.name);
+      // TODO: Implement import API endpoint and call it here
+      throw new Error('Import functionality not yet implemented');
+    },
+    onClose: () => {
+      console.log('[Main] Export modal closed');
+    },
+  });
+
   // Party Panel - with state manager for reactive updates
   partyPanel = new PartyPanel({ containerId: 'party-panel' }, stateManager);
 
@@ -274,6 +292,7 @@ function destroyUIComponents(): void {
   narratorOutput?.destroy();
   playbackControls?.destroy();
   saveLoadModal?.unmount();
+  exportImportModal?.unmount();
   partyPanel?.destroy();
   areaPanel?.destroy();
   statusBar?.destroy();
@@ -290,6 +309,7 @@ function destroyUIComponents(): void {
   narratorOutput = null;
   playbackControls = null;
   saveLoadModal = null;
+  exportImportModal = null;
   partyPanel = null;
   areaPanel = null;
   statusBar = null;
@@ -694,6 +714,16 @@ function handleMenuClick(): void {
   updateConnectionStatus('disconnected');
 }
 
+function handleExportClick(): void {
+  const gameId = stateManager?.getState().gameId;
+  if (!gameId) {
+    showError('No active game to export');
+    return;
+  }
+  exportImportModal?.setGameId(gameId);
+  exportImportModal?.openExport();
+}
+
 // =============================================================================
 // TTS Integration
 // =============================================================================
@@ -787,6 +817,7 @@ async function initialize(): Promise<void> {
   // Set up header button event listeners
   saveBtn?.addEventListener('click', handleSaveClick);
   loadBtn?.addEventListener('click', handleLoadClick);
+  exportBtn?.addEventListener('click', handleExportClick);
   menuBtn?.addEventListener('click', handleMenuClick);
 
   console.log('[Main] Initialization complete');
