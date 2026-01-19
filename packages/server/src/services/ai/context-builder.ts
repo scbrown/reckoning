@@ -23,6 +23,7 @@ import type {
   PlayerPatterns,
   SocialApproach,
 } from '../chronicle/types.js';
+import type { Scene, SceneStatus } from '../../db/repositories/scene-repository.js';
 
 // =============================================================================
 // Repository Interfaces
@@ -129,6 +130,65 @@ export interface PlayerBehaviorContext {
   dominantTraits: string[];
   /** Whether the player has enough history for reliable analysis */
   hasEnoughData: boolean;
+}
+
+/**
+ * Repository for scene operations (provides scene context for AI)
+ */
+export interface SceneRepository {
+  /**
+   * Get the current scene for a game by ID
+   */
+  findById(sceneId: string): Scene | null;
+  /**
+   * Get all scenes for a game
+   */
+  findByGame(gameId: string): Scene[];
+  /**
+   * Get available scenes (unlocked next scenes)
+   */
+  findAvailable(gameId: string): Scene[];
+  /**
+   * Count events in a scene (for turn count)
+   */
+  countEventsInScene(sceneId: string): number;
+}
+
+/**
+ * Repository for game state with scene support
+ */
+export interface GameRepositoryWithScene extends GameRepository {
+  /**
+   * Get the current scene ID for a game
+   */
+  getCurrentSceneId(gameId: string): string | null;
+}
+
+/**
+ * Scene context formatted for AI consumption
+ */
+export interface SceneContext {
+  /** Current scene if one is active */
+  currentScene: {
+    name: string | null;
+    sceneType: string | null;
+    mood: string | null;
+    stakes: string | null;
+    turnCount: number;
+    status: SceneStatus;
+  } | null;
+  /** Available next scenes the player can transition to */
+  availableScenes: Array<{
+    id: string;
+    name: string | null;
+    sceneType: string | null;
+  }>;
+  /** Summary of recent scene history */
+  recentScenes: Array<{
+    name: string | null;
+    sceneType: string | null;
+    status: SceneStatus;
+  }>;
 }
 
 // =============================================================================
@@ -402,6 +462,10 @@ export interface ExtendedGenerationContext extends GenerationContext {
   playerBehavior?: PlayerBehaviorContext;
   /** Formatted player behavior context for AI prompts */
   formattedPlayerBehavior?: string;
+  /** Scene context (current scene, available scenes, history) */
+  sceneContext?: SceneContext;
+  /** Formatted scene context for AI prompts */
+  formattedSceneContext?: string;
 }
 
 // =============================================================================
@@ -562,6 +626,72 @@ export function formatPlayerBehavior(behavior: PlayerBehaviorContext): string | 
 }
 
 // =============================================================================
+// Scene Context Formatting
+// =============================================================================
+
+/**
+ * Format scene context for AI prompts
+ *
+ * Format:
+ * ```
+ * Current scene: "The Dark Forest" (exploration) - Mood: tense, Stakes: medium
+ * Scene progress: Turn 5 of current scene
+ * Available transitions: "Town Square" (social), "Cave Entrance" (combat)
+ * Recent scenes: "Village Inn" (social, completed), "Road Ambush" (combat, completed)
+ * ```
+ *
+ * @param sceneContext - Scene context data
+ * @returns Formatted string for AI consumption, or undefined if no scene data
+ */
+export function formatSceneContext(sceneContext: SceneContext): string | undefined {
+  const lines: string[] = [];
+
+  // Current scene
+  if (sceneContext.currentScene) {
+    const scene = sceneContext.currentScene;
+    const name = scene.name ?? 'Unnamed Scene';
+    const type = scene.sceneType ? ` (${scene.sceneType})` : '';
+    let details = '';
+    if (scene.mood || scene.stakes) {
+      const parts: string[] = [];
+      if (scene.mood) parts.push(`Mood: ${scene.mood}`);
+      if (scene.stakes) parts.push(`Stakes: ${scene.stakes}`);
+      details = ` - ${parts.join(', ')}`;
+    }
+    lines.push(`Current scene: "${name}"${type}${details}`);
+    lines.push(`Scene progress: Turn ${scene.turnCount} of current scene`);
+  } else {
+    lines.push('Current scene: None (between scenes)');
+  }
+
+  // Available transitions
+  if (sceneContext.availableScenes.length > 0) {
+    const transitions = sceneContext.availableScenes
+      .map((s) => {
+        const name = s.name ?? 'Unnamed';
+        const type = s.sceneType ? ` (${s.sceneType})` : '';
+        return `"${name}"${type}`;
+      })
+      .join(', ');
+    lines.push(`Available transitions: ${transitions}`);
+  }
+
+  // Recent scene history
+  if (sceneContext.recentScenes.length > 0) {
+    const history = sceneContext.recentScenes
+      .map((s) => {
+        const name = s.name ?? 'Unnamed';
+        const type = s.sceneType ? ` (${s.sceneType})` : '';
+        return `"${name}"${type}, ${s.status}`;
+      })
+      .join('; ');
+    lines.push(`Recent scenes: ${history}`);
+  }
+
+  return lines.length > 0 ? lines.join('\n') : undefined;
+}
+
+// =============================================================================
 // Default Context Builder Implementation
 // =============================================================================
 
@@ -575,7 +705,9 @@ export class DefaultContextBuilder implements ContextBuilder {
     private areaRepo: AreaRepository,
     private partyRepo: PartyRepository,
     private evolutionRepo?: EvolutionRepository,
-    private patternRepo?: PatternRepository
+    private patternRepo?: PatternRepository,
+    private sceneRepo?: SceneRepository,
+    private gameRepoWithScene?: GameRepositoryWithScene
   ) {}
 
   async build(
@@ -681,7 +813,61 @@ export class DefaultContextBuilder implements ContextBuilder {
       }
     }
 
-    // 10. Return complete context
+    // 10. Build scene context if repositories available
+    let sceneContext: SceneContext | undefined;
+    let formattedSceneContext: string | undefined;
+
+    if (this.sceneRepo && this.gameRepoWithScene) {
+      const currentSceneId = this.gameRepoWithScene.getCurrentSceneId(gameId);
+
+      // Build current scene data
+      let currentSceneData: SceneContext['currentScene'] = null;
+      if (currentSceneId) {
+        const currentScene = this.sceneRepo.findById(currentSceneId);
+        if (currentScene && currentScene.gameId === gameId) {
+          const turnCount = game.turn - currentScene.startedTurn + 1;
+          currentSceneData = {
+            name: currentScene.name,
+            sceneType: currentScene.sceneType,
+            mood: currentScene.mood,
+            stakes: currentScene.stakes,
+            turnCount,
+            status: currentScene.status,
+          };
+        }
+      }
+
+      // Get available scenes (excluding current scene)
+      const availableScenes = this.sceneRepo.findAvailable(gameId)
+        .filter((s) => s.id !== currentSceneId)
+        .slice(0, 5) // Limit to 5 available scenes
+        .map((s) => ({
+          id: s.id,
+          name: s.name,
+          sceneType: s.sceneType,
+        }));
+
+      // Get recent scene history (completed/abandoned scenes)
+      const allScenes = this.sceneRepo.findByGame(gameId);
+      const recentScenes = allScenes
+        .filter((s) => s.status !== 'active' && s.id !== currentSceneId)
+        .slice(-3) // Last 3 non-active scenes
+        .map((s) => ({
+          name: s.name,
+          sceneType: s.sceneType,
+          status: s.status,
+        }));
+
+      sceneContext = {
+        currentScene: currentSceneData,
+        availableScenes,
+        recentScenes,
+      };
+
+      formattedSceneContext = formatSceneContext(sceneContext);
+    }
+
+    // 11. Return complete context
     const context: ExtendedGenerationContext = {
       type,
       gameState: game,
@@ -714,6 +900,12 @@ export class DefaultContextBuilder implements ContextBuilder {
     if (formattedPlayerBehavior) {
       context.formattedPlayerBehavior = formattedPlayerBehavior;
     }
+    if (sceneContext) {
+      context.sceneContext = sceneContext;
+    }
+    if (formattedSceneContext) {
+      context.formattedSceneContext = formattedSceneContext;
+    }
 
     return context;
   }
@@ -742,13 +934,17 @@ export interface ContextBuilderOptions {
   evolutionRepo?: EvolutionRepository;
   /** Optional pattern repository for player behavior analysis */
   patternRepo?: PatternRepository;
+  /** Optional scene repository for scene context */
+  sceneRepo?: SceneRepository;
+  /** Optional game repository with scene support */
+  gameRepoWithScene?: GameRepositoryWithScene;
 }
 
 /**
  * Create a context builder with injected database dependencies
  *
  * @param db - The database connection
- * @param options - Optional configuration including evolution and pattern repositories
+ * @param options - Optional configuration including evolution, pattern, and scene repositories
  * @returns A configured ContextBuilder instance
  */
 export function createContextBuilder(
@@ -761,6 +957,8 @@ export function createContextBuilder(
     new SQLiteAreaRepository(db),
     new SQLitePartyRepository(db),
     options?.evolutionRepo,
-    options?.patternRepo
+    options?.patternRepo,
+    options?.sceneRepo,
+    options?.gameRepoWithScene
   );
 }

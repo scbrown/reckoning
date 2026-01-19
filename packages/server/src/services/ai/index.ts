@@ -30,19 +30,23 @@ export {
   ratioToPercent,
   patternsToContext,
   formatPlayerBehavior,
+  formatSceneContext,
   type ContextBuilder,
   type ContextBuildOptions,
   type ContextBuilderOptions,
   type ExtendedGenerationContext,
   type EntityEvolutionContext,
   type PlayerBehaviorContext,
+  type SceneContext,
   type GameRepository,
+  type GameRepositoryWithScene,
   type EventRepository,
   type AreaRepository,
   type AreaWithDetails,
   type PartyRepository,
   type EvolutionRepository,
   type PatternRepository,
+  type SceneRepository,
 } from './context-builder.js';
 
 export {

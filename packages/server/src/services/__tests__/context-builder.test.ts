@@ -714,3 +714,417 @@ describe('DefaultContextBuilder with PatternRepository', () => {
     expect(context.formattedPlayerBehavior).toBeUndefined();
   });
 });
+
+// =============================================================================
+// Scene Context Tests
+// =============================================================================
+
+import {
+  formatSceneContext,
+  type SceneContext,
+  type SceneRepository,
+  type GameRepositoryWithScene,
+} from '../ai/context-builder.js';
+import type { Scene } from '../../db/repositories/scene-repository.js';
+
+describe('formatSceneContext', () => {
+  it('should format current scene with all details', () => {
+    const sceneContext: SceneContext = {
+      currentScene: {
+        name: 'The Dark Forest',
+        sceneType: 'exploration',
+        mood: 'tense',
+        stakes: 'medium',
+        turnCount: 5,
+        status: 'active',
+      },
+      availableScenes: [],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Current scene: "The Dark Forest" (exploration) - Mood: tense, Stakes: medium');
+    expect(result).toContain('Scene progress: Turn 5 of current scene');
+  });
+
+  it('should show no active scene when currentScene is null', () => {
+    const sceneContext: SceneContext = {
+      currentScene: null,
+      availableScenes: [],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Current scene: None (between scenes)');
+  });
+
+  it('should format available transitions', () => {
+    const sceneContext: SceneContext = {
+      currentScene: null,
+      availableScenes: [
+        { id: 'scene-1', name: 'Town Square', sceneType: 'social' },
+        { id: 'scene-2', name: 'Cave Entrance', sceneType: 'combat' },
+      ],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Available transitions: "Town Square" (social), "Cave Entrance" (combat)');
+  });
+
+  it('should format recent scene history', () => {
+    const sceneContext: SceneContext = {
+      currentScene: null,
+      availableScenes: [],
+      recentScenes: [
+        { name: 'Village Inn', sceneType: 'social', status: 'completed' },
+        { name: 'Road Ambush', sceneType: 'combat', status: 'completed' },
+      ],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Recent scenes: "Village Inn" (social), completed; "Road Ambush" (combat), completed');
+  });
+
+  it('should handle scene with only mood', () => {
+    const sceneContext: SceneContext = {
+      currentScene: {
+        name: 'Misty Valley',
+        sceneType: 'exploration',
+        mood: 'mysterious',
+        stakes: null,
+        turnCount: 2,
+        status: 'active',
+      },
+      availableScenes: [],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Current scene: "Misty Valley" (exploration) - Mood: mysterious');
+    expect(result).not.toContain('Stakes:');
+  });
+
+  it('should handle scene with only stakes', () => {
+    const sceneContext: SceneContext = {
+      currentScene: {
+        name: 'Final Battle',
+        sceneType: 'combat',
+        mood: null,
+        stakes: 'high',
+        turnCount: 1,
+        status: 'active',
+      },
+      availableScenes: [],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Current scene: "Final Battle" (combat) - Stakes: high');
+    expect(result).not.toContain('Mood:');
+  });
+
+  it('should handle scene with null name', () => {
+    const sceneContext: SceneContext = {
+      currentScene: {
+        name: null,
+        sceneType: 'exploration',
+        mood: null,
+        stakes: null,
+        turnCount: 3,
+        status: 'active',
+      },
+      availableScenes: [],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Current scene: "Unnamed Scene" (exploration)');
+  });
+
+  it('should handle scene without type', () => {
+    const sceneContext: SceneContext = {
+      currentScene: {
+        name: 'Random Event',
+        sceneType: null,
+        mood: 'neutral',
+        stakes: null,
+        turnCount: 1,
+        status: 'active',
+      },
+      availableScenes: [],
+      recentScenes: [],
+    };
+
+    const result = formatSceneContext(sceneContext);
+
+    expect(result).toContain('Current scene: "Random Event" - Mood: neutral');
+    expect(result).not.toContain('()');
+  });
+});
+
+describe('DefaultContextBuilder with SceneRepository', () => {
+  const mockScene: Scene = {
+    id: 'scene-001',
+    gameId: 'game-123',
+    name: 'The Tavern Brawl',
+    description: 'A fight breaks out in the tavern',
+    sceneType: 'combat',
+    locationId: 'tavern_common',
+    startedTurn: 3,
+    completedTurn: null,
+    status: 'active',
+    mood: 'tense',
+    stakes: 'medium',
+    createdAt: '2024-01-01T00:00:00Z',
+    updatedAt: '2024-01-01T00:00:00Z',
+  };
+
+  const mockAvailableScenes: Scene[] = [
+    {
+      id: 'scene-002',
+      gameId: 'game-123',
+      name: 'Escape Route',
+      description: 'A way out of the tavern',
+      sceneType: 'exploration',
+      locationId: 'tavern_back',
+      startedTurn: 1,
+      completedTurn: null,
+      status: 'active',
+      mood: null,
+      stakes: null,
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    },
+  ];
+
+  const mockAllScenes: Scene[] = [
+    {
+      id: 'scene-000',
+      gameId: 'game-123',
+      name: 'Arrival',
+      description: 'Party arrives at the tavern',
+      sceneType: 'social',
+      locationId: 'tavern_common',
+      startedTurn: 1,
+      completedTurn: 2,
+      status: 'completed',
+      mood: 'calm',
+      stakes: 'low',
+      createdAt: '2024-01-01T00:00:00Z',
+      updatedAt: '2024-01-01T00:00:00Z',
+    },
+    mockScene,
+    ...mockAvailableScenes,
+  ];
+
+  function createMockSceneRepo(): SceneRepository {
+    return {
+      findById: vi.fn().mockImplementation((id: string) => {
+        if (id === 'scene-001') return mockScene;
+        return null;
+      }),
+      findByGame: vi.fn().mockReturnValue(mockAllScenes),
+      findAvailable: vi.fn().mockReturnValue([mockScene, ...mockAvailableScenes]),
+      countEventsInScene: vi.fn().mockReturnValue(5),
+    };
+  }
+
+  function createMockGameRepoWithScene(): GameRepositoryWithScene {
+    return {
+      findById: vi.fn().mockReturnValue(mockGameState),
+      getCurrentSceneId: vi.fn().mockReturnValue('scene-001'),
+    };
+  }
+
+  it('should include sceneContext when SceneRepository is provided', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const sceneRepo = createMockSceneRepo();
+    const gameRepoWithScene = createMockGameRepoWithScene();
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      undefined,
+      sceneRepo,
+      gameRepoWithScene
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(gameRepoWithScene.getCurrentSceneId).toHaveBeenCalledWith('game-123');
+    expect(sceneRepo.findById).toHaveBeenCalledWith('scene-001');
+    expect(context.sceneContext).toBeDefined();
+    expect(context.sceneContext?.currentScene).toBeDefined();
+    expect(context.sceneContext?.currentScene?.name).toBe('The Tavern Brawl');
+    expect(context.sceneContext?.currentScene?.sceneType).toBe('combat');
+    expect(context.sceneContext?.currentScene?.mood).toBe('tense');
+    expect(context.sceneContext?.currentScene?.stakes).toBe('medium');
+  });
+
+  it('should calculate turnCount correctly', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const sceneRepo = createMockSceneRepo();
+    const gameRepoWithScene = createMockGameRepoWithScene();
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      undefined,
+      sceneRepo,
+      gameRepoWithScene
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    // Game is at turn 5, scene started at turn 3: 5 - 3 + 1 = 3
+    expect(context.sceneContext?.currentScene?.turnCount).toBe(3);
+  });
+
+  it('should include available scenes excluding current scene', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const sceneRepo = createMockSceneRepo();
+    const gameRepoWithScene = createMockGameRepoWithScene();
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      undefined,
+      sceneRepo,
+      gameRepoWithScene
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(sceneRepo.findAvailable).toHaveBeenCalledWith('game-123');
+    // Should not include the current scene (scene-001) in available scenes
+    expect(context.sceneContext?.availableScenes.length).toBe(1);
+    expect(context.sceneContext?.availableScenes[0].name).toBe('Escape Route');
+  });
+
+  it('should include recent scene history', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const sceneRepo = createMockSceneRepo();
+    const gameRepoWithScene = createMockGameRepoWithScene();
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      undefined,
+      sceneRepo,
+      gameRepoWithScene
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(sceneRepo.findByGame).toHaveBeenCalledWith('game-123');
+    expect(context.sceneContext?.recentScenes.length).toBe(1);
+    expect(context.sceneContext?.recentScenes[0].name).toBe('Arrival');
+    expect(context.sceneContext?.recentScenes[0].status).toBe('completed');
+  });
+
+  it('should include formattedSceneContext', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const sceneRepo = createMockSceneRepo();
+    const gameRepoWithScene = createMockGameRepoWithScene();
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      undefined,
+      sceneRepo,
+      gameRepoWithScene
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(context.formattedSceneContext).toBeDefined();
+    expect(context.formattedSceneContext).toContain('Current scene: "The Tavern Brawl" (combat)');
+    expect(context.formattedSceneContext).toContain('Mood: tense');
+    expect(context.formattedSceneContext).toContain('Stakes: medium');
+  });
+
+  it('should handle no current scene gracefully', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const sceneRepo = createMockSceneRepo();
+    const gameRepoWithScene: GameRepositoryWithScene = {
+      findById: vi.fn().mockReturnValue(mockGameState),
+      getCurrentSceneId: vi.fn().mockReturnValue(null),
+    };
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      undefined,
+      sceneRepo,
+      gameRepoWithScene
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(context.sceneContext?.currentScene).toBeNull();
+    expect(context.formattedSceneContext).toContain('Current scene: None (between scenes)');
+  });
+
+  it('should not include sceneContext when SceneRepository is not provided', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(context.sceneContext).toBeUndefined();
+    expect(context.formattedSceneContext).toBeUndefined();
+  });
+});
