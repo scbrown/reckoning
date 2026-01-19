@@ -17,6 +17,7 @@ import type {
   EventType,
 } from '@reckoning/shared';
 import type { BroadcastManager } from '../sse/index.js';
+import type { SceneSSE } from '../sse/types.js';
 import type { AIProvider } from '../ai/types.js';
 import { createContextBuilder } from '../ai/context-builder.js';
 import {
@@ -26,9 +27,14 @@ import {
   RelationshipRepository,
   PendingEvolutionRepository,
   EmergenceNotificationRepository,
+  SceneRepository,
+  SceneAvailabilityRepository,
+  SceneConnectionRepository,
 } from '../../db/repositories/index.js';
+import type { Scene } from '../../db/repositories/scene-repository.js';
 import { EvolutionService } from '../evolution/index.js';
 import { EmergenceObserver, EmergenceNotificationService } from '../events/index.js';
+import { SceneManager, type SceneEvent } from '../scene/index.js';
 import { ContentPipeline } from './content-pipeline.js';
 import { EventLoop } from './event-loop.js';
 import { StateManager } from './state-manager.js';
@@ -62,6 +68,8 @@ export interface GameEngineDeps {
   db: Database;
   aiProvider: AIProvider;
   broadcaster: BroadcastManager;
+  /** Enable scene management (optional - scenes are not required) */
+  enableScenes?: boolean;
 }
 
 // =============================================================================
@@ -87,9 +95,10 @@ export class GameEngine {
   private broadcaster: BroadcastManager;
   private gameRepo: GameRepository;
   private partyRepo: PartyRepository;
+  private sceneManager: SceneManager | null = null;
 
   constructor(deps: GameEngineDeps) {
-    const { db, aiProvider, broadcaster } = deps;
+    const { db, aiProvider, broadcaster, enableScenes } = deps;
 
     this.broadcaster = broadcaster;
     this.gameRepo = new GameRepository(db);
@@ -127,10 +136,79 @@ export class GameEngine {
       emergenceService,
     });
 
+    // Initialize SceneManager if scenes are enabled (optional)
+    if (enableScenes) {
+      const sceneRepo = new SceneRepository(db);
+      const availabilityRepo = new SceneAvailabilityRepository(db);
+      const connectionRepo = new SceneConnectionRepository(db);
+
+      this.sceneManager = new SceneManager({
+        sceneRepo,
+        availabilityRepo,
+        connectionRepo,
+        gameRepo: this.gameRepo,
+        eventEmitter: {
+          emit: (event: SceneEvent) => this.handleSceneEvent(event),
+        },
+      });
+    }
+
     // Wire up event loop callback
     this.eventLoop.setGenerateCallback(async (gameId) => {
       await this.generateNext(gameId);
     });
+  }
+
+  /**
+   * Handle scene events and broadcast via SSE
+   */
+  private handleSceneEvent(event: SceneEvent): void {
+    const sceneSSE = this.sceneToSSE(event.scene);
+
+    switch (event.type) {
+      case 'scene:started':
+        this.broadcaster.broadcast(event.gameId, {
+          type: 'scene_started',
+          scene: sceneSSE,
+          gameId: event.gameId,
+        });
+        break;
+
+      case 'scene:completed':
+        this.broadcaster.broadcast(event.gameId, {
+          type: 'scene_completed',
+          scene: sceneSSE,
+          gameId: event.gameId,
+        });
+        break;
+
+      case 'scene:abandoned':
+        this.broadcaster.broadcast(event.gameId, {
+          type: 'scene_abandoned',
+          scene: sceneSSE,
+          gameId: event.gameId,
+        });
+        break;
+
+      case 'scene:created':
+        // Scene created events are not broadcast - clients learn about scenes
+        // when they start or via getAvailableScenes
+        break;
+    }
+  }
+
+  /**
+   * Convert a Scene to SSE-safe format
+   */
+  private sceneToSSE(scene: Scene): SceneSSE {
+    return {
+      id: scene.id,
+      name: scene.name,
+      sceneType: scene.sceneType,
+      status: scene.status,
+      startedTurn: scene.startedTurn,
+      completedTurn: scene.completedTurn,
+    };
   }
 
   // ===========================================================================
@@ -369,6 +447,91 @@ export class GameEngine {
    */
   getPlaybackMode(gameId: string): PlaybackMode {
     return this.eventLoop.getMode(gameId);
+  }
+
+  // ===========================================================================
+  // Scene Operations (Optional)
+  // ===========================================================================
+
+  /**
+   * Check if scene management is enabled
+   *
+   * @returns True if scenes are enabled
+   */
+  isScenesEnabled(): boolean {
+    return this.sceneManager !== null;
+  }
+
+  /**
+   * Start a scene, making it the current active scene for the game.
+   *
+   * Requires scenes to be enabled via the enableScenes option.
+   *
+   * @param gameId - ID of the game
+   * @param sceneId - ID of the scene to start
+   * @param turn - Current turn number
+   * @returns The started scene
+   * @throws Error if scenes not enabled or scene not found
+   */
+  startScene(gameId: string, sceneId: string, turn: number): Scene {
+    if (!this.sceneManager) {
+      throw new Error('Scene management is not enabled');
+    }
+
+    return this.sceneManager.startScene({ gameId, sceneId, turn });
+  }
+
+  /**
+   * End (complete) a scene.
+   *
+   * Requires scenes to be enabled via the enableScenes option.
+   *
+   * @param gameId - ID of the game
+   * @param sceneId - ID of the scene to complete
+   * @param turn - Current turn number
+   * @returns The completed scene
+   * @throws Error if scenes not enabled or scene not found
+   */
+  endScene(gameId: string, sceneId: string, turn: number): Scene {
+    if (!this.sceneManager) {
+      throw new Error('Scene management is not enabled');
+    }
+
+    return this.sceneManager.completeScene({ gameId, sceneId, turn });
+  }
+
+  /**
+   * Get all available (unlocked) scenes for a game.
+   *
+   * Requires scenes to be enabled via the enableScenes option.
+   *
+   * @param gameId - ID of the game
+   * @returns Array of available scenes
+   * @throws Error if scenes not enabled
+   */
+  getAvailableScenes(gameId: string): Scene[] {
+    if (!this.sceneManager) {
+      throw new Error('Scene management is not enabled');
+    }
+
+    return this.sceneManager.getAvailableScenes(gameId);
+  }
+
+  /**
+   * Get the current active scene for a game.
+   *
+   * Requires scenes to be enabled via the enableScenes option.
+   *
+   * @param gameId - ID of the game
+   * @returns The current scene or null if none is active
+   * @throws Error if scenes not enabled
+   */
+  getCurrentScene(gameId: string): Scene | null {
+    if (!this.sceneManager) {
+      throw new Error('Scene management is not enabled');
+    }
+
+    return this.sceneManager.getCurrentScene(gameId);
   }
 
   // ===========================================================================

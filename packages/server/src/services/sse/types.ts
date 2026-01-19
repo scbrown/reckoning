@@ -65,6 +65,30 @@ export interface EmergenceOpportunitySSE {
 }
 
 /**
+ * Scene data for SSE events
+ */
+export interface SceneSSE {
+  id: string;
+  name: string | null;
+  sceneType: string | null;
+  status: 'active' | 'completed' | 'abandoned';
+  startedTurn: number;
+  completedTurn: number | null;
+}
+
+/**
+ * Scene boundary suggestion from AI
+ */
+export interface SceneBoundarySuggestion {
+  /** Confidence score from 0-1 that a scene boundary is appropriate */
+  confidence: number;
+  /** Reason for the suggestion */
+  reason: string;
+  /** Suggested scene type for the next scene */
+  suggestedNextSceneType?: string;
+}
+
+/**
  * SSE Event discriminated union
  */
 export type SSEEvent =
@@ -75,6 +99,7 @@ export type SSEEvent =
       content: string;
       eventType: string;
       metadata?: { speaker?: string; suggestedActions?: string[] };
+      sceneBoundarySuggestion?: SceneBoundarySuggestion;
     }
   | { type: 'generation_error'; error: string }
   | { type: 'state_changed'; state: GameState }
@@ -82,7 +107,10 @@ export type SSEEvent =
   | { type: 'tts_complete'; eventId: string }
   | { type: 'editor_state'; editorState: DMEditorState }
   | { type: 'heartbeat'; timestamp: string }
-  | { type: 'emergence_detected'; timestamp: string; opportunity: EmergenceOpportunitySSE; notificationId: string };
+  | { type: 'emergence_detected'; timestamp: string; opportunity: EmergenceOpportunitySSE; notificationId: string }
+  | { type: 'scene_started'; scene: SceneSSE; gameId: string }
+  | { type: 'scene_completed'; scene: SceneSSE; gameId: string }
+  | { type: 'scene_abandoned'; scene: SceneSSE; gameId: string };
 
 // =============================================================================
 // SSE Client Types

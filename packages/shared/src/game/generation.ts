@@ -59,6 +59,18 @@ export interface GeneratedContent {
 }
 
 /**
+ * Scene boundary suggestion from AI
+ */
+export interface SceneBoundarySuggestion {
+  /** Confidence score from 0-1 that a scene boundary is appropriate */
+  confidence: number;
+  /** Reason for the suggestion (e.g., 'location_change', 'confrontation_resolved') */
+  reason: string;
+  /** Suggested scene type for the next scene */
+  suggestedNextSceneType?: string;
+}
+
+/**
  * Metadata about generated content
  */
 export interface GenerationMetadata {
@@ -82,6 +94,10 @@ export interface GenerationMetadata {
   witnesses?: string[];
   /** Tags for categorization and querying */
   tags?: string[];
+
+  // Scene boundary detection (NARR-009, NARR-011)
+  /** Optional scene boundary suggestion when AI detects a natural break point */
+  sceneBoundarySuggestion?: SceneBoundarySuggestion;
 }
 
 // =============================================================================

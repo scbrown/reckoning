@@ -38,6 +38,7 @@ export type {
   GenerationContext,
   GeneratedContent,
   GenerationMetadata,
+  SceneBoundarySuggestion,
   ContentGenerator,
   ContextBuilder,
 } from './generation.js';
