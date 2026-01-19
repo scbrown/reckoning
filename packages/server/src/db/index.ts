@@ -79,6 +79,10 @@ export function runMigrations(database: Database.Database): void {
   addColumnIfNotExists(database, 'events', 'target_type', 'TEXT');
   addColumnIfNotExists(database, 'events', 'target_id', 'TEXT');
   addColumnIfNotExists(database, 'events', 'tags', 'TEXT');
+
+  // Migration: NARR-004 - Add current scene tracking to games
+  // Tracks which scene is currently active in a game
+  addColumnIfNotExists(database, 'games', 'current_scene_id', 'TEXT');
 }
 
 /**

@@ -1094,4 +1094,269 @@ describe('Database Schema', () => {
     count = db.prepare(`SELECT COUNT(*) as count FROM scene_availability`).get() as { count: number };
     expect(count.count).toBe(0);
   });
+
+  it('should create scene_flags table with correct columns', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('scene_flags')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('id');
+    expect(columnNames).toContain('game_id');
+    expect(columnNames).toContain('scene_id');
+    expect(columnNames).toContain('flag_name');
+    expect(columnNames).toContain('flag_value');
+    expect(columnNames).toContain('set_turn');
+    expect(columnNames).toContain('created_at');
+  });
+
+  it('should create indexes for scene_flags table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const indexes = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name LIKE 'idx_scene_flags%'
+    `).all();
+    const indexNames = indexes.map((idx: { name: string }) => idx.name);
+
+    expect(indexNames).toContain('idx_scene_flags_game_scene');
+    expect(indexNames).toContain('idx_scene_flags_name');
+  });
+
+  it('should set correct default flag_value for scene_flags', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scene first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // Insert flag without specifying flag_value
+    db.exec(`
+      INSERT INTO scene_flags (id, game_id, scene_id, flag_name, set_turn)
+      VALUES ('flag-1', 'game-1', 'scene-1', 'door_opened', 5)
+    `);
+
+    const flag = db.prepare(`SELECT flag_value FROM scene_flags WHERE id = 'flag-1'`).get() as { flag_value: string };
+    expect(flag.flag_value).toBe('true');
+  });
+
+  it('should enforce unique constraint on scene_flags (game_id, scene_id, flag_name)', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scene first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // First flag should work
+    expect(() => {
+      db.exec(`
+        INSERT INTO scene_flags (id, game_id, scene_id, flag_name, set_turn)
+        VALUES ('flag-1', 'game-1', 'scene-1', 'door_opened', 5)
+      `);
+    }).not.toThrow();
+
+    // Duplicate flag (same game_id, scene_id, flag_name) should fail
+    expect(() => {
+      db.exec(`
+        INSERT INTO scene_flags (id, game_id, scene_id, flag_name, set_turn)
+        VALUES ('flag-2', 'game-1', 'scene-1', 'door_opened', 6)
+      `);
+    }).toThrow();
+
+    // Same flag name in different scene should work
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-2', 'game-1', 10)
+    `);
+    expect(() => {
+      db.exec(`
+        INSERT INTO scene_flags (id, game_id, scene_id, flag_name, set_turn)
+        VALUES ('flag-3', 'game-1', 'scene-2', 'door_opened', 10)
+      `);
+    }).not.toThrow();
+  });
+
+  it('should store scene_flags with correct values', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scene first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // Insert flag with custom value
+    db.exec(`
+      INSERT INTO scene_flags (id, game_id, scene_id, flag_name, flag_value, set_turn)
+      VALUES ('flag-1', 'game-1', 'scene-1', 'chest_contents', 'gold_coins', 7)
+    `);
+
+    const flag = db.prepare(`SELECT * FROM scene_flags WHERE id = 'flag-1'`).get() as {
+      id: string;
+      game_id: string;
+      scene_id: string;
+      flag_name: string;
+      flag_value: string;
+      set_turn: number;
+    };
+
+    expect(flag.id).toBe('flag-1');
+    expect(flag.game_id).toBe('game-1');
+    expect(flag.scene_id).toBe('scene-1');
+    expect(flag.flag_name).toBe('chest_contents');
+    expect(flag.flag_value).toBe('gold_coins');
+    expect(flag.set_turn).toBe(7);
+  });
+
+  it('should cascade delete scene_flags when game is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game, scene, and flag
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scene_flags (id, game_id, scene_id, flag_name, set_turn)
+      VALUES ('flag-1', 'game-1', 'scene-1', 'test_flag', 1)
+    `);
+
+    // Verify flag exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scene_flags`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the game
+    db.exec(`DELETE FROM games WHERE id = 'game-1'`);
+
+    // Flag should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scene_flags`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
+
+  it('should cascade delete scene_flags when scene is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game, scene, and flag
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scene_flags (id, game_id, scene_id, flag_name, set_turn)
+      VALUES ('flag-1', 'game-1', 'scene-1', 'test_flag', 1)
+    `);
+
+    // Verify flag exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scene_flags`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the scene
+    db.exec(`DELETE FROM scenes WHERE id = 'scene-1'`);
+
+    // Flag should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scene_flags`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
+
+  it('should have current_scene_id column in games table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('games')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('current_scene_id');
+  });
+
+  it('should allow null current_scene_id in games table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Insert game without current_scene_id
+    expect(() => {
+      db.exec(`
+        INSERT INTO games (id, player_id, current_area_id)
+        VALUES ('game-1', 'player-1', 'area-1')
+      `);
+    }).not.toThrow();
+
+    const game = db.prepare(`SELECT current_scene_id FROM games WHERE id = 'game-1'`).get() as { current_scene_id: string | null };
+    expect(game.current_scene_id).toBeNull();
+  });
+
+  it('should allow setting current_scene_id to a valid scene', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create game and scene
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // Update game with current_scene_id
+    db.exec(`
+      UPDATE games SET current_scene_id = 'scene-1' WHERE id = 'game-1'
+    `);
+
+    const game = db.prepare(`SELECT current_scene_id FROM games WHERE id = 'game-1'`).get() as { current_scene_id: string };
+    expect(game.current_scene_id).toBe('scene-1');
+  });
 });

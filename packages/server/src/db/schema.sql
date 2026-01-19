@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS games (
   id TEXT PRIMARY KEY,
   player_id TEXT NOT NULL,
   current_area_id TEXT NOT NULL,
+  current_scene_id TEXT,  -- FK to scenes(id), nullable (NARR-004)
   turn INTEGER DEFAULT 0,
   playback_mode TEXT DEFAULT 'auto',
   created_at TEXT DEFAULT (datetime('now')),
@@ -333,6 +334,21 @@ CREATE TABLE IF NOT EXISTS scene_availability (
 );
 CREATE INDEX IF NOT EXISTS idx_scene_availability_game ON scene_availability(game_id);
 CREATE INDEX IF NOT EXISTS idx_scene_availability_scene ON scene_availability(scene_id);
+
+-- Scene flags table (NARR-004)
+-- Scene-specific flags that are separate from game-wide flags
+CREATE TABLE IF NOT EXISTS scene_flags (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  flag_name TEXT NOT NULL,
+  flag_value TEXT NOT NULL DEFAULT 'true',
+  set_turn INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(game_id, scene_id, flag_name)
+);
+CREATE INDEX IF NOT EXISTS idx_scene_flags_game_scene ON scene_flags(game_id, scene_id);
+CREATE INDEX IF NOT EXISTS idx_scene_flags_name ON scene_flags(game_id, flag_name);
 
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
