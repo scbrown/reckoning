@@ -49,3 +49,11 @@ export {
   type RepairError,
   type RepairerConfig,
 } from './repairer.js';
+
+export {
+  PixelsrcVisualValidator,
+  type VisualValidationContext,
+  type VisualValidationResult,
+  type VisualValidationError,
+  type PixelsrcVisualValidatorConfig,
+} from './visual-validator.js';
