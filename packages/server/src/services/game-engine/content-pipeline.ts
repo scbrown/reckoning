@@ -36,6 +36,10 @@ import {
   type PartyContext,
 } from '../ai/prompts/index.js';
 import type { EvolutionService, EvolutionSuggestion, GameEventRef } from '../evolution/index.js';
+import {
+  EventBuilder,
+  type AIStructuredMetadata,
+} from '../events/index.js';
 
 // =============================================================================
 // Types
@@ -65,6 +69,7 @@ export interface ContentPipelineConfig {
   contextBuilder: ContextBuilder;
   aiProvider: AIProvider;
   evolutionService?: EvolutionService;
+  eventBuilder?: EventBuilder;
 }
 
 // =============================================================================
@@ -79,6 +84,7 @@ export class ContentPipeline {
   private contextBuilder: ContextBuilder;
   private aiProvider: AIProvider;
   private evolutionService: EvolutionService | undefined;
+  private eventBuilder: EventBuilder;
 
   constructor(config: ContentPipelineConfig);
   constructor(contextBuilder: ContextBuilder, aiProvider: AIProvider);
@@ -91,10 +97,12 @@ export class ContentPipeline {
       this.contextBuilder = configOrContextBuilder.contextBuilder;
       this.aiProvider = configOrContextBuilder.aiProvider;
       this.evolutionService = configOrContextBuilder.evolutionService;
+      this.eventBuilder = configOrContextBuilder.eventBuilder ?? new EventBuilder();
     } else {
       // Legacy two-argument constructor for backwards compatibility
       this.contextBuilder = configOrContextBuilder;
       this.aiProvider = aiProvider!;
+      this.eventBuilder = new EventBuilder();
     }
   }
 
@@ -176,7 +184,49 @@ export class ContentPipeline {
       aiResult.value.content,
       type
     );
-    console.log(`[ContentPipeline] Generation complete for ${type}`);
+
+    // Build structured event data using EventBuilder (SEVT-008)
+    const aiMetadata = this.extractAIStructuredMetadata(parsedResponse);
+    const buildParams: Parameters<typeof this.eventBuilder.buildFromGeneration>[0] = {
+      generationType: type,
+      eventType: generatedContent.eventType,
+      content: generatedContent.content,
+      npcsPresent: context.npcsPresent.map(npc => ({ id: npc.id, name: npc.name })),
+      partyMembers: context.party.map(char => ({ id: char.id, name: char.name })),
+      locationId: context.currentArea.id,
+    };
+    if (aiMetadata) {
+      buildParams.metadata = aiMetadata;
+    }
+    if (generatedContent.metadata.speaker) {
+      buildParams.speaker = generatedContent.metadata.speaker;
+    }
+    const structuredData = this.eventBuilder.buildFromGeneration(buildParams);
+
+    // Merge structured data into metadata
+    if (structuredData.action) {
+      generatedContent.metadata.action = structuredData.action;
+    }
+    if (structuredData.actorType) {
+      generatedContent.metadata.actorType = structuredData.actorType;
+    }
+    if (structuredData.actorId) {
+      generatedContent.metadata.actorId = structuredData.actorId;
+    }
+    if (structuredData.targetType) {
+      generatedContent.metadata.targetType = structuredData.targetType;
+    }
+    if (structuredData.targetId) {
+      generatedContent.metadata.targetId = structuredData.targetId;
+    }
+    if (structuredData.witnesses.length > 0) {
+      generatedContent.metadata.witnesses = structuredData.witnesses;
+    }
+    if (structuredData.tags.length > 0) {
+      generatedContent.metadata.tags = structuredData.tags;
+    }
+
+    console.log(`[ContentPipeline] Generation complete for ${type} with structured data`);
 
     // Detect evolutions if EvolutionService is configured
     if (this.evolutionService && parsedResponse) {
@@ -819,5 +869,167 @@ export class ContentPipeline {
     );
 
     console.log(`[ContentPipeline] Queued ${pending.length} pending evolutions for DM review`);
+  }
+
+  /**
+   * Valid actor types
+   */
+  private static readonly VALID_ACTOR_TYPES = new Set(['player', 'character', 'npc', 'system']);
+
+  /**
+   * Valid target types
+   */
+  private static readonly VALID_TARGET_TYPES = new Set(['player', 'character', 'npc', 'area', 'object']);
+
+  /**
+   * Extract AI-provided structured metadata from parsed response.
+   * Looks for metadata fields like action, actor, targets, witnesses, tags.
+   */
+  private extractAIStructuredMetadata(
+    parsedResponse: Record<string, unknown> | null
+  ): AIStructuredMetadata | undefined {
+    if (!parsedResponse) {
+      return undefined;
+    }
+
+    // Check for metadata object in response
+    const metadata = parsedResponse.metadata as Record<string, unknown> | undefined;
+    if (!metadata) {
+      // Also check for top-level structured fields (alternative AI output format)
+      const topLevelMetadata: AIStructuredMetadata = {};
+      if (typeof parsedResponse.action === 'string') {
+        topLevelMetadata.action = parsedResponse.action;
+      }
+      const actor = this.parseActorRef(parsedResponse.actor);
+      if (actor) {
+        topLevelMetadata.actor = actor;
+      }
+      if (Array.isArray(parsedResponse.targets)) {
+        const targets = this.parseTargetRefs(parsedResponse.targets);
+        if (targets.length > 0) {
+          topLevelMetadata.targets = targets;
+        }
+      }
+      if (Array.isArray(parsedResponse.witnesses)) {
+        const witnesses = this.parseWitnessRefs(parsedResponse.witnesses);
+        if (witnesses.length > 0) {
+          topLevelMetadata.witnesses = witnesses;
+        }
+      }
+      if (Array.isArray(parsedResponse.tags)) {
+        const tags = parsedResponse.tags.filter((t): t is string => typeof t === 'string');
+        if (tags.length > 0) {
+          topLevelMetadata.tags = tags;
+        }
+      }
+
+      return Object.keys(topLevelMetadata).length > 0 ? topLevelMetadata : undefined;
+    }
+
+    // Extract from metadata object
+    const aiMetadata: AIStructuredMetadata = {};
+
+    if (typeof metadata.action === 'string') {
+      aiMetadata.action = metadata.action;
+    }
+    const actor = this.parseActorRef(metadata.actor);
+    if (actor) {
+      aiMetadata.actor = actor;
+    }
+    if (Array.isArray(metadata.targets)) {
+      const targets = this.parseTargetRefs(metadata.targets);
+      if (targets.length > 0) {
+        aiMetadata.targets = targets;
+      }
+    }
+    if (Array.isArray(metadata.witnesses)) {
+      const witnesses = this.parseWitnessRefs(metadata.witnesses);
+      if (witnesses.length > 0) {
+        aiMetadata.witnesses = witnesses;
+      }
+    }
+    if (Array.isArray(metadata.tags)) {
+      const tags = metadata.tags.filter((t): t is string => typeof t === 'string');
+      if (tags.length > 0) {
+        aiMetadata.tags = tags;
+      }
+    }
+
+    return Object.keys(aiMetadata).length > 0 ? aiMetadata : undefined;
+  }
+
+  /**
+   * Parse and validate an actor reference from unknown data
+   */
+  private parseActorRef(value: unknown): { type: 'player' | 'character' | 'npc' | 'system'; id: string } | undefined {
+    if (typeof value !== 'object' || value === null) {
+      return undefined;
+    }
+    const obj = value as Record<string, unknown>;
+    const type = obj.type;
+    const id = obj.id;
+    if (
+      typeof type === 'string' &&
+      typeof id === 'string' &&
+      ContentPipeline.VALID_ACTOR_TYPES.has(type)
+    ) {
+      return {
+        type: type as 'player' | 'character' | 'npc' | 'system',
+        id,
+      };
+    }
+    return undefined;
+  }
+
+  /**
+   * Parse and validate target references from unknown array
+   */
+  private parseTargetRefs(values: unknown[]): Array<{ type: 'player' | 'character' | 'npc' | 'area' | 'object'; id: string }> {
+    const results: Array<{ type: 'player' | 'character' | 'npc' | 'area' | 'object'; id: string }> = [];
+    for (const value of values) {
+      if (typeof value !== 'object' || value === null) {
+        continue;
+      }
+      const obj = value as Record<string, unknown>;
+      const type = obj.type;
+      const id = obj.id;
+      if (
+        typeof type === 'string' &&
+        typeof id === 'string' &&
+        ContentPipeline.VALID_TARGET_TYPES.has(type)
+      ) {
+        results.push({
+          type: type as 'player' | 'character' | 'npc' | 'area' | 'object',
+          id,
+        });
+      }
+    }
+    return results;
+  }
+
+  /**
+   * Parse and validate witness references from unknown array
+   */
+  private parseWitnessRefs(values: unknown[]): Array<{ type: 'player' | 'character' | 'npc' | 'system'; id: string }> {
+    const results: Array<{ type: 'player' | 'character' | 'npc' | 'system'; id: string }> = [];
+    for (const value of values) {
+      if (typeof value !== 'object' || value === null) {
+        continue;
+      }
+      const obj = value as Record<string, unknown>;
+      const type = obj.type;
+      const id = obj.id;
+      if (
+        typeof type === 'string' &&
+        typeof id === 'string' &&
+        ContentPipeline.VALID_ACTOR_TYPES.has(type)
+      ) {
+        results.push({
+          type: type as 'player' | 'character' | 'npc' | 'system',
+          id,
+        });
+      }
+    }
+    return results;
   }
 }

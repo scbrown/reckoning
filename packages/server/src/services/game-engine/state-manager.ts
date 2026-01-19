@@ -71,6 +71,10 @@ export class StateManager {
     // Create the event in the database
     const createdEvent = this.eventRepo.create(event);
 
+    // TODO(SEVT-007): Call emergenceObserver.onEventCommitted(createdEvent) here
+    // once EmergenceObserver service is implemented to detect narrative emergence
+    // opportunities (villain/ally emergence based on relationship thresholds).
+
     // Get current game state for SSE
     const gameState = this.gameRepo.findById(gameId);
 

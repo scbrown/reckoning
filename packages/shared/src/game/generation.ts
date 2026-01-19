@@ -4,7 +4,7 @@
  * Types for AI content generation and context building.
  */
 
-import type { EventType } from './events.js';
+import type { EventType, ActorType, TargetType } from './events.js';
 import type { GameState } from './types.js';
 
 // =============================================================================
@@ -66,6 +66,22 @@ export interface GenerationMetadata {
   speaker?: string;
   /** Suggested follow-up actions for the player */
   suggestedActions?: string[];
+
+  // Structured event metadata (SEVT-008)
+  /** Action verb describing what happened (e.g., 'attack', 'speak', 'move') */
+  action?: string;
+  /** Type of the acting entity */
+  actorType?: ActorType;
+  /** ID of the acting entity */
+  actorId?: string;
+  /** Type of the target entity */
+  targetType?: TargetType;
+  /** ID of the target entity */
+  targetId?: string;
+  /** Entity IDs who witnessed this event */
+  witnesses?: string[];
+  /** Tags for categorization and querying */
+  tags?: string[];
 }
 
 // =============================================================================
