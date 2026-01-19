@@ -928,4 +928,170 @@ describe('Database Schema', () => {
     count = db.prepare(`SELECT COUNT(*) as count FROM scene_connections`).get() as { count: number };
     expect(count.count).toBe(0);
   });
+
+  it('should create scene_availability table with correct columns', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const tableInfo = db.prepare("PRAGMA table_info('scene_availability')").all();
+    const columnNames = tableInfo.map((col: { name: string }) => col.name);
+
+    expect(columnNames).toContain('game_id');
+    expect(columnNames).toContain('scene_id');
+    expect(columnNames).toContain('unlocked_turn');
+    expect(columnNames).toContain('unlocked_by');
+    expect(columnNames).toContain('created_at');
+  });
+
+  it('should create indexes for scene_availability table', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    const indexes = db.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'index' AND name LIKE 'idx_scene_availability%'
+    `).all();
+    const indexNames = indexes.map((idx: { name: string }) => idx.name);
+
+    expect(indexNames).toContain('idx_scene_availability_game');
+    expect(indexNames).toContain('idx_scene_availability_scene');
+  });
+
+  it('should enforce composite primary key on scene_availability', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scene first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // First availability should work
+    expect(() => {
+      db.exec(`
+        INSERT INTO scene_availability (game_id, scene_id, unlocked_turn, unlocked_by)
+        VALUES ('game-1', 'scene-1', 1, 'player-1')
+      `);
+    }).not.toThrow();
+
+    // Duplicate (same game_id, scene_id) should fail
+    expect(() => {
+      db.exec(`
+        INSERT INTO scene_availability (game_id, scene_id, unlocked_turn, unlocked_by)
+        VALUES ('game-1', 'scene-1', 2, 'player-2')
+      `);
+    }).toThrow();
+  });
+
+  it('should store scene_availability with correct values', () => {
+    db = new Database(':memory:');
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game and scene first
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+
+    // Insert availability
+    db.exec(`
+      INSERT INTO scene_availability (game_id, scene_id, unlocked_turn, unlocked_by)
+      VALUES ('game-1', 'scene-1', 5, 'event-123')
+    `);
+
+    const availability = db.prepare(`SELECT * FROM scene_availability WHERE game_id = 'game-1' AND scene_id = 'scene-1'`).get() as {
+      game_id: string;
+      scene_id: string;
+      unlocked_turn: number;
+      unlocked_by: string;
+    };
+
+    expect(availability.game_id).toBe('game-1');
+    expect(availability.scene_id).toBe('scene-1');
+    expect(availability.unlocked_turn).toBe(5);
+    expect(availability.unlocked_by).toBe('event-123');
+  });
+
+  it('should cascade delete scene_availability when game is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game, scene, and availability
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scene_availability (game_id, scene_id, unlocked_turn)
+      VALUES ('game-1', 'scene-1', 1)
+    `);
+
+    // Verify availability exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scene_availability`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the game
+    db.exec(`DELETE FROM games WHERE id = 'game-1'`);
+
+    // Availability should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scene_availability`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
+
+  it('should cascade delete scene_availability when scene is deleted', () => {
+    db = new Database(':memory:');
+    db.pragma('foreign_keys = ON');  // Enable foreign key constraints
+    const schemaPath = join(__dirname, '../schema.sql');
+    const schema = readFileSync(schemaPath, 'utf-8');
+    db.exec(schema);
+
+    // Create a game, scene, and availability
+    db.exec(`
+      INSERT INTO games (id, player_id, current_area_id)
+      VALUES ('game-1', 'player-1', 'area-1')
+    `);
+    db.exec(`
+      INSERT INTO scenes (id, game_id, started_turn)
+      VALUES ('scene-1', 'game-1', 1)
+    `);
+    db.exec(`
+      INSERT INTO scene_availability (game_id, scene_id, unlocked_turn)
+      VALUES ('game-1', 'scene-1', 1)
+    `);
+
+    // Verify availability exists
+    let count = db.prepare(`SELECT COUNT(*) as count FROM scene_availability`).get() as { count: number };
+    expect(count.count).toBe(1);
+
+    // Delete the scene
+    db.exec(`DELETE FROM scenes WHERE id = 'scene-1'`);
+
+    // Availability should be deleted too
+    count = db.prepare(`SELECT COUNT(*) as count FROM scene_availability`).get() as { count: number };
+    expect(count.count).toBe(0);
+  });
 });

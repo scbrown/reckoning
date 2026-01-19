@@ -321,6 +321,19 @@ CREATE INDEX IF NOT EXISTS idx_scene_connections_from ON scene_connections(from_
 CREATE INDEX IF NOT EXISTS idx_scene_connections_to ON scene_connections(to_scene_id);
 CREATE INDEX IF NOT EXISTS idx_scene_connections_type ON scene_connections(connection_type);
 
+-- Scene availability table (NARR-003)
+-- Tracks which scenes are unlocked for each game
+CREATE TABLE IF NOT EXISTS scene_availability (
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  scene_id TEXT NOT NULL REFERENCES scenes(id) ON DELETE CASCADE,
+  unlocked_turn INTEGER NOT NULL,
+  unlocked_by TEXT,  -- Entity ID or event ID that triggered the unlock
+  created_at TEXT DEFAULT (datetime('now')),
+  PRIMARY KEY (game_id, scene_id)
+);
+CREATE INDEX IF NOT EXISTS idx_scene_availability_game ON scene_availability(game_id);
+CREATE INDEX IF NOT EXISTS idx_scene_availability_scene ON scene_availability(scene_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (
