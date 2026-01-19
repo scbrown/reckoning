@@ -85,3 +85,13 @@ export type {
   StatusEffectData,
   EquipmentChangeData,
 } from './art-evolution/index.js';
+
+export { EventBuilder } from './events/index.js';
+export type {
+  WitnessRef,
+  TargetRef,
+  ActorRef,
+  AIStructuredMetadata,
+  BuildFromGenerationParams,
+  StructuredEventData,
+} from './events/index.js';
