@@ -54,3 +54,8 @@ export {
   type ResolveEvolutionInput,
   type UpdateEvolutionInput,
 } from './pending-evolution-repository.js';
+export {
+  EmergenceNotificationRepository,
+  type CreateEmergenceNotificationInput,
+  type ResolveNotificationInput,
+} from './emergence-notification-repository.js';

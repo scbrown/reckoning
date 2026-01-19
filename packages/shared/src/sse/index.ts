@@ -111,6 +111,18 @@ export interface HeartbeatEvent extends BaseSSEEvent {
 }
 
 // =============================================================================
+// Emergence Events
+// =============================================================================
+
+export interface EmergenceDetectedEvent extends BaseSSEEvent {
+  type: 'emergence_detected';
+  /** The emergence opportunity detected */
+  opportunity: import('../emergence/index.js').EmergenceOpportunity;
+  /** Unique notification ID for tracking acknowledgment */
+  notificationId: string;
+}
+
+// =============================================================================
 // Union Type
 // =============================================================================
 
@@ -126,7 +138,8 @@ export type SSEEvent =
   | TTSCompleteEvent
   | EditorStateEvent
   | PartyChangedEvent
-  | HeartbeatEvent;
+  | HeartbeatEvent
+  | EmergenceDetectedEvent;
 
 /**
  * Extract event type string from SSEEvent union

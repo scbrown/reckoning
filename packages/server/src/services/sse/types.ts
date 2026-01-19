@@ -46,6 +46,25 @@ export interface GameState {
 }
 
 /**
+ * Emergence opportunity data for SSE
+ */
+export interface EmergenceOpportunitySSE {
+  type: 'villain' | 'ally';
+  entity: {
+    type: string;
+    id: string;
+  };
+  confidence: number;
+  reason: string;
+  triggeringEventId: string;
+  contributingFactors: Array<{
+    dimension: string;
+    value: number;
+    threshold: number;
+  }>;
+}
+
+/**
  * SSE Event discriminated union
  */
 export type SSEEvent =
@@ -62,7 +81,8 @@ export type SSEEvent =
   | { type: 'tts_started'; eventId: string }
   | { type: 'tts_complete'; eventId: string }
   | { type: 'editor_state'; editorState: DMEditorState }
-  | { type: 'heartbeat'; timestamp: string };
+  | { type: 'heartbeat'; timestamp: string }
+  | { type: 'emergence_detected'; timestamp: string; opportunity: EmergenceOpportunitySSE; notificationId: string };
 
 // =============================================================================
 // SSE Client Types

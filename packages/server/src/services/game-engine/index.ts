@@ -25,8 +25,10 @@ import {
   TraitRepository,
   RelationshipRepository,
   PendingEvolutionRepository,
+  EmergenceNotificationRepository,
 } from '../../db/repositories/index.js';
 import { EvolutionService } from '../evolution/index.js';
+import { EmergenceObserver, EmergenceNotificationService } from '../events/index.js';
 import { ContentPipeline } from './content-pipeline.js';
 import { EventLoop } from './event-loop.js';
 import { StateManager } from './state-manager.js';
@@ -93,10 +95,13 @@ export class GameEngine {
     this.gameRepo = new GameRepository(db);
     this.partyRepo = new PartyRepository(db);
 
+    // Create shared repositories
+    const relationshipRepo = new RelationshipRepository(db);
+
     // Create evolution service for traits and relationships
     const evolutionService = new EvolutionService({
       traitRepo: new TraitRepository(db),
-      relationshipRepo: new RelationshipRepository(db),
+      relationshipRepo,
       pendingRepo: new PendingEvolutionRepository(db),
     });
 
@@ -105,10 +110,22 @@ export class GameEngine {
       evolutionRepo: evolutionService,
     });
 
+    // Create emergence observer and notification service (SEVT-011)
+    const emergenceObserver = new EmergenceObserver({
+      relationshipRepo,
+    });
+    const emergenceService = new EmergenceNotificationService({
+      emergenceObserver,
+      notificationRepo: new EmergenceNotificationRepository(db),
+      broadcaster,
+    });
+
     // Initialize components
     this.pipeline = new ContentPipeline(contextBuilder, aiProvider);
     this.eventLoop = new EventLoop();
-    this.stateManager = new StateManager(db, broadcaster);
+    this.stateManager = new StateManager(db, broadcaster, {
+      emergenceService,
+    });
 
     // Wire up event loop callback
     this.eventLoop.setGenerateCallback(async (gameId) => {

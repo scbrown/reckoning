@@ -10,10 +10,14 @@ export * from './common/index.js';
 // Re-export game types (these are the canonical definitions)
 export * from './game/index.js';
 
+// Re-export emergence types
+export * from './emergence/index.js';
+
 // Re-export SSE types from sse module (authoritative definitions)
 export type {
   HeartbeatEvent,
   PartyChangedEvent,
+  EmergenceDetectedEvent,
   SSEEvent,
   SSEEventType,
   SSEEventByType,

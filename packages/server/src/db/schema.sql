@@ -262,6 +262,26 @@ INSERT OR IGNORE INTO trait_catalog (trait, category, description) VALUES
   ('trusted', 'reputation', 'People believe their word without question'),
   ('distrusted', 'reputation', 'People doubt their motives and honesty');
 
+-- Emergence notifications table (SEVT-011)
+-- Tracks emergence opportunities for DM notification
+CREATE TABLE IF NOT EXISTS emergence_notifications (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  emergence_type TEXT NOT NULL,  -- 'villain', 'ally'
+  entity_type TEXT NOT NULL,     -- 'player', 'npc', 'location', 'item'
+  entity_id TEXT NOT NULL,
+  confidence REAL NOT NULL,      -- 0.0 to 1.0
+  reason TEXT NOT NULL,          -- Human-readable explanation
+  triggering_event_id TEXT NOT NULL REFERENCES events(id),
+  contributing_factors TEXT NOT NULL,  -- JSON array of {dimension, value, threshold}
+  status TEXT NOT NULL DEFAULT 'pending',  -- 'pending', 'acknowledged', 'dismissed'
+  dm_notes TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  resolved_at TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_emergence_notifications_game ON emergence_notifications(game_id, status);
+CREATE INDEX IF NOT EXISTS idx_emergence_notifications_entity ON emergence_notifications(entity_id, emergence_type);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

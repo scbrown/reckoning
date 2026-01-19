@@ -74,6 +74,7 @@ export class SSEService {
       'tts_complete',
       'editor_state',
       'heartbeat',
+      'emergence_detected',
     ];
 
     eventTypes.forEach((type) => {

@@ -23,6 +23,7 @@ import {
   PendingEvolutionRepository,
   TraitRepository,
   RelationshipRepository,
+  EmergenceNotificationRepository,
 } from '../db/repositories/index.js';
 import { EvolutionService } from '../services/evolution/evolution-service.js';
 import {
@@ -91,6 +92,14 @@ interface EvolutionEditRequest {
 }
 
 interface EvolutionRefuseRequest {
+  dmNotes?: string;
+}
+
+interface EmergenceAcknowledgeRequest {
+  dmNotes?: string;
+}
+
+interface EmergenceDismissRequest {
   dmNotes?: string;
 }
 
@@ -260,6 +269,24 @@ const evolutionRefuseSchema = {
   },
 };
 
+const emergenceAcknowledgeSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      dmNotes: { type: 'string', maxLength: 1000 },
+    },
+  },
+};
+
+const emergenceDismissSchema = {
+  body: {
+    type: 'object',
+    properties: {
+      dmNotes: { type: 'string', maxLength: 1000 },
+    },
+  },
+};
+
 // =============================================================================
 // Helper Functions
 // =============================================================================
@@ -293,6 +320,7 @@ export async function gameRoutes(fastify: FastifyInstance) {
   const pendingEvolutionRepo = new PendingEvolutionRepository(db);
   const traitRepo = new TraitRepository(db);
   const relationshipRepo = new RelationshipRepository(db);
+  const emergenceNotificationRepo = new EmergenceNotificationRepository(db);
 
   // Evolution service for managing entity evolutions
   const evolutionService = new EvolutionService({
@@ -1003,6 +1031,138 @@ export async function gameRoutes(fastify: FastifyInstance) {
           return sendError(reply, 404, 'EVOLUTION_NOT_FOUND', error.message);
         }
         return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to refuse evolution');
+      }
+    }
+  );
+
+  // ===========================================================================
+  // Emergence Notification Routes (SEVT-011)
+  // ===========================================================================
+
+  /**
+   * GET /api/game/:id/emergence/notifications
+   * Get pending emergence notifications for a game
+   */
+  fastify.get<{ Params: { id: string } }>(
+    '/:id/emergence/notifications',
+    async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+      const { id } = request.params;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        const notifications = emergenceNotificationRepo.findPending(id);
+
+        return reply.send({ notifications });
+      } catch (error) {
+        request.log.error(error, 'Failed to get emergence notifications');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to get emergence notifications');
+      }
+    }
+  );
+
+  /**
+   * GET /api/game/:id/emergence/notifications/all
+   * Get all emergence notifications for a game (including resolved)
+   */
+  fastify.get<{ Params: { id: string }; Querystring: { limit?: number } }>(
+    '/:id/emergence/notifications/all',
+    async (
+      request: FastifyRequest<{ Params: { id: string }; Querystring: { limit?: number } }>,
+      reply: FastifyReply
+    ) => {
+      const { id } = request.params;
+      const { limit } = request.query;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        const notifications = emergenceNotificationRepo.findByGame(id, limit);
+
+        return reply.send({ notifications });
+      } catch (error) {
+        request.log.error(error, 'Failed to get emergence notifications');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to get emergence notifications');
+      }
+    }
+  );
+
+  /**
+   * POST /api/game/:id/emergence/notifications/:notificationId/acknowledge
+   * Acknowledge an emergence notification
+   */
+  fastify.post<{ Params: { id: string; notificationId: string }; Body: EmergenceAcknowledgeRequest }>(
+    '/:id/emergence/notifications/:notificationId/acknowledge',
+    { schema: emergenceAcknowledgeSchema },
+    async (
+      request: FastifyRequest<{ Params: { id: string; notificationId: string }; Body: EmergenceAcknowledgeRequest }>,
+      reply: FastifyReply
+    ) => {
+      const { id, notificationId } = request.params;
+      const { dmNotes } = request.body;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        const notification = emergenceNotificationRepo.resolve(notificationId, {
+          status: 'acknowledged',
+          dmNotes,
+        });
+
+        if (!notification) {
+          return sendError(reply, 404, 'NOTIFICATION_NOT_FOUND', `Notification not found: ${notificationId}`);
+        }
+
+        return reply.send({ notification });
+      } catch (error) {
+        request.log.error(error, 'Failed to acknowledge emergence notification');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to acknowledge notification');
+      }
+    }
+  );
+
+  /**
+   * POST /api/game/:id/emergence/notifications/:notificationId/dismiss
+   * Dismiss an emergence notification
+   */
+  fastify.post<{ Params: { id: string; notificationId: string }; Body: EmergenceDismissRequest }>(
+    '/:id/emergence/notifications/:notificationId/dismiss',
+    { schema: emergenceDismissSchema },
+    async (
+      request: FastifyRequest<{ Params: { id: string; notificationId: string }; Body: EmergenceDismissRequest }>,
+      reply: FastifyReply
+    ) => {
+      const { id, notificationId } = request.params;
+      const { dmNotes } = request.body;
+
+      try {
+        const game = gameRepo.findById(id);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${id}`);
+        }
+
+        const notification = emergenceNotificationRepo.resolve(notificationId, {
+          status: 'dismissed',
+          dmNotes,
+        });
+
+        if (!notification) {
+          return sendError(reply, 404, 'NOTIFICATION_NOT_FOUND', `Notification not found: ${notificationId}`);
+        }
+
+        return reply.send({ notification });
+      } catch (error) {
+        request.log.error(error, 'Failed to dismiss emergence notification');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to dismiss notification');
       }
     }
   );

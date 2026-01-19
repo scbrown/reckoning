@@ -18,6 +18,7 @@ import {
 } from '../../db/repositories/index.js';
 import type { BroadcastManager } from '../sse/index.js';
 import type { DMEditorState as SSEDMEditorState } from '../sse/types.js';
+import type { EmergenceNotificationService } from '../events/emergence-notification-service.js';
 
 // =============================================================================
 // Types
@@ -42,6 +43,13 @@ export interface EventInput {
 // =============================================================================
 
 /**
+ * Configuration for StateManager
+ */
+export interface StateManagerConfig {
+  emergenceService?: EmergenceNotificationService | undefined;
+}
+
+/**
  * Manages state transitions and broadcasts state changes.
  */
 export class StateManager {
@@ -49,12 +57,21 @@ export class StateManager {
   private eventRepo: EventRepository;
   private editorRepo: EditorStateRepository;
   private broadcaster: BroadcastManager;
+  private emergenceService: EmergenceNotificationService | undefined;
 
-  constructor(db: Database, broadcaster: BroadcastManager) {
+  constructor(db: Database, broadcaster: BroadcastManager, config?: StateManagerConfig) {
     this.gameRepo = new GameRepository(db);
     this.eventRepo = new EventRepository(db);
     this.editorRepo = new EditorStateRepository(db);
     this.broadcaster = broadcaster;
+    this.emergenceService = config?.emergenceService;
+  }
+
+  /**
+   * Set the emergence notification service (for late initialization)
+   */
+  setEmergenceService(service: EmergenceNotificationService): void {
+    this.emergenceService = service;
   }
 
   /**
@@ -71,9 +88,10 @@ export class StateManager {
     // Create the event in the database
     const createdEvent = this.eventRepo.create(event);
 
-    // TODO(SEVT-007): Call emergenceObserver.onEventCommitted(createdEvent) here
-    // once EmergenceObserver service is implemented to detect narrative emergence
-    // opportunities (villain/ally emergence based on relationship thresholds).
+    // SEVT-011: Process event for emergence detection and notify DM
+    if (this.emergenceService) {
+      this.emergenceService.processEvent(createdEvent);
+    }
 
     // Get current game state for SSE
     const gameState = this.gameRepo.findById(gameId);

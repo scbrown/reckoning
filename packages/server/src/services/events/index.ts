@@ -31,3 +31,8 @@ export {
   type EmergenceEvent,
   type EmergenceEventEmitter,
 } from './emergence-observer.js';
+
+export {
+  EmergenceNotificationService,
+  type EmergenceNotificationServiceConfig,
+} from './emergence-notification-service.js';
