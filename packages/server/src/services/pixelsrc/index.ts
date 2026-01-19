@@ -57,3 +57,8 @@ export {
   type VisualValidationError,
   type PixelsrcVisualValidatorConfig,
 } from './visual-validator.js';
+
+export {
+  PixelsrcProjectManager,
+  type PixelsrcProjectManagerConfig,
+} from './project.js';

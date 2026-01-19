@@ -5,7 +5,7 @@
  */
 
 import { Ok, Err, type Result } from '@reckoning/shared';
-import type { Party, Area, NPC, NPCDisposition } from '@reckoning/shared/game';
+import type { Party, Area, NPC, NPCDisposition, PixelArtRef } from '@reckoning/shared/game';
 import type { AIProvider } from './types.js';
 import type { AreaRepository } from '../../db/repositories/area-repository.js';
 import {
@@ -14,7 +14,15 @@ import {
   type WorldGenerationOutput,
 } from './schemas.js';
 import { buildWorldPrompt, type WorldGenerationContext } from './prompts/world.js';
-import { PixelsrcGenerator } from '../pixelsrc/index.js';
+import {
+  PixelsrcGenerator,
+  PixelsrcAIGenerator,
+  PixelsrcValidator,
+  PixelsrcRepairer,
+  PixelsrcVisualValidator,
+  PixelsrcProjectManager,
+  type SceneGenerationContext,
+} from '../pixelsrc/index.js';
 
 // =============================================================================
 // Types
@@ -28,6 +36,12 @@ export interface WorldGenerationOptions {
   theme?: string;
   /** Number of areas to generate (default 3) */
   areaCount?: number;
+  /** Game ID for pixel art file storage (required if enablePixelArtGeneration is true) */
+  gameId?: string;
+  /** Whether to generate actual pixel art files (default: false - only generates refs) */
+  enablePixelArtGeneration?: boolean;
+  /** Skip visual validation for faster generation (default: false) */
+  skipVisualValidation?: boolean;
 }
 
 /**
@@ -69,16 +83,45 @@ export interface WorldGenerationError {
  * 2. Calls the AI provider with the world generation schema
  * 3. Parses and validates the AI response
  * 4. Persists areas, NPCs, and objects to the database
- * 5. Returns the complete generated world for DM review
+ * 5. Optionally generates pixel art with full validation loop
+ * 6. Returns the complete generated world for DM review
  */
 export class WorldGenerator {
   private pixelsrcGenerator: PixelsrcGenerator;
+  private pixelsrcAIGenerator: PixelsrcAIGenerator;
+  private pixelsrcValidator: PixelsrcValidator;
+  private pixelsrcRepairer: PixelsrcRepairer;
+  private pixelsrcVisualValidator: PixelsrcVisualValidator;
+  private pixelsrcProjectManager: PixelsrcProjectManager;
+  private pixelsrcInitialized = false;
 
   constructor(
     private aiProvider: AIProvider,
     private areaRepo: AreaRepository
   ) {
     this.pixelsrcGenerator = new PixelsrcGenerator();
+    this.pixelsrcAIGenerator = new PixelsrcAIGenerator();
+    this.pixelsrcValidator = new PixelsrcValidator();
+    this.pixelsrcRepairer = new PixelsrcRepairer(aiProvider);
+    this.pixelsrcVisualValidator = new PixelsrcVisualValidator();
+    this.pixelsrcProjectManager = new PixelsrcProjectManager();
+
+    // Connect validator to repairer for re-validation
+    this.pixelsrcRepairer.setValidator(this.pixelsrcValidator);
+  }
+
+  /**
+   * Initialize pixelsrc services (WASM modules).
+   * Called automatically on first pixel art generation.
+   */
+  private async initializePixelsrc(): Promise<void> {
+    if (this.pixelsrcInitialized) return;
+
+    await Promise.all([
+      this.pixelsrcValidator.init(),
+      this.pixelsrcVisualValidator.init(),
+    ]);
+    this.pixelsrcInitialized = true;
   }
 
   /**
@@ -152,6 +195,12 @@ export class WorldGenerator {
       const world = this.persistWorld(parsed);
       console.log(`[WorldGenerator] World generation complete: ${world.worldName}`);
       console.log(`[WorldGenerator] Created ${world.areas.length} areas, ${world.npcs.length} NPCs`);
+
+      // Generate pixel art if enabled (failures don't block)
+      if (options?.enablePixelArtGeneration && options.gameId) {
+        await this.generatePixelArtForAreas(world.areas, parsed, options);
+      }
+
       return Ok(world);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Database error';
@@ -239,6 +288,178 @@ export class WorldGenerator {
     }
 
     return { valid: true, error: '' };
+  }
+
+  /**
+   * Generate pixel art for an area with full validation loop.
+   *
+   * Flow: generate → validate → repair if needed → visual validation → write file
+   * Failures are logged but don't block - returns null on failure.
+   *
+   * @param gameId - Game ID for project file storage
+   * @param context - Scene generation context
+   * @param skipVisualValidation - Skip visual validation step
+   * @returns PixelArtRef on success, null on failure
+   */
+  private async generateAreaPixelArt(
+    gameId: string,
+    context: SceneGenerationContext,
+    skipVisualValidation: boolean
+  ): Promise<PixelArtRef | null> {
+    const areaId = context.areaId;
+    console.log(`[WorldGenerator] Generating pixel art for area: ${areaId}`);
+
+    // Step 1: Generate pixel art source using AI
+    const sceneContext: Parameters<typeof this.pixelsrcAIGenerator.generateScene>[0] = {
+      name: context.areaName,
+      description: context.description,
+      archetype: this.pixelsrcGenerator.generatePrompt(context).archetype,
+    };
+    // Only include optional properties if defined (exactOptionalPropertyTypes)
+    if (context.timeOfDay !== undefined) {
+      sceneContext.timeOfDay = context.timeOfDay;
+    }
+    if (context.weather !== undefined) {
+      sceneContext.weather = context.weather;
+    }
+    const genResult = await this.pixelsrcAIGenerator.generateScene(sceneContext);
+
+    if (!genResult.ok) {
+      console.warn(
+        `[WorldGenerator] Pixel art generation failed for ${areaId}: ${genResult.error.message}`
+      );
+      return null;
+    }
+
+    let source = genResult.value.source;
+    console.log(`[WorldGenerator] Generated ${source.length} chars of pixel art source for ${areaId}`);
+
+    // Step 2: Validate the generated source
+    const validationResult = this.pixelsrcValidator.validate(source);
+
+    if (!validationResult.valid) {
+      console.log(
+        `[WorldGenerator] Pixel art validation failed for ${areaId} with ${validationResult.errors.length} errors, attempting repair`
+      );
+
+      // Step 3: Repair if validation failed
+      const repairResult = await this.pixelsrcRepairer.repair(source, validationResult, {
+        description: context.description,
+        archetype: this.pixelsrcGenerator.generatePrompt(context).archetype,
+      });
+
+      if (!repairResult.ok) {
+        console.warn(
+          `[WorldGenerator] Pixel art repair failed for ${areaId}: ${repairResult.error.message}`
+        );
+        return null;
+      }
+
+      if (!repairResult.value.success) {
+        console.warn(
+          `[WorldGenerator] Pixel art repair unsuccessful for ${areaId} after ${repairResult.value.attempts} attempts, ` +
+            `${repairResult.value.remainingErrors.length} errors remain`
+        );
+        return null;
+      }
+
+      source = repairResult.value.source;
+      console.log(`[WorldGenerator] Pixel art repaired for ${areaId} after ${repairResult.value.attempts} attempts`);
+    }
+
+    // Step 4: Visual validation (optional)
+    if (!skipVisualValidation) {
+      const visualResult = await this.pixelsrcVisualValidator.validate(source, {
+        expectedContent: `${context.areaName}: ${context.description}`,
+        contentType: 'scene',
+        strictness: 'lenient',
+      });
+
+      if (!visualResult.ok) {
+        console.warn(
+          `[WorldGenerator] Visual validation failed for ${areaId}: ${visualResult.error.message}`
+        );
+        // Continue anyway - visual validation failure is soft
+      } else if (!visualResult.value.approved) {
+        console.warn(
+          `[WorldGenerator] Visual validation not approved for ${areaId}: ${visualResult.value.feedback}`
+        );
+        // Continue anyway - let the art through with a warning
+      } else {
+        console.log(
+          `[WorldGenerator] Visual validation passed for ${areaId}: ${visualResult.value.feedback}`
+        );
+      }
+    }
+
+    // Step 5: Write the file to the project
+    const relativePath = `src/scenes/${areaId}.pxl`;
+    try {
+      await this.pixelsrcProjectManager.writeFile(gameId, relativePath, source);
+      console.log(`[WorldGenerator] Wrote pixel art file for ${areaId}`);
+    } catch (error) {
+      console.warn(
+        `[WorldGenerator] Failed to write pixel art file for ${areaId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      return null;
+    }
+
+    // Step 6: Generate and return the PixelArtRef
+    const pixelArtRef = this.pixelsrcGenerator.generateSceneRef(context);
+    return pixelArtRef;
+  }
+
+  /**
+   * Generate pixel art for all areas in a world.
+   * Failures are logged but don't block - areas without successful generation
+   * will still have their basic PixelArtRef set.
+   *
+   * @param areas - Areas to generate pixel art for
+   * @param output - World generation output for area metadata
+   * @param options - Generation options
+   */
+  private async generatePixelArtForAreas(
+    areas: Area[],
+    output: WorldGenerationOutput,
+    options: WorldGenerationOptions
+  ): Promise<void> {
+    if (!options.enablePixelArtGeneration || !options.gameId) {
+      return;
+    }
+
+    console.log(`[WorldGenerator] Starting pixel art generation for ${areas.length} areas`);
+
+    // Initialize pixelsrc services
+    await this.initializePixelsrc();
+
+    // Initialize the project directory
+    await this.pixelsrcProjectManager.initialize(options.gameId);
+
+    // Generate pixel art for each area sequentially to avoid overwhelming AI
+    for (const area of areas) {
+      const areaOutput = output.areas.find((a) => a.id === area.id);
+      if (!areaOutput) continue;
+
+      const context: SceneGenerationContext = {
+        areaId: areaOutput.id,
+        areaName: areaOutput.name,
+        description: areaOutput.description,
+        tags: areaOutput.tags,
+      };
+
+      const pixelArtRef = await this.generateAreaPixelArt(
+        options.gameId,
+        context,
+        options.skipVisualValidation ?? false
+      );
+
+      if (pixelArtRef) {
+        area.pixelArtRef = pixelArtRef;
+      }
+      // If generation failed, area keeps its basic pixelArtRef from persistWorld
+    }
+
+    console.log(`[WorldGenerator] Pixel art generation complete`);
   }
 
   /**
