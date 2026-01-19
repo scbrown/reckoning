@@ -46,8 +46,23 @@ export type {
 export {
   PixelsrcRenderer,
   PixelsrcRenderError,
+  PixelsrcAIGenerator,
+  PIXELSRC_FORMAT_PRIMER,
+  PORTRAIT_GENERATION_PRIMER,
+  SCENE_GENERATION_PRIMER,
+  PALETTE_GENERATION_PRIMER,
+  getPrimer,
 } from './pixelsrc/index.js';
-export type { RenderOptions, RenderResult } from './pixelsrc/index.js';
+export type {
+  RenderOptions,
+  RenderResult,
+  PortraitGenerationContext,
+  AISceneGenerationContext,
+  PaletteGenerationContext,
+  AIGenerationResult,
+  AIGenerationError,
+  PixelsrcAIGeneratorConfig,
+} from './pixelsrc/index.js';
 
 export { EvolutionService, type EvolutionServiceConfig } from './evolution/index.js';
 export type {

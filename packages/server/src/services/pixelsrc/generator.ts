@@ -3,9 +3,17 @@
  *
  * Generates pixelArtRef metadata for areas based on their descriptions and tags.
  * Provides prompts for AI-assisted pixel art generation.
+ * Includes AI-powered generation of raw .pxl source content.
  */
 
 import type { PixelArtRef, PixelArtAnimation } from '@reckoning/shared/game';
+import type { Result } from '@reckoning/shared';
+import { ClaudeCodeCLI } from '../ai/claude-cli.js';
+import {
+  PORTRAIT_GENERATION_PRIMER,
+  SCENE_GENERATION_PRIMER,
+  PALETTE_GENERATION_PRIMER,
+} from './primer.js';
 
 /**
  * Context for generating scene background references
@@ -412,3 +420,341 @@ Output a pixelsrc JSONL file with:
 }
 
 export default PixelsrcGenerator;
+
+// =============================================================================
+// AI-Powered Generation Types
+// =============================================================================
+
+/**
+ * Context for generating a character portrait
+ */
+export interface PortraitGenerationContext {
+  /** Character name */
+  name: string;
+  /** Character description (appearance, personality, etc.) */
+  description: string;
+  /** Character class or archetype (e.g., 'warrior', 'mage', 'rogue') */
+  characterClass?: string;
+  /** Optional specific features to emphasize */
+  features?: string[];
+  /** Optional mood/expression */
+  mood?: 'neutral' | 'happy' | 'angry' | 'sad' | 'determined' | 'fearful';
+}
+
+/**
+ * Context for generating a scene background via AI
+ */
+export interface AISceneGenerationContext {
+  /** Scene name */
+  name: string;
+  /** Detailed scene description */
+  description: string;
+  /** Scene type/archetype */
+  archetype?: SceneArchetype;
+  /** Time of day */
+  timeOfDay?: 'dawn' | 'day' | 'dusk' | 'night';
+  /** Weather conditions */
+  weather?: 'clear' | 'rain' | 'storm' | 'fog' | 'snow';
+  /** Specific elements to include */
+  elements?: string[];
+}
+
+/**
+ * Context for generating a color palette
+ */
+export interface PaletteGenerationContext {
+  /** Palette name */
+  name: string;
+  /** Theme or mood for the palette */
+  theme: string;
+  /** Number of colors to generate (default: 8) */
+  colorCount?: number;
+  /** Base colors to build around (optional) */
+  baseColors?: string[];
+  /** Style hints */
+  style?: 'warm' | 'cool' | 'vibrant' | 'muted' | 'dark' | 'light';
+}
+
+/**
+ * Result of AI generation
+ */
+export interface AIGenerationResult {
+  /** The generated .pxl source content */
+  source: string;
+  /** Generation duration in milliseconds */
+  durationMs: number;
+}
+
+/**
+ * Error from AI generation
+ */
+export interface AIGenerationError {
+  /** Error code */
+  code: string;
+  /** Error message */
+  message: string;
+  /** Whether the error is retryable */
+  retryable: boolean;
+}
+
+/**
+ * Configuration for PixelsrcAIGenerator
+ */
+export interface PixelsrcAIGeneratorConfig {
+  /** Timeout for AI calls in milliseconds (default: 60000) */
+  timeout?: number;
+  /** Model to use for generation (default: 'haiku') */
+  model?: string;
+}
+
+// =============================================================================
+// AI-Powered Generator
+// =============================================================================
+
+/**
+ * AI-powered generator for creating raw .pxl source content.
+ *
+ * Uses Claude CLI to generate pixelsrc content based on primers and context.
+ * Returns raw .pxl source strings that can be validated and rendered.
+ *
+ * @example
+ * ```typescript
+ * const generator = new PixelsrcAIGenerator();
+ *
+ * const result = await generator.generatePortrait({
+ *   name: 'Hero',
+ *   description: 'A brave warrior with golden hair and piercing blue eyes',
+ *   characterClass: 'warrior',
+ * });
+ *
+ * if (result.ok) {
+ *   console.log(result.value.source); // Raw .pxl content
+ * }
+ * ```
+ */
+export class PixelsrcAIGenerator {
+  private cli: ClaudeCodeCLI;
+
+  constructor(config?: PixelsrcAIGeneratorConfig) {
+    this.cli = new ClaudeCodeCLI({
+      timeout: config?.timeout ?? 60000,
+      model: config?.model ?? 'haiku',
+    });
+  }
+
+  /**
+   * Generate a character portrait in pixelsrc format.
+   *
+   * @param context - Portrait generation context
+   * @returns Result containing raw .pxl source or error
+   */
+  async generatePortrait(
+    context: PortraitGenerationContext
+  ): Promise<Result<AIGenerationResult, AIGenerationError>> {
+    const prompt = this.buildPortraitPrompt(context);
+    return this.executeGeneration(prompt);
+  }
+
+  /**
+   * Generate a scene background in pixelsrc format.
+   *
+   * @param context - Scene generation context
+   * @returns Result containing raw .pxl source or error
+   */
+  async generateScene(
+    context: AISceneGenerationContext
+  ): Promise<Result<AIGenerationResult, AIGenerationError>> {
+    const prompt = this.buildScenePrompt(context);
+    return this.executeGeneration(prompt);
+  }
+
+  /**
+   * Generate a color palette in pixelsrc format.
+   *
+   * @param context - Palette generation context
+   * @returns Result containing raw .pxl source or error
+   */
+  async generatePalette(
+    context: PaletteGenerationContext
+  ): Promise<Result<AIGenerationResult, AIGenerationError>> {
+    const prompt = this.buildPalettePrompt(context);
+    return this.executeGeneration(prompt);
+  }
+
+  /**
+   * Execute AI generation with the given prompt.
+   */
+  private async executeGeneration(
+    prompt: string
+  ): Promise<Result<AIGenerationResult, AIGenerationError>> {
+    const result = await this.cli.execute({ prompt });
+
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: {
+          code: result.error.code,
+          message: result.error.message,
+          retryable: result.error.retryable,
+        },
+      };
+    }
+
+    // Extract JSONL content from the response
+    const source = this.extractJsonl(result.value.content);
+
+    return {
+      ok: true,
+      value: {
+        source,
+        durationMs: result.value.durationMs,
+      },
+    };
+  }
+
+  /**
+   * Extract JSONL content from AI response.
+   * Strips any markdown formatting or explanatory text.
+   */
+  private extractJsonl(content: string): string {
+    // If content is wrapped in code blocks, extract it
+    const codeBlockMatch = content.match(/```(?:json|jsonl)?\s*([\s\S]*?)```/);
+    if (codeBlockMatch && codeBlockMatch[1] !== undefined) {
+      return codeBlockMatch[1].trim();
+    }
+
+    // Try to find lines that look like JSONL (start with {)
+    const lines = content.split('\n');
+    const jsonlLines = lines.filter((line) => {
+      const trimmed = line.trim();
+      return trimmed.startsWith('{') && trimmed.endsWith('}');
+    });
+
+    if (jsonlLines.length > 0) {
+      return jsonlLines.join('\n');
+    }
+
+    // Return as-is if no extraction needed
+    return content.trim();
+  }
+
+  /**
+   * Build the prompt for portrait generation.
+   */
+  private buildPortraitPrompt(context: PortraitGenerationContext): string {
+    const featuresList = context.features?.length
+      ? `\nKey Features: ${context.features.join(', ')}`
+      : '';
+
+    const moodStr = context.mood ? `\nExpression/Mood: ${context.mood}` : '';
+
+    const classStr = context.characterClass
+      ? `\nCharacter Class: ${context.characterClass}`
+      : '';
+
+    return `${PORTRAIT_GENERATION_PRIMER}
+
+## Generation Request
+
+Generate a pixel art portrait for the following character:
+
+Character Name: ${context.name}
+Description: ${context.description}${classStr}${featuresList}${moodStr}
+
+Requirements:
+1. Output ONLY valid pixelsrc JSONL - no explanations or markdown
+2. Include a palette definition first
+3. Include a sprite named "portrait_${this.sanitizeName(context.name)}"
+4. Use 12x16 pixel dimensions
+5. Focus on head and upper shoulders
+6. Use meaningful color tokens (s=skin, h=hair, e=eyes, etc.)
+
+Generate the pixelsrc content now:`;
+  }
+
+  /**
+   * Build the prompt for scene generation.
+   */
+  private buildScenePrompt(context: AISceneGenerationContext): string {
+    const archetypeStr = context.archetype
+      ? `\nScene Archetype: ${context.archetype}`
+      : '';
+
+    const timeStr = context.timeOfDay
+      ? `\nTime of Day: ${context.timeOfDay}`
+      : '';
+
+    const weatherStr = context.weather
+      ? `\nWeather: ${context.weather}`
+      : '';
+
+    const elementsList = context.elements?.length
+      ? `\nMust Include: ${context.elements.join(', ')}`
+      : '';
+
+    return `${SCENE_GENERATION_PRIMER}
+
+## Generation Request
+
+Generate a pixel art scene background for:
+
+Scene Name: ${context.name}
+Description: ${context.description}${archetypeStr}${timeStr}${weatherStr}${elementsList}
+
+Requirements:
+1. Output ONLY valid pixelsrc JSONL - no explanations or markdown
+2. Include a palette definition first
+3. Include a sprite named "scene_${this.sanitizeName(context.name)}"
+4. Use 64x48 pixel dimensions (thumbnail size for faster generation)
+5. Include depth with foreground, midground, background
+6. Use atmospheric colors appropriate to the setting
+
+Generate the pixelsrc content now:`;
+  }
+
+  /**
+   * Build the prompt for palette generation.
+   */
+  private buildPalettePrompt(context: PaletteGenerationContext): string {
+    const colorCount = context.colorCount ?? 8;
+
+    const baseColorsStr = context.baseColors?.length
+      ? `\nBase Colors to Include: ${context.baseColors.join(', ')}`
+      : '';
+
+    const styleStr = context.style
+      ? `\nStyle: ${context.style}`
+      : '';
+
+    return `${PALETTE_GENERATION_PRIMER}
+
+## Generation Request
+
+Generate a color palette for:
+
+Palette Name: ${context.name}
+Theme: ${context.theme}
+Number of Colors: ${colorCount}${baseColorsStr}${styleStr}
+
+Requirements:
+1. Output ONLY valid pixelsrc JSONL - no explanations or markdown
+2. Output a single palette definition line
+3. Use the name "${this.sanitizeName(context.name)}_palette"
+4. Include exactly ${colorCount} colors plus transparent (".")
+5. Use meaningful single-character tokens
+6. Ensure good contrast between adjacent colors
+
+Generate the pixelsrc content now:`;
+  }
+
+  /**
+   * Sanitize a name for use in sprite/palette names.
+   */
+  private sanitizeName(name: string): string {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_|_$/g, '');
+  }
+}
