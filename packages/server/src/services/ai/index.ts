@@ -27,17 +27,22 @@ export {
 export {
   createContextBuilder,
   DefaultContextBuilder,
+  ratioToPercent,
+  patternsToContext,
+  formatPlayerBehavior,
   type ContextBuilder,
   type ContextBuildOptions,
   type ContextBuilderOptions,
   type ExtendedGenerationContext,
   type EntityEvolutionContext,
+  type PlayerBehaviorContext,
   type GameRepository,
   type EventRepository,
   type AreaRepository,
   type AreaWithDetails,
   type PartyRepository,
   type EvolutionRepository,
+  type PatternRepository,
 } from './context-builder.js';
 
 export {

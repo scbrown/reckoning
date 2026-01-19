@@ -19,6 +19,10 @@ import type {
 } from '@reckoning/shared';
 import type { EntityType } from '../../db/repositories/trait-repository.js';
 import type { EntitySummary, AggregateLabel } from '../evolution/types.js';
+import type {
+  PlayerPatterns,
+  SocialApproach,
+} from '../chronicle/types.js';
 
 // =============================================================================
 // Repository Interfaces
@@ -99,6 +103,32 @@ export interface EntityEvolutionContext {
     targetId: string;
     label: AggregateLabel;
   }>;
+}
+
+/**
+ * Repository for player behavior pattern analysis
+ */
+export interface PatternRepository {
+  /**
+   * Get player behavior patterns
+   */
+  getPlayerPatterns(gameId: string, playerId: string): PlayerPatterns;
+}
+
+/**
+ * Player behavior context formatted for AI consumption
+ */
+export interface PlayerBehaviorContext {
+  /** Mercy ratio as percentage (0-100) */
+  mercyPercent: number;
+  /** Honesty ratio as percentage (0-100) */
+  honestyPercent: number;
+  /** Social approach classification */
+  socialApproach: SocialApproach;
+  /** Inferred dominant personality traits */
+  dominantTraits: string[];
+  /** Whether the player has enough history for reliable analysis */
+  hasEnoughData: boolean;
 }
 
 // =============================================================================
@@ -368,6 +398,10 @@ export interface ExtendedGenerationContext extends GenerationContext {
   partyEvolutions?: EntityEvolutionContext[];
   /** NPC evolutions for NPCs in current area */
   npcEvolutions?: EntityEvolutionContext[];
+  /** Player behavior patterns (mercy, honesty, social approach, traits) */
+  playerBehavior?: PlayerBehaviorContext;
+  /** Formatted player behavior context for AI prompts */
+  formattedPlayerBehavior?: string;
 }
 
 // =============================================================================
@@ -446,6 +480,88 @@ export function buildPartyContext(party: CharacterWithRole[]): string {
 }
 
 // =============================================================================
+// Player Behavior Context Formatting
+// =============================================================================
+
+/**
+ * Convert a ratio (-1 to 1) to a percentage (0 to 100)
+ * A ratio of 1 means 100% positive, -1 means 0% positive (100% negative)
+ */
+export function ratioToPercent(ratio: number): number {
+  // ratio of 1 = 100%, ratio of -1 = 0%, ratio of 0 = 50%
+  return Math.round((ratio + 1) * 50);
+}
+
+/**
+ * Get a descriptive label for a ratio
+ */
+function getRatioDescription(percent: number, positiveTrait: string, negativeTrait: string): string {
+  if (percent >= 70) return `tends toward ${positiveTrait}`;
+  if (percent >= 55) return `slightly ${positiveTrait}`;
+  if (percent >= 45) return 'balanced';
+  if (percent >= 30) return `slightly ${negativeTrait}`;
+  return `tends toward ${negativeTrait}`;
+}
+
+/**
+ * Convert PlayerPatterns to PlayerBehaviorContext
+ */
+export function patternsToContext(patterns: PlayerPatterns): PlayerBehaviorContext {
+  const { ratios, socialApproach, dominantTraits, totalEvents } = patterns;
+
+  return {
+    mercyPercent: ratioToPercent(ratios.mercyVsViolence),
+    honestyPercent: ratioToPercent(ratios.honestyVsDeception),
+    socialApproach,
+    dominantTraits,
+    hasEnoughData: totalEvents >= 5,
+  };
+}
+
+/**
+ * Format player behavior context for AI prompts
+ *
+ * Format:
+ * ```
+ * Player behavioral patterns:
+ * - Shows mercy: 73% of the time
+ * - Honesty: 45% (tends toward deception)
+ * - Social approach: diplomatic
+ * - Inferred traits: merciful, cunning
+ * ```
+ *
+ * @param behavior - Player behavior context
+ * @returns Formatted string for AI consumption, or undefined if insufficient data
+ */
+export function formatPlayerBehavior(behavior: PlayerBehaviorContext): string | undefined {
+  if (!behavior.hasEnoughData) {
+    return undefined;
+  }
+
+  const lines: string[] = ['Player behavioral patterns:'];
+
+  // Mercy/violence spectrum
+  const mercyDesc = getRatioDescription(behavior.mercyPercent, 'mercy', 'violence');
+  lines.push(`- Shows mercy: ${behavior.mercyPercent}% of the time (${mercyDesc})`);
+
+  // Honesty/deception spectrum
+  const honestyDesc = getRatioDescription(behavior.honestyPercent, 'honesty', 'deception');
+  lines.push(`- Honesty: ${behavior.honestyPercent}% (${honestyDesc})`);
+
+  // Social approach
+  if (behavior.socialApproach !== 'minimal') {
+    lines.push(`- Social approach: ${behavior.socialApproach}`);
+  }
+
+  // Dominant traits
+  if (behavior.dominantTraits.length > 0) {
+    lines.push(`- Inferred traits: ${behavior.dominantTraits.join(', ')}`);
+  }
+
+  return lines.join('\n');
+}
+
+// =============================================================================
 // Default Context Builder Implementation
 // =============================================================================
 
@@ -458,7 +574,8 @@ export class DefaultContextBuilder implements ContextBuilder {
     private eventRepo: EventRepository,
     private areaRepo: AreaRepository,
     private partyRepo: PartyRepository,
-    private evolutionRepo?: EvolutionRepository
+    private evolutionRepo?: EvolutionRepository,
+    private patternRepo?: PatternRepository
   ) {}
 
   async build(
@@ -551,7 +668,20 @@ export class DefaultContextBuilder implements ContextBuilder {
       }
     }
 
-    // 9. Return complete context
+    // 9. Build player behavior context if repository available
+    let playerBehavior: PlayerBehaviorContext | undefined;
+    let formattedPlayerBehavior: string | undefined;
+
+    if (this.patternRepo) {
+      const player = party.find((m) => m.role === 'player');
+      if (player) {
+        const patterns = this.patternRepo.getPlayerPatterns(gameId, player.id);
+        playerBehavior = patternsToContext(patterns);
+        formattedPlayerBehavior = formatPlayerBehavior(playerBehavior);
+      }
+    }
+
+    // 10. Return complete context
     const context: ExtendedGenerationContext = {
       type,
       gameState: game,
@@ -577,6 +707,12 @@ export class DefaultContextBuilder implements ContextBuilder {
     }
     if (npcEvolutions && npcEvolutions.length > 0) {
       context.npcEvolutions = npcEvolutions;
+    }
+    if (playerBehavior) {
+      context.playerBehavior = playerBehavior;
+    }
+    if (formattedPlayerBehavior) {
+      context.formattedPlayerBehavior = formattedPlayerBehavior;
     }
 
     return context;
@@ -604,13 +740,15 @@ export class DefaultContextBuilder implements ContextBuilder {
 export interface ContextBuilderOptions {
   /** Optional evolution repository for traits and relationships */
   evolutionRepo?: EvolutionRepository;
+  /** Optional pattern repository for player behavior analysis */
+  patternRepo?: PatternRepository;
 }
 
 /**
  * Create a context builder with injected database dependencies
  *
  * @param db - The database connection
- * @param options - Optional configuration including evolution repository
+ * @param options - Optional configuration including evolution and pattern repositories
  * @returns A configured ContextBuilder instance
  */
 export function createContextBuilder(
@@ -622,6 +760,7 @@ export function createContextBuilder(
     new SQLiteEventRepository(db),
     new SQLiteAreaRepository(db),
     new SQLitePartyRepository(db),
-    options?.evolutionRepo
+    options?.evolutionRepo,
+    options?.patternRepo
   );
 }

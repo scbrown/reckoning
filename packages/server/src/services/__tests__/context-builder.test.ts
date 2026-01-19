@@ -391,3 +391,326 @@ describe('buildPartyContext', () => {
     expect(result).toBe('Party: Theron (Fighter) [Critical] (Player Character)');
   });
 });
+
+// =============================================================================
+// Player Behavior Context Tests
+// =============================================================================
+
+import {
+  ratioToPercent,
+  patternsToContext,
+  formatPlayerBehavior,
+  type PatternRepository,
+  type PlayerBehaviorContext,
+} from '../ai/context-builder.js';
+import type { PlayerPatterns } from '../chronicle/types.js';
+
+describe('ratioToPercent', () => {
+  it('should convert ratio of 1 to 100%', () => {
+    expect(ratioToPercent(1)).toBe(100);
+  });
+
+  it('should convert ratio of -1 to 0%', () => {
+    expect(ratioToPercent(-1)).toBe(0);
+  });
+
+  it('should convert ratio of 0 to 50%', () => {
+    expect(ratioToPercent(0)).toBe(50);
+  });
+
+  it('should convert positive ratios correctly', () => {
+    expect(ratioToPercent(0.5)).toBe(75);
+    expect(ratioToPercent(0.46)).toBe(73); // (0.46 + 1) * 50 = 73
+  });
+
+  it('should convert negative ratios correctly', () => {
+    expect(ratioToPercent(-0.5)).toBe(25);
+    expect(ratioToPercent(-0.1)).toBe(45);
+  });
+});
+
+describe('patternsToContext', () => {
+  const createMockPatterns = (overrides: Partial<PlayerPatterns> = {}): PlayerPatterns => ({
+    playerId: 'player-1',
+    gameId: 'game-1',
+    totalEvents: 10,
+    categoryCounts: { mercy: 5, violence: 2, honesty: 3, social: 4, exploration: 2, character: 1 },
+    ratios: {
+      mercyVsViolence: 0.46,
+      honestyVsDeception: -0.1,
+      helpfulVsHarmful: 0.2,
+    },
+    violenceInitiation: {
+      initiatesViolence: false,
+      initiationRatio: 0.2,
+      totalViolenceEvents: 5,
+      attackFirstEvents: 1,
+    },
+    socialApproach: 'diplomatic',
+    dominantTraits: ['merciful', 'cunning'],
+    ...overrides,
+  });
+
+  it('should convert patterns to context with correct percentages', () => {
+    const patterns = createMockPatterns();
+    const context = patternsToContext(patterns);
+
+    expect(context.mercyPercent).toBe(73); // (0.46 + 1) * 50 = 73
+    expect(context.honestyPercent).toBe(45); // (-0.1 + 1) * 50 = 45
+    expect(context.socialApproach).toBe('diplomatic');
+    expect(context.dominantTraits).toEqual(['merciful', 'cunning']);
+    expect(context.hasEnoughData).toBe(true);
+  });
+
+  it('should mark hasEnoughData as false when totalEvents < 5', () => {
+    const patterns = createMockPatterns({ totalEvents: 3 });
+    const context = patternsToContext(patterns);
+
+    expect(context.hasEnoughData).toBe(false);
+  });
+
+  it('should mark hasEnoughData as true when totalEvents >= 5', () => {
+    const patterns = createMockPatterns({ totalEvents: 5 });
+    const context = patternsToContext(patterns);
+
+    expect(context.hasEnoughData).toBe(true);
+  });
+});
+
+describe('formatPlayerBehavior', () => {
+  it('should return undefined when hasEnoughData is false', () => {
+    const behavior: PlayerBehaviorContext = {
+      mercyPercent: 73,
+      honestyPercent: 45,
+      socialApproach: 'diplomatic',
+      dominantTraits: ['merciful'],
+      hasEnoughData: false,
+    };
+
+    expect(formatPlayerBehavior(behavior)).toBeUndefined();
+  });
+
+  it('should format behavior with all fields', () => {
+    const behavior: PlayerBehaviorContext = {
+      mercyPercent: 73,
+      honestyPercent: 45,
+      socialApproach: 'diplomatic',
+      dominantTraits: ['merciful', 'cunning'],
+      hasEnoughData: true,
+    };
+
+    const result = formatPlayerBehavior(behavior);
+
+    expect(result).toContain('Player behavioral patterns:');
+    expect(result).toContain('Shows mercy: 73%');
+    expect(result).toContain('tends toward mercy');
+    expect(result).toContain('Honesty: 45%');
+    expect(result).toContain('balanced');
+    expect(result).toContain('Social approach: diplomatic');
+    expect(result).toContain('Inferred traits: merciful, cunning');
+  });
+
+  it('should not include social approach when minimal', () => {
+    const behavior: PlayerBehaviorContext = {
+      mercyPercent: 50,
+      honestyPercent: 50,
+      socialApproach: 'minimal',
+      dominantTraits: [],
+      hasEnoughData: true,
+    };
+
+    const result = formatPlayerBehavior(behavior);
+
+    expect(result).not.toContain('Social approach');
+  });
+
+  it('should not include traits when empty', () => {
+    const behavior: PlayerBehaviorContext = {
+      mercyPercent: 50,
+      honestyPercent: 50,
+      socialApproach: 'balanced',
+      dominantTraits: [],
+      hasEnoughData: true,
+    };
+
+    const result = formatPlayerBehavior(behavior);
+
+    expect(result).not.toContain('Inferred traits');
+  });
+
+  it('should describe extreme mercy correctly', () => {
+    const behavior: PlayerBehaviorContext = {
+      mercyPercent: 95,
+      honestyPercent: 50,
+      socialApproach: 'balanced',
+      dominantTraits: [],
+      hasEnoughData: true,
+    };
+
+    const result = formatPlayerBehavior(behavior);
+    expect(result).toContain('tends toward mercy');
+  });
+
+  it('should describe extreme violence correctly', () => {
+    const behavior: PlayerBehaviorContext = {
+      mercyPercent: 15,
+      honestyPercent: 50,
+      socialApproach: 'balanced',
+      dominantTraits: [],
+      hasEnoughData: true,
+    };
+
+    const result = formatPlayerBehavior(behavior);
+    expect(result).toContain('tends toward violence');
+  });
+});
+
+describe('DefaultContextBuilder with PatternRepository', () => {
+  function createMockPatternRepo(patterns: PlayerPatterns): PatternRepository {
+    return {
+      getPlayerPatterns: vi.fn().mockReturnValue(patterns),
+    };
+  }
+
+  const mockPatterns: PlayerPatterns = {
+    playerId: 'char-001',
+    gameId: 'game-123',
+    totalEvents: 20,
+    categoryCounts: { mercy: 10, violence: 5, honesty: 3, social: 4, exploration: 2, character: 1 },
+    ratios: {
+      mercyVsViolence: 0.46,
+      honestyVsDeception: 0.2,
+      helpfulVsHarmful: 0.3,
+    },
+    violenceInitiation: {
+      initiatesViolence: false,
+      initiationRatio: 0.1,
+      totalViolenceEvents: 5,
+      attackFirstEvents: 0,
+    },
+    socialApproach: 'diplomatic',
+    dominantTraits: ['merciful', 'charismatic'],
+  };
+
+  it('should include playerBehavior when PatternRepository is provided', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const patternRepo = createMockPatternRepo(mockPatterns);
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      patternRepo
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(patternRepo.getPlayerPatterns).toHaveBeenCalledWith('game-123', 'char-001');
+    expect(context.playerBehavior).toBeDefined();
+    expect(context.playerBehavior?.mercyPercent).toBe(73);
+    expect(context.playerBehavior?.socialApproach).toBe('diplomatic');
+  });
+
+  it('should include formattedPlayerBehavior when enough data', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const patternRepo = createMockPatternRepo(mockPatterns);
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      patternRepo
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(context.formattedPlayerBehavior).toBeDefined();
+    expect(context.formattedPlayerBehavior).toContain('Player behavioral patterns:');
+    expect(context.formattedPlayerBehavior).toContain('Shows mercy: 73%');
+  });
+
+  it('should not include formattedPlayerBehavior when insufficient data', async () => {
+    const insufficientPatterns = { ...mockPatterns, totalEvents: 2 };
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+    const patternRepo = createMockPatternRepo(insufficientPatterns);
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      patternRepo
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(context.playerBehavior?.hasEnoughData).toBe(false);
+    expect(context.formattedPlayerBehavior).toBeUndefined();
+  });
+
+  it('should not call patternRepo when no player in party', async () => {
+    const nonPlayerParty: CharacterWithRole[] = [
+      {
+        id: 'char-002',
+        name: 'Wolf',
+        description: 'A companion',
+        class: 'Beast',
+        role: 'companion',
+        stats: { health: 100, maxHealth: 100 },
+      },
+    ];
+
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(nonPlayerParty);
+    const patternRepo = createMockPatternRepo(mockPatterns);
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo,
+      undefined,
+      patternRepo
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(patternRepo.getPlayerPatterns).not.toHaveBeenCalled();
+    expect(context.playerBehavior).toBeUndefined();
+  });
+
+  it('should not include playerBehavior when PatternRepository is not provided', async () => {
+    const gameRepo = createMockGameRepo(mockGameState);
+    const eventRepo = createMockEventRepo(mockEvents);
+    const areaRepo = createMockAreaRepo(mockArea);
+    const partyRepo = createMockPartyRepo(mockPartyMembers);
+
+    const builder = new DefaultContextBuilder(
+      gameRepo,
+      eventRepo,
+      areaRepo,
+      partyRepo
+    );
+
+    const context = await builder.build('game-123', 'narration');
+
+    expect(context.playerBehavior).toBeUndefined();
+    expect(context.formattedPlayerBehavior).toBeUndefined();
+  });
+});
