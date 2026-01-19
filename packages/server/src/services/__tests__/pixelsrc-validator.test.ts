@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { PixelsrcValidator } from '../pixelsrc/validator.js';
+import { PixelsrcValidator, _resetModuleState } from '../pixelsrc/validator.js';
 
 // Mock @pixelsrc/wasm module
 vi.mock('@pixelsrc/wasm', () => ({
@@ -13,9 +13,12 @@ const mockValidate = vi.mocked(wasmValidate);
 describe('PixelsrcValidator', () => {
   let validator: PixelsrcValidator;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     vi.clearAllMocks();
+    _resetModuleState();
     validator = new PixelsrcValidator();
+    // Initialize to load the mocked WASM module
+    await validator.init();
   });
 
   describe('validate', () => {

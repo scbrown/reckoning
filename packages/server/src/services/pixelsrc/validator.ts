@@ -78,6 +78,16 @@ let wasmLoadError: Error | null = null;
 let wasmLoadAttempted = false;
 
 /**
+ * Reset module state for testing.
+ * @internal
+ */
+export function _resetModuleState(): void {
+  wasmValidate = null;
+  wasmLoadError = null;
+  wasmLoadAttempted = false;
+}
+
+/**
  * Attempt to load the @pixelsrc/wasm module.
  * Returns the validate function or null if not available.
  */
