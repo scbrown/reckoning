@@ -166,6 +166,8 @@ Events occur
 
 ### Pillar 3: The Pattern Engine (Psychological Targeting)
 
+> **Implementation Status:** Partially implemented. Pattern detection exists via `PatternObserver` (mercy ratio, honesty, violence tendency) and `EmergenceObserver` (villain/ally emergence). Scenario generation that actively targets patterns is NOT yet implemented.
+
 The game learns YOUR tendencies and designs scenarios to challenge them specifically.
 
 **What It Tracks (via text analysis, not metrics):**
@@ -189,6 +191,8 @@ The game learns YOUR tendencies and designs scenarios to challenge them specific
 ---
 
 ### Pillar 4: The Living Chronicle & The Trial
+
+> **Implementation Status:** NOT implemented. The Chronicle narrator bias system and Trial judgment mechanics are future work. Current implementation focuses on structured events and scene management, which provide the data foundation these systems would use.
 
 **The Chronicle:**
 An AI "historian" writes your adventure as it happens—but from a biased perspective you don't control.

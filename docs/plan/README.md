@@ -33,9 +33,14 @@ This directory contains detailed implementation plans for each development phase
 | [Narrative Structure](./narrative-structure.md) | Scenes & Story Graph | Complete |
 | [Export Layer](./export-layer.md) | Git Persistence | Complete |
 | [Pixelsrc Integration](./pixelsrc-integration.md) | Pixel Art Generation | Complete |
-| Phase 5 | Pattern Engine | Not Started |
-| Phase 6 | Trial System | Not Started |
-| Phase 7 | UI & Rendering | Not Started |
+
+### Future Work (Not Yet Planned)
+
+The following concepts from the [VISION](../VISION.md) are not yet implemented:
+
+- **Pattern Engine Scenarios**: While pattern detection exists (PatternObserver, EmergenceObserver), scenario generation that actively targets player patterns is not built.
+- **The Trial System**: The judgment mechanics (prosecution, defense, cross-examination, verdicts) are not implemented.
+- **Chronicle Narrator Bias**: The AI historian with controllable bias is not implemented.
 
 ## Chronicle Integration (Phases A-D) - COMPLETE
 
