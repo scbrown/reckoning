@@ -1,9 +1,9 @@
 ---
 title: "Phase 3: Party System & World Generation"
 type: plan
-status: draft
+status: complete
 created: 2026-01-11
-updated: 2026-01-11
+updated: 2026-01-20
 authors:
   - human
   - agent

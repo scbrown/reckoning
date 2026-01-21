@@ -8,9 +8,10 @@ Integrate pixelsrc for procedurally generated pixel art portraits, scenes, and a
 |-------|-------|
 | **Epic ID** | pixelsrc-integration |
 | **Prefix** | PXLS |
-| **Status** | Planning |
+| **Status** | Complete |
 | **Dependencies** | None (can run parallel to other epics) |
 | **Blocked By** | None |
+| **Completed** | 2026-01-20 |
 
 ## Task Dependency Graph
 
@@ -72,7 +73,7 @@ PXLS-002         PXLS-003         PXLS-004         PXLS-005                   â”
 
 ### PXLS-001: Add @pixelsrc/wasm dependency to server
 
-**Status**: todo
+**Status**: done
 **Dependencies**: none
 **Blocked By**: none
 
@@ -101,7 +102,7 @@ The WASM module may need async initialization. Ensure it's ready before server s
 
 ### PXLS-002: Implement PixelsrcProjectManager
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-001
 **Blocked By**: none
 
@@ -141,7 +142,7 @@ Use `fs.promises` for async file operations. Ensure paths are sanitized to preve
 
 ### PXLS-003: Implement PixelsrcValidator
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-001
 **Blocked By**: none
 
@@ -176,7 +177,7 @@ export interface ValidationResult {
 
 ### PXLS-004: Implement PixelsrcRenderer
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-001
 **Blocked By**: none
 
@@ -211,7 +212,7 @@ export interface RenderOptions {
 
 ### PXLS-005: Add PixelArtRef types to shared package
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-001
 **Blocked By**: none
 
@@ -239,7 +240,7 @@ See `docs/plan/pixelsrc-integration.md` for full type definitions.
 
 ### PXLS-006: Implement PixelsrcGenerator with primer
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-002, PXLS-003, PXLS-004, PXLS-005
 **Blocked By**: none
 
@@ -274,7 +275,7 @@ Primer should be loaded once at startup and cached. Prompts should specify JSONL
 
 ### PXLS-007: Implement PixelsrcRepairer
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-006
 **Blocked By**: none
 
@@ -306,7 +307,7 @@ Include validation errors in repair prompt so AI knows what to fix. Pass origina
 
 ### PXLS-008: Implement PixelsrcVisualValidator
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-004, PXLS-006
 **Blocked By**: none
 
@@ -342,7 +343,7 @@ Visual validation prompt should ask Claude to evaluate:
 
 ### PXLS-009: Integrate pixelsrc with WorldGenerator
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-007, PXLS-008
 **Blocked By**: none
 
@@ -378,7 +379,7 @@ Art generation adds significant time to world creation. Consider progress update
 
 ### PXLS-010: Add pixel art API endpoints
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-009
 **Blocked By**: none
 
@@ -408,7 +409,7 @@ Follow existing route patterns. Include animation metadata in response.
 
 ### PXLS-011: Add @pixelsrc/wasm to client
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-001
 **Blocked By**: none
 
@@ -437,7 +438,7 @@ WASM initialization is async. Initialize early in app startup. Use `render_to_rg
 
 ### PXLS-012: Implement AnimatedAvatar component
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-011
 **Blocked By**: none
 
@@ -474,7 +475,7 @@ Use `requestAnimationFrame` for smooth animation. Parse keyframes from PixelArt.
 
 ### PXLS-013: Integrate AnimatedAvatar with UI
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-012
 **Blocked By**: none
 
@@ -505,7 +506,7 @@ Need to coordinate avatar lookup between components. Consider a central AvatarMa
 
 ### PXLS-014: Implement scene backgrounds
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-013
 **Blocked By**: none
 
@@ -532,7 +533,7 @@ Scenes are larger (128x96 or similar). May need different rendering approach for
 
 ### PXLS-015: Implement art evolution system
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-014
 **Blocked By**: none
 
@@ -568,7 +569,7 @@ Use pixelsrc variant and composition types for efficient evolution without full 
 
 ### PXLS-016: Write pixelsrc integration documentation
 
-**Status**: todo
+**Status**: done
 **Dependencies**: PXLS-015
 **Blocked By**: none
 

@@ -8,11 +8,10 @@ Git-diffable game state for persistence, sharing, and derivative works.
 |-------|-------|
 | **Epic ID** | export-layer |
 | **Prefix** | EXPT |
-| **Status** | Backlog |
+| **Status** | Complete |
 | **Dependencies** | narrative-structure |
-| **Blocked By** | NARR-015 (narrative-structure complete) |
-
-**Note**: This epic is in backlog status. Tasks are outlined but not fully detailed. Specification will be completed when this epic moves to planning.
+| **Blocked By** | None |
+| **Completed** | 2026-01-20 |
 
 ## Task Dependency Graph
 
@@ -61,7 +60,7 @@ EXPT-002            EXPT-003            EXPT-004                          │
 
 ### EXPT-001: Define export format specification
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: narrative-structure epic complete
 **Blocked By**: NARR-015
 
@@ -79,7 +78,7 @@ Define the TOML/JSON export format specification for game state.
 
 ### EXPT-002: Implement TOML exporter
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-001
 
 #### Description
@@ -103,7 +102,7 @@ Export game state as a directory of TOML files.
 
 ### EXPT-003: Implement JSON exporter
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-001
 
 #### Description
@@ -118,7 +117,7 @@ Export complete game state as single JSON file.
 
 ### EXPT-004: Implement JSONL event exporter
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-001
 
 #### Description
@@ -133,7 +132,7 @@ Export event log as append-only JSONL file.
 
 ### EXPT-005: Implement import service
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-002, EXPT-003, EXPT-004
 
 #### Description
@@ -149,7 +148,7 @@ Import exported game state into new game session.
 
 ### EXPT-006: Implement Git integration
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-005
 
 #### Description
@@ -165,7 +164,7 @@ Optional Git commit on save.
 
 ### EXPT-007: Add Export API routes
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-005
 
 #### Description
@@ -180,7 +179,7 @@ REST API for export/import operations.
 
 ### EXPT-008: Implement Export UI
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-007
 
 #### Description
@@ -195,7 +194,7 @@ UI for exporting and importing games.
 
 ### EXPT-009: Implement comic/transcript generation
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-004
 
 #### Description
@@ -211,7 +210,7 @@ Generate comics or transcripts from event history.
 
 ### EXPT-010: Write export layer documentation
 
-**Status**: backlog
+**Status**: done
 **Dependencies**: EXPT-009
 
 #### Description

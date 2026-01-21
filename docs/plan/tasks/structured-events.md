@@ -8,9 +8,10 @@ Enable queryable event patterns for AI context and emergence detection.
 |-------|-------|
 | **Epic ID** | structured-events |
 | **Prefix** | SEVT |
-| **Status** | Planning |
+| **Status** | Complete |
 | **Dependencies** | entity-evolution |
-| **Blocked By** | EVOL-015 (entity-evolution complete) |
+| **Blocked By** | None |
+| **Completed** | 2026-01-20 |
 
 ## Task Dependency Graph
 
@@ -67,7 +68,7 @@ SEVT-003            SEVT-004            SEVT-005                          │
 
 ### SEVT-001: Extend events table with structured fields
 
-**Status**: todo
+**Status**: done
 **Dependencies**: entity-evolution epic complete
 **Blocked By**: EVOL-015
 
@@ -103,7 +104,7 @@ ALTER TABLE events ADD COLUMN tags TEXT;       -- JSON array
 
 ### SEVT-002: Define action vocabulary constants
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-001
 **Blocked By**: none
 
@@ -136,7 +137,7 @@ Actions should be lowercase, snake_case for consistency with database storage.
 
 ### SEVT-003: Implement EventBuilder service
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-002
 **Blocked By**: none
 
@@ -171,7 +172,7 @@ Priority for fields:
 
 ### SEVT-004: Implement ActionClassifier service
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-002
 **Blocked By**: none
 
@@ -206,7 +207,7 @@ Patterns should be case-insensitive and handle common variations:
 
 ### SEVT-005: Extend EventRepository with structured queries
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-001
 **Blocked By**: none
 
@@ -242,7 +243,7 @@ WHERE witnesses LIKE '%"id":"npc_123"%'
 
 ### SEVT-006: Implement PatternObserver service
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-005
 **Blocked By**: none
 
@@ -276,7 +277,7 @@ Ratios should return 0.5 when no data available (neutral assumption).
 
 ### SEVT-007: Implement EmergenceObserver service
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-006, entity-evolution epic
 **Blocked By**: EVOL-008 (EvolutionService)
 
@@ -316,7 +317,7 @@ Ally conditions:
 
 ### SEVT-008: Integrate EventBuilder with ContentPipeline
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-003, SEVT-004, SEVT-007
 **Blocked By**: none
 
@@ -355,7 +356,7 @@ New AI response format:
 
 ### SEVT-009: Integrate PatternObserver with ContextBuilder
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-006
 **Blocked By**: EVOL-012 (ContextBuilder integration)
 
@@ -391,7 +392,7 @@ Player behavioral patterns:
 
 ### SEVT-010: Add Structured Events API routes
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-005, SEVT-006
 **Blocked By**: none
 
@@ -423,7 +424,7 @@ Action query accepts comma-separated list: `?actions=spare_enemy,show_mercy`
 
 ### SEVT-011: Implement DM emergence notifications
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-007, SEVT-010
 **Blocked By**: EVOL-014 (DM approval UI exists)
 
@@ -454,7 +455,7 @@ This is advisory only - emergence opportunities suggest narrative directions but
 
 ### SEVT-012: Write structured events documentation
 
-**Status**: todo
+**Status**: done
 **Dependencies**: SEVT-011
 **Blocked By**: none
 

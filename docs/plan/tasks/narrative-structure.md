@@ -8,9 +8,10 @@ Group turns into scenes with optional connections and requirements.
 |-------|-------|
 | **Epic ID** | narrative-structure |
 | **Prefix** | NARR |
-| **Status** | Planning |
+| **Status** | Complete |
 | **Dependencies** | structured-events |
-| **Blocked By** | SEVT-012 (structured-events complete) |
+| **Blocked By** | None |
+| **Completed** | 2026-01-20 |
 
 ## Task Dependency Graph
 
@@ -78,7 +79,7 @@ NARR-005            NARR-006            NARR-007                          │
 
 ### NARR-001: Create scenes table migration
 
-**Status**: todo
+**Status**: done
 **Dependencies**: structured-events epic complete
 **Blocked By**: SEVT-012
 
@@ -126,7 +127,7 @@ CREATE TABLE scenes (
 
 ### NARR-002: Create scene_connections table migration
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-001
 **Blocked By**: none
 
@@ -164,7 +165,7 @@ Requirements JSON structure:
 
 ### NARR-003: Create scene_availability table migration
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-002
 **Blocked By**: none
 
@@ -190,7 +191,7 @@ This table tracks when scenes became available, separate from scenes.status whic
 
 ### NARR-004: Create scene_flags migration and add current_scene_id to games
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-003
 **Blocked By**: none
 
@@ -216,7 +217,7 @@ Scene flags are separate from game-wide flags. They reset when scene changes.
 
 ### NARR-005: Implement SceneRepository
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-004
 **Blocked By**: none
 
@@ -250,7 +251,7 @@ getEventsInScene queries events table where turn between started_turn and comple
 
 ### NARR-006: Implement SceneConnectionRepository
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-004
 **Blocked By**: none
 
@@ -281,7 +282,7 @@ getUnlockedConnections evaluates requirements against current game state.
 
 ### NARR-007: Implement SceneAvailabilityRepository
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-004
 **Blocked By**: none
 
@@ -307,7 +308,7 @@ Implement the SceneAvailabilityRepository for tracking unlocked scenes.
 
 ### NARR-008: Implement SceneManager service
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-005, NARR-006, NARR-007
 **Blocked By**: none
 
@@ -344,7 +345,7 @@ Scene transitions should:
 
 ### NARR-009: Implement scene boundary detection
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-008
 **Blocked By**: SEVT-005 (event queries)
 
@@ -375,7 +376,7 @@ Suggestions are advisory - DM decides whether to end scene.
 
 ### NARR-010: Implement requirement evaluation
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-008
 **Blocked By**: EVOL-005, EVOL-006 (trait/relationship repos)
 
@@ -412,7 +413,7 @@ interface GameState {
 
 ### NARR-011: Integrate SceneManager with GameEngine
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-009, NARR-010
 **Blocked By**: none
 
@@ -442,7 +443,7 @@ Scenes are optional - game works without any scenes. Only add scene context if s
 
 ### NARR-012: Integrate SceneManager with ContextBuilder
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-008
 **Blocked By**: SEVT-009 (ContextBuilder has patterns)
 
@@ -482,7 +483,7 @@ Available next scenes:
 
 ### NARR-013: Add Scene API routes
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-008
 **Blocked By**: none
 
@@ -517,7 +518,7 @@ Scene creation should validate scene_type, mood, stakes values.
 
 ### NARR-014: Implement Scene management UI
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-013
 **Blocked By**: EVOL-014 (DM UI exists)
 
@@ -550,7 +551,7 @@ Scene panel should be collapsible to not clutter DM view.
 
 ### NARR-015: Write narrative structure documentation
 
-**Status**: todo
+**Status**: done
 **Dependencies**: NARR-014
 **Blocked By**: none
 

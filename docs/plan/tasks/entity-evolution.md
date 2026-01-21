@@ -8,9 +8,10 @@ Track how entities (characters, NPCs, locations) evolve through play via traits 
 |-------|-------|
 | **Epic ID** | entity-evolution |
 | **Prefix** | EVOL |
-| **Status** | Planning |
+| **Status** | Complete |
 | **Dependencies** | None (foundation epic) |
 | **Blocked By** | None |
+| **Completed** | 2026-01-20 |
 
 ## Task Dependency Graph
 
@@ -75,7 +76,7 @@ EVOL-005            EVOL-006            EVOL-007                          │
 
 ### EVOL-001: Create entity_traits table migration
 
-**Status**: todo
+**Status**: done
 **Dependencies**: none
 **Blocked By**: none
 
@@ -117,7 +118,7 @@ CREATE TABLE entity_traits (
 
 ### EVOL-002: Create relationships table migration
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-001
 **Blocked By**: none
 
@@ -147,7 +148,7 @@ Dimensions:
 
 ### EVOL-003: Create pending_evolutions table migration
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-002
 **Blocked By**: none
 
@@ -174,7 +175,7 @@ This table stores both trait additions/removals and relationship changes. The `e
 
 ### EVOL-004: Create trait_catalog table with seed data
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-003
 **Blocked By**: none
 
@@ -205,7 +206,7 @@ The trait catalog is reference data, not per-game data. It defines the vocabular
 
 ### EVOL-005: Implement TraitRepository
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-004
 **Blocked By**: none
 
@@ -237,7 +238,7 @@ Use the existing repository pattern from other repositories in the codebase.
 
 ### EVOL-006: Implement RelationshipRepository
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-004
 **Blocked By**: none
 
@@ -269,7 +270,7 @@ Relationships are directional (A→B is different from B→A). `findBetween` sho
 
 ### EVOL-007: Implement PendingEvolutionRepository
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-004
 **Blocked By**: none
 
@@ -301,7 +302,7 @@ Status flow: pending → approved/edited/refused. Once resolved, cannot be chang
 
 ### EVOL-008: Implement EvolutionService
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-005, EVOL-006, EVOL-007
 **Blocked By**: none
 
@@ -335,7 +336,7 @@ This service is the main entry point for evolution operations. It coordinates be
 
 ### EVOL-009: Implement aggregate label computation
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-008
 **Blocked By**: none
 
@@ -366,7 +367,7 @@ Example rules:
 
 ### EVOL-010: Implement system evolution detection
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-008
 **Blocked By**: none
 
@@ -398,7 +399,7 @@ This runs after every event commit. Should be efficient - use cached action coun
 
 ### EVOL-011: Integrate EvolutionService with ContentPipeline
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-010
 **Blocked By**: none
 
@@ -434,7 +435,7 @@ AI can suggest evolutions in its response:
 
 ### EVOL-012: Integrate EvolutionService with ContextBuilder
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-011
 **Blocked By**: none
 
@@ -469,7 +470,7 @@ NPCs present:
 
 ### EVOL-013: Add Evolution API routes
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-012
 **Blocked By**: none
 
@@ -502,7 +503,7 @@ Follow existing route patterns in the codebase for consistency.
 
 ### EVOL-014: Implement DM approval UI
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-013
 **Blocked By**: none
 
@@ -535,7 +536,7 @@ Should appear alongside narrative approval in DM editor, not as a separate view.
 
 ### EVOL-015: Write entity evolution documentation
 
-**Status**: todo
+**Status**: done
 **Dependencies**: EVOL-014
 **Blocked By**: none
 

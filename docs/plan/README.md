@@ -3,7 +3,7 @@ title: Development Phases Overview
 type: plan
 status: active
 created: 2026-01-10
-updated: 2026-01-18
+updated: 2026-01-20
 authors:
   - human
   - agent
@@ -27,48 +27,57 @@ This directory contains detailed implementation plans for each development phase
 | [Phase 0](./phase-0-project-setup.md) | Project Foundation | Complete |
 | [Phase 1](./phase-1-tts-engine.md) | Text-to-Speech Engine | Complete |
 | [Phase 2](./phase-2-dm-engine.md) | DM Engine & Game Loop | Complete |
-| [Phase 3](./phase-3-party-world.md) | Party System, Beats & World Gen | Planning |
-| [Entity Evolution](./entity-evolution.md) | Traits & Relationships | Planning |
-| [Structured Events](./structured-events.md) | Pattern Detection & Emergence | Planning |
-| [Narrative Structure](./narrative-structure.md) | Scenes & Story Graph | Planning |
-| [Export Layer](./export-layer.md) | Git Persistence | Backlog |
+| [Phase 3](./phase-3-party-world.md) | Party System, Beats & World Gen | Complete |
+| [Entity Evolution](./entity-evolution.md) | Traits & Relationships | Complete |
+| [Structured Events](./structured-events.md) | Pattern Detection & Emergence | Complete |
+| [Narrative Structure](./narrative-structure.md) | Scenes & Story Graph | Complete |
+| [Export Layer](./export-layer.md) | Git Persistence | Complete |
+| [Pixelsrc Integration](./pixelsrc-integration.md) | Pixel Art Generation | Complete |
 | Phase 5 | Pattern Engine | Not Started |
 | Phase 6 | Trial System | Not Started |
 | Phase 7 | UI & Rendering | Not Started |
 
-## Chronicle Integration (Phases A-D)
+## Chronicle Integration (Phases A-D) - COMPLETE
 
-Chronicle was originally planned as a separate WASM module. We've since adopted an **evolutionary approach**: building Chronicle concepts directly into Reckoning, with the option to extract later.
+Chronicle was originally planned as a separate WASM module. We adopted an **evolutionary approach**: building Chronicle concepts directly into Reckoning. All phases are now complete.
 
 See [Chronicle Integration Plan](./chronicle-integration.md) for the overall strategy.
 
-### Phase A: Entity Evolution
+### Phase A: Entity Evolution - COMPLETE
 
 Track how characters, NPCs, and locations evolve through play:
 - **Traits**: Predefined vocabulary (merciful, ruthless, haunted, etc.)
 - **Relationships**: Multi-dimensional (trust, respect, fear, resentment, etc.)
 - **DM Approval**: System suggests evolutions, DM has final say
 
-### Phase B: Structured Events
+Implemented in: `packages/server/src/services/evolution/`, `packages/server/src/routes/evolution.ts`, `packages/client/src/components/evolution-approval-panel.ts`
+
+### Phase B: Structured Events - COMPLETE
 
 Enable queryable event patterns for AI context and emergence detection:
 - **Structured fields**: action, actor, target, witnesses, tags
 - **Pattern detection**: mercy ratio, violence tendency, honesty
 - **Emergence observer**: detect villain/ally emergence opportunities
 
-### Phase C: Narrative Structure
+Implemented in: `packages/server/src/services/events/`, `packages/server/src/services/chronicle/`
+
+### Phase C: Narrative Structure - COMPLETE
 
 Group turns into scenes with optional branching:
 - **Scenes**: Type, mood, stakes, turn boundaries
 - **Connections**: Requirements to unlock paths
 - **Scene-aware AI**: Context includes current scene state
 
-### Phase D: Export Layer (Backlog)
+Implemented in: `packages/server/src/services/scene/`, `packages/server/src/routes/scene.ts`, `packages/client/src/components/scene-panel.ts`
+
+### Phase D: Export Layer - COMPLETE
 
 Git-diffable game state for persistence and sharing:
 - **TOML/JSON export**: Human-readable, version-controllable
 - **Git integration**: Optional commit on save
 - **Derivative works**: Comic generation, transcripts
+
+Implemented in: `packages/server/src/services/export/`, `packages/server/src/routes/export.ts`, `packages/client/src/components/export-import-modal.ts`
 
 ## How Evolution Maps to the Four Pillars
 
@@ -106,12 +115,13 @@ Starting with the Text-to-Speech engine provides:
 
 Each epic has a detailed task breakdown in the [tasks/](./tasks/) directory:
 
-| Epic | Tasks | Description |
-|------|-------|-------------|
-| [entity-evolution](./tasks/entity-evolution.md) | 15 | Traits, relationships, DM approval |
-| [structured-events](./tasks/structured-events.md) | 12 | Pattern detection, emergence |
-| [narrative-structure](./tasks/narrative-structure.md) | 15 | Scenes, connections, requirements |
-| [export-layer](./tasks/export-layer.md) | 10 | Git persistence (backlog) |
+| Epic | Tasks | Status | Description |
+|------|-------|--------|-------------|
+| [entity-evolution](./tasks/entity-evolution.md) | 15/15 | Complete | Traits, relationships, DM approval |
+| [structured-events](./tasks/structured-events.md) | 12/12 | Complete | Pattern detection, emergence |
+| [narrative-structure](./tasks/narrative-structure.md) | 15/15 | Complete | Scenes, connections, requirements |
+| [export-layer](./tasks/export-layer.md) | 10/10 | Complete | Git persistence |
+| [pixelsrc-integration](./tasks/pixelsrc-integration.md) | 16/16 | Complete | Pixel art generation |
 
 See [tasks/dependency-diagram.md](./tasks/dependency-diagram.md) for the full dependency graph.
 
