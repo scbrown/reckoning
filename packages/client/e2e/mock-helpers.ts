@@ -679,6 +679,65 @@ export function createTestJoinCode(
 }
 
 /**
+ * Mock join flow for multi-view testing
+ * Mocks the create and validate endpoints for join codes
+ *
+ * Endpoints mocked:
+ * - POST /api/game/:id/join/create - generates a join code
+ * - POST /api/game/:id/join - validates a code and returns session info
+ */
+export async function mockJoinFlow(
+  page: Page,
+  code: string,
+  gameInfo?: { gameName?: string; dmName?: string }
+): Promise<void> {
+  // Mock code creation endpoint
+  await page.route('**/api/game/*/join/create', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        code,
+        expiresAt: new Date(Date.now() + 3600000).toISOString(),
+      }),
+    });
+  });
+
+  // Mock code validation endpoint
+  await page.route('**/api/game/*/join', async (route: Route, request) => {
+    // Only handle POST requests (validation)
+    if (request.method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    const body = JSON.parse((await request.postData()) ?? '{}');
+
+    if (body.code === code) {
+      // Valid code - return session info
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          valid: true,
+          gameId: 'test-game',
+          gameName: gameInfo?.gameName ?? 'Test Adventure',
+          dmName: gameInfo?.dmName ?? 'Test DM',
+          token: 'session-token-xyz',
+        }),
+      });
+    } else {
+      // Invalid code
+      await route.fulfill({
+        status: 400,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: 'Invalid code' }),
+      });
+    }
+  });
+}
+
+/**
  * Mock join code generation and validation
  */
 export async function mockJoinCode(
