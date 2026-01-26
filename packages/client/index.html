@@ -310,6 +310,12 @@
         height: 100%;
       }
 
+      /* View Container */
+      .view-container {
+        flex: 1;
+        overflow: hidden;
+      }
+
       .welcome-screen.hidden {
         display: none;
       }
@@ -412,32 +418,8 @@
           </div>
         </header>
 
-        <!-- Status Bar -->
-        <div id="status-bar"></div>
-
-        <!-- Main Content -->
-        <main class="app-main">
-          <!-- Left Panel: Party -->
-          <section class="left-panel">
-            <div id="party-panel"></div>
-          </section>
-
-          <!-- Center Panel: Narrator Output & DM Editor -->
-          <section class="center-panel">
-            <div id="area-panel"></div>
-            <div id="narrator-output"></div>
-            <div id="dm-editor"></div>
-            <div id="beat-editor"></div>
-          </section>
-
-          <!-- Right Panel: Controls -->
-          <section class="right-panel">
-            <div id="playback-controls"></div>
-            <div id="controls"></div>
-            <div id="scene-panel"></div>
-            <div id="evolution-panel"></div>
-          </section>
-        </main>
+        <!-- View Container - Views render their content here -->
+        <div id="view-container" class="view-container"></div>
       </div>
 
       <!-- Loading Overlay -->
