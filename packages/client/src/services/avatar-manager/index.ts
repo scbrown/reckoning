@@ -7,7 +7,7 @@
  */
 
 import type { Character, PixelArt } from '@reckoning/shared';
-import { AnimatedAvatar } from '../../components/animated-avatar.js';
+import { AnimatedAvatar } from '../../components/shared/index.js';
 import { PixelsrcRenderer } from '../pixelsrc/index.js';
 
 /**

@@ -6,7 +6,7 @@
  */
 
 import type { Area, AreaExit, NPC, NPCDisposition, PixelArt } from '@reckoning/shared';
-import { SceneBackground, type SceneBackgroundConfig } from './scene-background.js';
+import { SceneBackground, type SceneBackgroundConfig } from './shared/index.js';
 import type { PixelsrcRenderer } from '../services/pixelsrc/index.js';
 
 export interface AreaPanelConfig {

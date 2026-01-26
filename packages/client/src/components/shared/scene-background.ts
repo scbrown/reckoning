@@ -6,7 +6,7 @@
  */
 
 import type { PixelArt, PixelArtAnimation, AnimationState, KeyframeData } from '@reckoning/shared';
-import { PixelsrcRenderer } from '../services/pixelsrc/index.js';
+import { PixelsrcRenderer } from '../../services/pixelsrc/index.js';
 
 /**
  * Configuration for SceneBackground

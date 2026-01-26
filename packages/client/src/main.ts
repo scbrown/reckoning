@@ -26,7 +26,7 @@ import { PartyPanel } from './components/party-panel.js';
 import { AreaPanel } from './components/area-panel.js';
 import { StatusBar } from './components/status-bar.js';
 import { BeatEditor } from './components/beat-editor.js';
-import { SpeechBubble } from './components/speech-bubble.js';
+import { SpeechBubble } from './components/shared/index.js';
 import { EvolutionApprovalPanel, type PendingEvolution } from './components/evolution-approval-panel.js';
 import { ScenePanel } from './components/scene-panel.js';
 import type { CreateSceneDTO } from './services/game/index.js';

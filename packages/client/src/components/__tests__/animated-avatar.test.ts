@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { AnimatedAvatar } from '../animated-avatar.js';
+import { AnimatedAvatar } from '../shared/index.js';
 import type { PixelArt, PixelArtAnimation } from '@reckoning/shared';
 
 // =============================================================================
@@ -140,7 +140,7 @@ describe('AnimatedAvatar', () => {
 
   afterEach(() => {
     // Remove injected styles
-    const styles = document.getElementById('animated-avatar-styles');
+    const styles = document.getElementById('avatar-stage-styles');
     if (styles) {
       styles.remove();
     }
@@ -171,7 +171,7 @@ describe('AnimatedAvatar', () => {
       const element = avatar.getElement();
 
       expect(element).toBeInstanceOf(HTMLCanvasElement);
-      expect(element.className).toBe('animated-avatar');
+      expect(element.className).toBe('avatar-stage');
     });
 
     it('should use default size of 64x64', () => {
@@ -581,7 +581,7 @@ describe('AnimatedAvatar', () => {
       new AnimatedAvatar(createMockPixelArt(), mockRenderer as never);
       new AnimatedAvatar(createMockPixelArt(), mockRenderer as never);
 
-      const styles = document.querySelectorAll('#animated-avatar-styles');
+      const styles = document.querySelectorAll('#avatar-stage-styles');
       expect(styles.length).toBe(1);
     });
   });

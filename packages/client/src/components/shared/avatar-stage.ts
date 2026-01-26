@@ -1,17 +1,18 @@
 /**
- * Animated Avatar Component
+ * Avatar Stage Component
  *
- * Renders animated pixel art avatars using canvas and the pixelsrc WASM renderer.
- * Supports animation states (idle, talking) with smooth transitions.
+ * View-agnostic component that renders animated pixel art avatars using canvas
+ * and the pixelsrc WASM renderer. Supports animation states (idle, talking)
+ * with smooth transitions.
  */
 
 import type { PixelArt, PixelArtAnimation, AnimationState, KeyframeData } from '@reckoning/shared';
-import { PixelsrcRenderer } from '../services/pixelsrc/index.js';
+import { PixelsrcRenderer } from '../../services/pixelsrc/index.js';
 
 /**
- * Configuration for AnimatedAvatar
+ * Configuration for AvatarStage
  */
-export interface AnimatedAvatarConfig {
+export interface AvatarStageConfig {
   /** Canvas size in pixels (default: 64) */
   size?: number;
   /** Display scale via CSS (default: 1) */
@@ -58,9 +59,9 @@ const DEFAULT_TALKING_ANIMATION: AnimationState = {
 export type AvatarAnimationState = 'idle' | 'talking';
 
 /**
- * Animated Avatar component for displaying pixel art with animation support
+ * Avatar Stage component for displaying pixel art with animation support
  */
-export class AnimatedAvatar {
+export class AvatarStage {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private renderer: PixelsrcRenderer;
@@ -84,7 +85,7 @@ export class AnimatedAvatar {
   private initialized = false;
 
   /**
-   * Create a new AnimatedAvatar
+   * Create a new AvatarStage
    *
    * @param pixelArt - The pixel art data containing source and optional animation metadata
    * @param renderer - Initialized PixelsrcRenderer instance
@@ -95,7 +96,7 @@ export class AnimatedAvatar {
     pixelArt: PixelArt,
     renderer: PixelsrcRenderer,
     spriteName?: string,
-    config: AnimatedAvatarConfig = {}
+    config: AvatarStageConfig = {}
   ) {
     this.source = pixelArt.source;
     this.animation = pixelArt.animation;
@@ -110,7 +111,7 @@ export class AnimatedAvatar {
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.size;
     this.canvas.height = this.size;
-    this.canvas.className = 'animated-avatar';
+    this.canvas.className = 'avatar-stage';
 
     // Apply display scaling via CSS
     if (this.displayScale !== 1) {
@@ -273,7 +274,7 @@ export class AnimatedAvatar {
       // Render initial frame
       this.renderFrame();
     } catch (error) {
-      console.error('AnimatedAvatar: Failed to initialize', error);
+      console.error('AvatarStage: Failed to initialize', error);
       // Render placeholder
       this.renderPlaceholder();
     }
@@ -518,12 +519,12 @@ export class AnimatedAvatar {
    * Inject component styles into document
    */
   private injectStyles(): void {
-    if (document.getElementById('animated-avatar-styles')) return;
+    if (document.getElementById('avatar-stage-styles')) return;
 
     const styles = document.createElement('style');
-    styles.id = 'animated-avatar-styles';
+    styles.id = 'avatar-stage-styles';
     styles.textContent = `
-      .animated-avatar {
+      .avatar-stage {
         display: block;
         border-radius: 4px;
         background: #1a1a1a;
@@ -533,4 +534,7 @@ export class AnimatedAvatar {
   }
 }
 
-export default AnimatedAvatar;
+// Re-export old names for backwards compatibility during migration
+export { AvatarStage as AnimatedAvatar };
+export type { AvatarStageConfig as AnimatedAvatarConfig };
+export default AvatarStage;
