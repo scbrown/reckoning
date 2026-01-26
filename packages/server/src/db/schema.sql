@@ -362,6 +362,38 @@ CREATE TABLE IF NOT EXISTS world_seeds (
 );
 CREATE INDEX IF NOT EXISTS idx_world_seeds_game ON world_seeds(game_id);
 
+-- View sessions table (Multi-View system)
+-- Tracks active view sessions for party, DM, and player views
+CREATE TABLE IF NOT EXISTS view_sessions (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  view_type TEXT NOT NULL CHECK (view_type IN ('party', 'dm', 'player')),
+  character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,  -- Required for 'player' view_type
+  token_hash TEXT NOT NULL,  -- Hashed session token for validation
+  display_name TEXT,  -- Player's chosen display name
+  last_active TEXT DEFAULT (datetime('now')),
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_view_sessions_game ON view_sessions(game_id);
+CREATE INDEX IF NOT EXISTS idx_view_sessions_token ON view_sessions(token_hash);
+CREATE INDEX IF NOT EXISTS idx_view_sessions_type ON view_sessions(game_id, view_type);
+
+-- Join codes table (Multi-View system)
+-- Short-lived codes for players to join game views
+CREATE TABLE IF NOT EXISTS join_codes (
+  id TEXT PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE,  -- Short alphanumeric code (e.g., 'ABC123')
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  view_type TEXT NOT NULL CHECK (view_type IN ('party', 'player')),  -- DM doesn't use join codes
+  character_id TEXT REFERENCES characters(id) ON DELETE CASCADE,  -- Required for 'player' view_type
+  expires_at TEXT NOT NULL,
+  max_uses INTEGER DEFAULT 1,
+  current_uses INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_join_codes_code ON join_codes(code);
+CREATE INDEX IF NOT EXISTS idx_join_codes_game ON join_codes(game_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

@@ -89,3 +89,11 @@ export {
   type WorldSeedFull,
   type CreateWorldSeedInput,
 } from './world-seed-repository.js';
+export {
+  ViewSessionRepository,
+  type ViewType,
+  type ViewSession,
+  type CreateViewSessionInput,
+  type JoinCode,
+  type CreateJoinCodeInput,
+} from './view-session-repository.js';
