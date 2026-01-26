@@ -14,6 +14,7 @@ import { chronicleRoutes } from './routes/chronicle.js';
 import { sceneRoutes } from './routes/scene.js';
 import { pixelartRoutes } from './routes/pixelart.js';
 import { exportRoutes } from './routes/export.js';
+import { seedRoutes } from './routes/seed.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../../..');
@@ -45,6 +46,7 @@ await server.register(chronicleRoutes, { prefix: '/api/chronicle' });
 await server.register(sceneRoutes, { prefix: '/api/scene' });
 await server.register(pixelartRoutes, { prefix: '/api/pixelart' });
 await server.register(exportRoutes, { prefix: '/api/export' });
+await server.register(seedRoutes, { prefix: '/api/seed' });
 
 /**
  * Try to start server on a port, incrementing if port is in use.

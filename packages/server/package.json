@@ -5,6 +5,9 @@
   "description": "Reckoning API server",
   "type": "module",
   "main": "./dist/index.js",
+  "bin": {
+    "reckoning-seed": "./dist/cli/reckoning-seed.js"
+  },
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
