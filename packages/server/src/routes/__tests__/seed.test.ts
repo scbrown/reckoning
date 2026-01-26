@@ -222,6 +222,8 @@ describe('SeedSessionManager', () => {
   describe('fail', () => {
     it('should mark a session as failed', () => {
       const session = manager.create();
+      // Must add error listener to avoid Node.js unhandled error exception
+      manager.on('error', () => {});
       const result = manager.fail(session.id, 'Research timeout');
 
       expect(result).toBe(true);
