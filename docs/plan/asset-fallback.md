@@ -287,6 +287,191 @@ Start with LPC + Hyptosis + Kenney, commission:
 - Expression overlays that work across LPC bases
 - Custom props for common archetypes
 
+## LPC Integration Strategy
+
+### Two-Tier Approach
+
+1. **Pre-generated Library** - Cover common archetypes upfront
+2. **Runtime Composition** - Generate on-demand for edge cases
+
+### Tier 1: Pre-generated Character Library
+
+Generate 100-200 character sprites covering common combinations:
+
+```
+archetypes/
+├── warriors/
+│   ├── human_male_warrior_light.png
+│   ├── human_male_warrior_dark.png
+│   ├── human_female_warrior_light.png
+│   ├── dwarf_male_warrior_01.png
+│   └── ...
+├── mages/
+│   ├── elf_male_mage_01.png
+│   ├── human_female_mage_01.png
+│   └── ...
+├── rogues/
+├── nobles/
+├── commoners/
+└── creatures/
+```
+
+**Coverage matrix:**
+
+| Dimension | Options | Count |
+|-----------|---------|-------|
+| Race | Human, Elf, Dwarf, Orc | 4 |
+| Gender | Male, Female | 2 |
+| Class | Warrior, Mage, Rogue, Noble, Commoner | 5 |
+| Skin tone | Light, Medium, Dark | 3 |
+| Hair | Varied per archetype | ~3 |
+
+**Total:** ~200 pre-generated sprites covering most casting needs.
+
+**Metadata per sprite:**
+```json
+{
+  "id": "human_male_warrior_light_01",
+  "race": "human",
+  "gender": "male",
+  "archetype": "warrior",
+  "skinTone": "light",
+  "hair": "brown_short",
+  "equipment": ["chainmail", "sword"],
+  "tags": ["fighter", "soldier", "guard", "hero", "everyman"],
+  "mood": ["determined", "brave", "stoic"]
+}
+```
+
+### Tier 2: Runtime Composition (Edge Cases)
+
+When no pre-generated sprite fits, compose on-demand using LPC layers.
+
+**Server-side with Sharp:**
+
+```typescript
+// packages/server/src/services/sprite-generator.ts
+
+import sharp from 'sharp';
+import path from 'path';
+
+interface CharacterSpec {
+  body: 'male' | 'female';
+  skinTone: 'light' | 'medium' | 'dark' | 'green' | 'blue';
+  hair?: { style: string; color: string };
+  armor?: { type: string; color?: string };
+  weapon?: string;
+  accessories?: string[];
+}
+
+const LPC_ROOT = path.join(__dirname, '../../../assets/lpc-layers');
+
+export async function generateCharacterSprite(spec: CharacterSpec): Promise<Buffer> {
+  // Build layer stack (order matters - bottom to top)
+  const layers: string[] = [];
+
+  // Base body
+  layers.push(`${LPC_ROOT}/body/${spec.body}/${spec.skinTone}.png`);
+
+  // Hair (optional)
+  if (spec.hair) {
+    layers.push(`${LPC_ROOT}/hair/${spec.hair.style}/${spec.hair.color}.png`);
+  }
+
+  // Armor (optional)
+  if (spec.armor) {
+    layers.push(`${LPC_ROOT}/armor/${spec.armor.type}/${spec.armor.color ?? 'steel'}.png`);
+  }
+
+  // Weapon (optional)
+  if (spec.weapon) {
+    layers.push(`${LPC_ROOT}/weapons/${spec.weapon}.png`);
+  }
+
+  // Composite all layers
+  let composite = sharp(layers[0]);
+  for (const layer of layers.slice(1)) {
+    composite = composite.composite([{ input: layer, blend: 'over' }]);
+  }
+
+  return composite.png().toBuffer();
+}
+```
+
+**When to use runtime generation:**
+- AI requests a combination not in pre-generated library
+- User creates custom character in future character editor
+- Specific equipment/color combinations needed
+
+### LPC Asset Setup
+
+**Step 1:** Clone LPC assets
+```bash
+git clone https://github.com/LiberatedPixelCup/Universal-LPC-Spritesheet-Character-Generator.git
+cp -r Universal-LPC-Spritesheet-Character-Generator/spritesheets assets/lpc-layers/
+```
+
+**Step 2:** Organize layers
+```
+assets/lpc-layers/
+├── body/
+│   ├── male/
+│   │   ├── light.png
+│   │   ├── dark.png
+│   │   └── ...
+│   └── female/
+├── hair/
+│   ├── long/
+│   ├── short/
+│   ├── mohawk/
+│   └── ...
+├── armor/
+│   ├── leather/
+│   ├── chainmail/
+│   ├── plate/
+│   └── ...
+├── weapons/
+│   ├── sword.png
+│   ├── bow.png
+│   └── ...
+└── accessories/
+```
+
+**Step 3:** Generate pre-built library using a script
+```typescript
+// scripts/generate-archetype-library.ts
+const ARCHETYPES = [
+  { race: 'human', gender: 'male', class: 'warrior', ... },
+  { race: 'human', gender: 'female', class: 'warrior', ... },
+  // ... 200 combinations
+];
+
+for (const archetype of ARCHETYPES) {
+  const sprite = await generateCharacterSprite(archetypeToSpec(archetype));
+  await fs.writeFile(`assets/archetypes/${archetype.id}.png`, sprite);
+  manifest.push({ id: archetype.id, ...archetype.metadata });
+}
+```
+
+### AI Selection Flow
+
+```
+1. AI analyzes character from WorldSeed
+   "Hans Gruber analog - elegant, villainous, elf"
+
+2. Search pre-generated library
+   Query: race=elf, archetype=noble, mood=villainous
+   Result: elf_male_noble_dark_01
+
+3. If no match → runtime generate
+   Spec: { body: 'male', skinTone: 'pale', hair: { style: 'long', color: 'black' }, ... }
+
+4. Apply palette shift for mood
+   Shift: cool_villain preset
+
+5. Return final sprite
+```
+
 ## Technical Implementation
 
 ### Asset Loading
