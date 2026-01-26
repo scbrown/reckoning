@@ -2,664 +2,607 @@
 
 ## Goal
 
-Enable world generation seeded from pop culture references, allowing the DM to create games *inspired by* movies, books, TV shows, games, or historical events through an **interactive research session**.
+Enable world generation seeded from pop culture references, allowing the DM to create games *inspired by* movies, books, TV shows, games, or historical events through **Claude Code as the research agent**.
 
-**Example:** "Create a game inspired by Die Hard" produces:
-- Setting: Modern high-rise under siege
-- NPCs: Charismatic villain, resourceful allies, hostages
-- Themes: Cat-and-mouse, one-against-many, confined space tension
-- Pixel art: 80s action movie aesthetic
+**Example:** DM types: "Create a game inspired by Die Hard, but set in a fantasy dwarven stronghold. Hans Gruber should be an elegant elf villain."
+
+Claude Code researches, synthesizes, and outputs a structured WorldSeed for world generation.
 
 ## Key Design Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| Research implementation | WebSearch/WebFetch in world gen flow | Direct, no separate agent infrastructure |
-| AI model | Haiku via Claude Code CLI | Fast, cost-effective for research/extraction |
-| Pixel art model | Opus (out of scope for now) | Higher quality needed for visual generation |
-| Error handling | Stop and alert DM with details | No silent failures, DM can course-correct |
-| Caching | Out of scope | Simplify initial implementation |
-| DM interaction | **Interactive session** | DM monitors, steers, and prompts during research |
-
-## Why This Matters
-
-Current world generation creates generic fantasy worlds. This limits:
-- Player engagement (generic = forgettable)
-- Narrative coherence (no shared reference points)
-- AI context (lacks rich source material)
-- Pixel art direction (no visual theme)
-
-Pop culture seeding provides:
-- **Instant familiarity** - Players know the vibe immediately
-- **Rich context** - AI has deep source material to draw from
-- **Thematic consistency** - Characters, settings, and plots align
-- **Visual identity** - Pixel art has clear direction
-- **DM control** - Interactive steering, not black-box generation
+| Research agent | Claude Code subprocess | Full autonomy, handles research strategy itself |
+| DM input | Unstructured prompt | Natural language, no forms or JSON |
+| AI model | Haiku via Claude Code | Fast, cost-effective |
+| Progress visibility | Stream Claude Code console to web UI | Simple, transparent, DM sees everything |
+| DM guidance | Type into Claude Code session | Same interface as prompting Claude Code directly |
+| Haiku research visibility | DM sees Haiku's research in console, can course-correct | Same transparency applies to all AI work |
+| Output | Structured WorldSeed JSON | Parsed by Reckoning for world generation |
 
 ## Architecture Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    INTERACTIVE WORLD SEEDING FLOW                            │
+│                         WORLD SEEDING FLOW                                   │
 │                                                                              │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
 │   │                     DM SEEDING INTERFACE                             │   │
 │   │                                                                      │   │
-│   │  Prompt: [Create a game inspired by Die Hard, set in a fantasy     ]│   │
-│   │          [world. Include Hans Gruber as the main villain.          ]│   │
+│   │  ┌───────────────────────────────────────────────────────────────┐  │   │
+│   │  │ Create a game inspired by Die Hard, but set in a fantasy      │  │   │
+│   │  │ dwarven stronghold. Hans Gruber should be an elegant elf      │  │   │
+│   │  │ villain trying to steal the mountain's dragon hoard.          │  │   │
+│   │  │                                                                │  │   │
+│   │  │ Make the player character a retired dwarven guard who's       │  │   │
+│   │  │ just visiting for a feast when the siege begins.              │  │   │
+│   │  └───────────────────────────────────────────────────────────────┘  │   │
 │   │                                                                      │   │
-│   │  Reference URLs (optional):                                          │   │
-│   │  [https://en.wikipedia.org/wiki/Die_Hard                           ]│   │
-│   │  [https://villains.fandom.com/wiki/Hans_Gruber                     ]│   │
-│   │                                                                      │   │
-│   │  Pre-defined elements (optional):                                    │   │
-│   │  Characters: [John McClane - player character, barefoot warrior    ]│   │
-│   │  Areas:      [Nakatomi Tower Lobby, Executive Floor, Roof         ]│   │
-│   │                                                                      │   │
-│   │                              [Begin Research →]                      │   │
+│   │                         [Begin Research →]                           │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                      │                                       │
 │                                      ▼                                       │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │              INTERACTIVE RESEARCH SESSION                            │   │
+│   │                 CLAUDE CODE RESEARCH SESSION                         │   │
 │   │                                                                      │   │
-│   │  ┌─────────────────────────────────────────────────────────────┐    │   │
-│   │  │ Research Progress                              [ETA: ~2 min] │    │   │
-│   │  │ ████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  35%          │    │   │
-│   │  └─────────────────────────────────────────────────────────────┘    │   │
+│   │  ┌───────────────────────────────────────────────────────────────┐  │   │
+│   │  │ $ claude --model haiku                                         │  │   │
+│   │  │                                                                │  │   │
+│   │  │ I'll research Die Hard to understand the key elements and     │  │   │
+│   │  │ then adapt them to a fantasy setting...                       │  │   │
+│   │  │                                                                │  │   │
+│   │  │ [WebSearch: "Die Hard 1988 movie plot characters"]            │  │   │
+│   │  │                                                                │  │   │
+│   │  │ Found Wikipedia article. Key elements:                         │  │   │
+│   │  │ - John McClane: Everyman hero, wrong place wrong time         │  │   │
+│   │  │ - Hans Gruber: Sophisticated villain, heist mastermind        │  │   │
+│   │  │ - Nakatomi Plaza: Confined vertical space                     │  │   │
+│   │  │ - Christmas Eve setting                                        │  │   │
+│   │  │ ...                                                            │  │   │
+│   │  │                                                                │  │   │
+│   │  │ [DM can type here to guide/redirect]                          │  │   │
+│   │  │ > Also include Argyle the limo driver as comic relief         │  │   │
+│   │  │                                                                │  │   │
+│   │  │ Good idea! I'll adapt Argyle as a mine cart driver...         │  │   │
+│   │  └───────────────────────────────────────────────────────────────┘  │   │
 │   │                                                                      │   │
-│   │  Live Research Log:                                                  │   │
-│   │  ┌─────────────────────────────────────────────────────────────┐    │   │
-│   │  │ ✓ Searching for "Die Hard movie plot characters"...         │    │   │
-│   │  │ ✓ Found Wikipedia article, fetching...                       │    │   │
-│   │  │ ✓ Extracted 8 characters from source                         │    │   │
-│   │  │ → Searching for "Die Hard filming locations Nakatomi"...     │    │   │
-│   │  │                                                              │    │   │
-│   │  └─────────────────────────────────────────────────────────────┘    │   │
-│   │                                                                      │   │
-│   │  DM Course Correction:                                               │   │
-│   │  ┌─────────────────────────────────────────────────────────────┐    │   │
-│   │  │ [Skip the FBI characters, focus more on the terrorists     ]│    │   │
-│   │  │                                              [Send Guidance]│    │   │
-│   │  └─────────────────────────────────────────────────────────────┘    │   │
-│   │                                                                      │   │
-│   │  Extracted So Far:                                                   │   │
-│   │  Characters: John McClane, Hans Gruber, Holly, Karl, Argyle         │   │
-│   │  Locations: Lobby, Executive Floor, Vault, Roof                      │   │
-│   │  Themes: Christmas, one-man-army, cat-and-mouse                      │   │
-│   │                                                                      │   │
+│   │  [Stop & Use Partial] [Cancel]                                       │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                      │                                       │
 │                                      ▼                                       │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    SEED REVIEW & EDIT                                │   │
+│   │                    CLAUDE CODE OUTPUTS WORLDSEED                     │   │
 │   │                                                                      │   │
-│   │  DM reviews extracted data, makes final edits before generation     │   │
-│   │                                                                      │   │
+│   │  ```json                                                             │   │
+│   │  {                                                                   │   │
+│   │    "sourceInspiration": "Die Hard (1988)",                          │   │
+│   │    "setting": "Khazad-dum style dwarven stronghold",                │   │
+│   │    "characters": [...],                                              │   │
+│   │    "locations": [...],                                               │   │
+│   │    "themes": ["one-against-many", "confined-space", "heist"],       │   │
+│   │    "visualStyle": {...}                                              │   │
+│   │  }                                                                   │   │
+│   │  ```                                                                 │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                      │                                       │
 │                                      ▼                                       │
 │   ┌─────────────────────────────────────────────────────────────────────┐   │
-│   │                    WORLD GENERATION                                  │   │
+│   │                    RECKONING WORLD GENERATION                        │   │
 │   │                                                                      │   │
-│   │  Transform seed → Game entities (areas, NPCs, scenes)               │   │
-│   │  Progress indicator + ETA                                            │   │
+│   │  Parse WorldSeed JSON → Create game entities                        │   │
+│   │  - Areas from locations                                              │   │
+│   │  - NPCs from characters                                              │   │
+│   │  - Initial scenes from themes                                        │   │
 │   │                                                                      │   │
 │   └─────────────────────────────────────────────────────────────────────┘   │
 │                                                                              │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## DM Input Model
+## How It Works
 
-The DM provides a **prompt** plus optional structured inputs:
+### 1. DM Writes a Prompt
+
+Just natural language. No forms. No structured input. Examples:
+
+- "Create a game inspired by Die Hard"
+- "I want a noir detective story like Chinatown meets Blade Runner"
+- "Base it on the War of the Roses, but with dragons"
+- "Something like The Office but in a dungeon, comedic tone"
+
+### 2. Server Spawns Claude Code
 
 ```typescript
-interface WorldSeedRequest {
-  // Required: Natural language prompt
-  prompt: string;
-  // "Create a game inspired by Die Hard, set in a fantasy world.
-  //  Hans Gruber should be the main villain. Make it darker than
-  //  the original movie."
+// Simplified - actual implementation in claude-cli.ts
+const session = spawn('claude', [
+  '--model', 'haiku',
+  '--allowedTools', 'WebSearch,WebFetch',
+  '-p', buildResearchPrompt(dmPrompt),
+]);
 
-  // Optional: Reference URLs the DM already knows are useful
-  referenceUrls?: string[];
+// Stream stdout/stderr to SSE
+session.stdout.on('data', (data) => {
+  sseChannel.send({ type: 'console', data: data.toString() });
+});
+```
 
-  // Optional: Pre-defined characters (DM has specific ideas)
-  predefinedCharacters?: {
-    name: string;
-    description: string;
-    role?: 'player' | 'ally' | 'villain' | 'neutral';
-  }[];
+### 3. Claude Code Does Research
 
-  // Optional: Pre-defined areas
-  predefinedAreas?: {
-    name: string;
-    description: string;
-  }[];
+Given the system prompt (see below), Claude Code:
+1. Searches for source material
+2. Extracts relevant elements
+3. Adapts to DM's requirements
+4. Synthesizes into WorldSeed
 
-  // Optional: Constraints
-  constraints?: {
-    maxCharacters?: number;
-    maxAreas?: number;
-    excludeElements?: string[];  // "no FBI", "no romantic subplot"
-  };
+### 4. DM Can Interact
+
+The web UI shows Claude Code's console output in real-time. The DM can:
+- Watch the research happen
+- Type additional guidance (sent as follow-up prompts)
+- Stop early and use partial results
+- Cancel entirely
+
+### 5. Claude Code Outputs WorldSeed JSON
+
+When done, Claude Code outputs a structured JSON block that Reckoning parses:
+
+```json
+{
+  "$schema": "worldseed-v1",
+  "sourceInspiration": "Die Hard (1988)",
+  "characters": [...],
+  "locations": [...],
+  ...
 }
 ```
 
-## Interactive Research Session
+### 6. Reckoning Generates World
 
-### Core Concept
+The existing world generation flow takes the WorldSeed and creates game entities.
 
-The research phase is **not a black box**. The DM watches it happen and can steer:
+## System Prompt for Claude Code
 
-1. **Progress visibility** - See what's being searched/fetched
-2. **Live extraction** - See characters/locations as they're found
-3. **Course correction** - Send guidance mid-research
-4. **Early termination** - "That's enough, proceed to generation"
+```
+You are a world-building research assistant for a tabletop RPG called Reckoning.
 
-### Implementation: SSE-Driven Research
+The Dungeon Master has asked you to create a game world inspired by source material.
+Your job is to:
+
+1. RESEARCH the source material using WebSearch and WebFetch
+   - Find plot summaries, character descriptions, key locations
+   - Understand themes, tone, and visual style
+   - Note distinctive elements that make the source memorable
+
+2. ADAPT the source material to the DM's requirements
+   - The DM may want changes (different setting, tone, characters)
+   - Honor their creative vision while keeping the source's essence
+   - Transform copyrighted elements into inspired-by equivalents
+
+3. SYNTHESIZE into a WorldSeed
+   - Characters with roles, descriptions, and suggested traits
+   - Locations with descriptions, moods, and connections
+   - Themes and tone for the AI narrator
+   - Visual style hints for pixel art generation
+
+4. OUTPUT valid JSON matching this schema:
+
+```json
+{
+  "$schema": "worldseed-v1",
+  "sourceInspiration": "string - what inspired this",
+  "setting": "string - one-line setting description",
+  "tone": {
+    "overall": "dark|light|comedic|dramatic|horror|adventure",
+    "description": "string - tone guidance for AI"
+  },
+  "characters": [
+    {
+      "name": "string",
+      "role": "player|ally|villain|neutral",
+      "description": "string",
+      "suggestedTraits": ["string"],
+      "visualDescription": "string - for pixel art"
+    }
+  ],
+  "locations": [
+    {
+      "name": "string",
+      "description": "string",
+      "mood": "string",
+      "connectedTo": ["string - other location names"],
+      "visualDescription": "string - for pixel art"
+    }
+  ],
+  "themes": ["string"],
+  "visualStyle": {
+    "era": "string - 1980s, medieval, etc",
+    "aesthetic": "string - action movie, noir, etc",
+    "colorPalette": ["string - color descriptions"],
+    "lightingMood": "string"
+  },
+  "contextSummary": "string - 200 word summary for AI narrator context"
+}
+```
+
+Work step by step. Show your research process. The DM is watching and may
+provide additional guidance during the session.
+
+When you're done researching and ready to output the WorldSeed, say
+"WORLDSEED OUTPUT:" followed by the JSON block.
+
+---
+
+DM's request:
+{dmPrompt}
+```
+
+## Web UI: Console View
+
+The UI shows Claude Code's console output directly:
 
 ```typescript
-// Server-side research session
-class ResearchSession {
-  private gameId: string;
-  private sseChannel: SSEChannel;
-  private claudeCLI: ClaudeCodeCLI;
-  private dmGuidance: string[] = [];
-  private extractedData: PartialWorldSeed = { characters: [], locations: [], themes: [] };
+// packages/client/src/components/world-seeding/research-console.ts
 
-  async start(request: WorldSeedRequest): Promise<void> {
-    this.emit('status', { phase: 'starting', message: 'Beginning research...' });
+export class ResearchConsole {
+  private outputElement: HTMLPreElement;
+  private inputElement: HTMLInputElement;
+  private eventSource: EventSource;
 
-    try {
-      // Phase 1: Initial search
-      await this.searchPhase(request);
+  constructor(private gameId: string, private sessionId: string) {
+    this.outputElement = document.createElement('pre');
+    this.outputElement.className = 'research-console-output';
 
-      // Phase 2: Fetch and extract
-      await this.extractionPhase();
+    this.inputElement = document.createElement('input');
+    this.inputElement.className = 'research-console-input';
+    this.inputElement.placeholder = 'Type to guide research...';
+    this.inputElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') this.sendInput();
+    });
+  }
 
-      // Phase 3: Synthesis
-      await this.synthesisPhase();
+  connect(): void {
+    this.eventSource = new EventSource(
+      `/api/game/${this.gameId}/seed/events?session=${this.sessionId}`
+    );
 
-      this.emit('complete', { seed: this.extractedData });
-    } catch (error) {
-      this.emit('error', {
-        message: 'Research encountered an issue',
-        details: error.message,
-        recoverable: this.isRecoverable(error),
-        partialData: this.extractedData,
-      });
+    this.eventSource.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+
+      switch (data.type) {
+        case 'console':
+          this.appendOutput(data.data);
+          break;
+        case 'worldseed':
+          this.handleWorldSeed(data.seed);
+          break;
+        case 'error':
+          this.showError(data.message);
+          break;
+        case 'complete':
+          this.handleComplete();
+          break;
+      }
+    };
+  }
+
+  private appendOutput(text: string): void {
+    this.outputElement.textContent += text;
+    this.outputElement.scrollTop = this.outputElement.scrollHeight;
+  }
+
+  private async sendInput(): void {
+    const input = this.inputElement.value.trim();
+    if (!input) return;
+
+    await fetch(`/api/game/${this.gameId}/seed/input`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: this.sessionId, input }),
+    });
+
+    this.inputElement.value = '';
+    this.appendOutput(`\n> ${input}\n`);
+  }
+
+  render(): HTMLElement {
+    const container = document.createElement('div');
+    container.className = 'research-console';
+    container.appendChild(this.outputElement);
+    container.appendChild(this.inputElement);
+    return container;
+  }
+}
+```
+
+## Server Implementation
+
+### Spawning Claude Code Session
+
+```typescript
+// packages/server/src/services/world-seeding/research-session.ts
+
+import { spawn, ChildProcess } from 'child_process';
+import { EventEmitter } from 'events';
+
+export class ResearchSession extends EventEmitter {
+  private process: ChildProcess | null = null;
+  private outputBuffer: string = '';
+
+  constructor(
+    private sessionId: string,
+    private gameId: string
+  ) {
+    super();
+  }
+
+  async start(dmPrompt: string): Promise<void> {
+    const systemPrompt = buildResearchSystemPrompt(dmPrompt);
+
+    this.process = spawn('claude', [
+      '--model', 'haiku',
+      '--allowedTools', 'WebSearch,WebFetch',
+      '-p', systemPrompt,
+    ]);
+
+    this.process.stdout?.on('data', (data) => {
+      const text = data.toString();
+      this.outputBuffer += text;
+      this.emit('console', text);
+
+      // Check for WorldSeed output
+      this.checkForWorldSeed();
+    });
+
+    this.process.stderr?.on('data', (data) => {
+      this.emit('console', data.toString());
+    });
+
+    this.process.on('close', (code) => {
+      if (code === 0) {
+        this.emit('complete');
+      } else {
+        this.emit('error', `Process exited with code ${code}`);
+      }
+    });
+  }
+
+  async sendInput(input: string): Promise<void> {
+    // Send input to Claude Code's stdin
+    this.process?.stdin?.write(input + '\n');
+  }
+
+  stop(): void {
+    this.process?.kill('SIGTERM');
+  }
+
+  private checkForWorldSeed(): void {
+    const marker = 'WORLDSEED OUTPUT:';
+    const markerIndex = this.outputBuffer.indexOf(marker);
+
+    if (markerIndex !== -1) {
+      const jsonStart = this.outputBuffer.indexOf('{', markerIndex);
+      const jsonEnd = this.findJsonEnd(this.outputBuffer, jsonStart);
+
+      if (jsonEnd !== -1) {
+        const jsonStr = this.outputBuffer.slice(jsonStart, jsonEnd + 1);
+        try {
+          const seed = JSON.parse(jsonStr);
+          this.emit('worldseed', seed);
+        } catch (e) {
+          this.emit('error', 'Failed to parse WorldSeed JSON');
+        }
+      }
     }
   }
 
-  // DM sends guidance mid-research
-  async receiveGuidance(guidance: string): Promise<void> {
-    this.dmGuidance.push(guidance);
-    this.emit('guidance_received', { guidance });
-
-    // Incorporate into next AI call
-    // "DM guidance: Skip the FBI characters, focus more on the terrorists"
-  }
-
-  private emit(event: string, data: any): void {
-    this.sseChannel.send({
-      type: `research:${event}`,
-      data,
-      timestamp: new Date().toISOString(),
-    });
+  private findJsonEnd(str: string, start: number): number {
+    let depth = 0;
+    for (let i = start; i < str.length; i++) {
+      if (str[i] === '{') depth++;
+      if (str[i] === '}') depth--;
+      if (depth === 0) return i;
+    }
+    return -1;
   }
 }
 ```
 
-### SSE Event Types
+### API Routes
 
 ```typescript
-type ResearchEvent =
-  | { type: 'research:status'; data: { phase: string; message: string; progress: number; eta?: string } }
-  | { type: 'research:search'; data: { query: string; status: 'starting' | 'complete' | 'failed' } }
-  | { type: 'research:fetch'; data: { url: string; status: 'starting' | 'complete' | 'failed' } }
-  | { type: 'research:extraction'; data: { type: 'character' | 'location' | 'theme'; items: any[] } }
-  | { type: 'research:guidance_received'; data: { guidance: string } }
-  | { type: 'research:error'; data: { message: string; details: string; recoverable: boolean } }
-  | { type: 'research:complete'; data: { seed: WorldSeed } };
-```
+// packages/server/src/routes/seed.ts
 
-### Progress Estimation
+const sessions = new Map<string, ResearchSession>();
 
-```typescript
-interface ResearchProgress {
-  phase: 'search' | 'fetch' | 'extract' | 'synthesize';
-  currentStep: number;
-  totalSteps: number;
-  percentComplete: number;
-  estimatedTimeRemaining: string;  // "~2 min", "< 1 min"
-}
+// Start research session
+app.post('/api/game/:gameId/seed/start', async (req, res) => {
+  const { gameId } = req.params;
+  const { prompt } = req.body;
 
-function estimateProgress(session: ResearchSession): ResearchProgress {
-  // Rough estimates based on typical research
-  const phases = {
-    search: { weight: 0.2, avgDuration: 10 },    // 10 seconds
-    fetch: { weight: 0.4, avgDuration: 30 },     // 30 seconds
-    extract: { weight: 0.3, avgDuration: 45 },   // 45 seconds
-    synthesize: { weight: 0.1, avgDuration: 15 }, // 15 seconds
+  const sessionId = generateId();
+  const session = new ResearchSession(sessionId, gameId);
+  sessions.set(sessionId, session);
+
+  session.start(prompt);
+
+  res.json({ sessionId });
+});
+
+// SSE endpoint for console output
+app.get('/api/game/:gameId/seed/events', (req, res) => {
+  const { session: sessionId } = req.query;
+  const session = sessions.get(sessionId as string);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const onConsole = (data: string) => {
+    res.write(`data: ${JSON.stringify({ type: 'console', data })}\n\n`);
   };
-  // ... calculate based on current phase and steps
-}
-```
 
-## Research Implementation
-
-### Using Claude Code CLI (Haiku)
-
-```typescript
-import { ClaudeCodeCLI } from '../services/ai/claude-cli.js';
-
-class WorldSeedingResearcher {
-  private cli: ClaudeCodeCLI;
-
-  constructor() {
-    this.cli = new ClaudeCodeCLI({ model: 'haiku' });
-  }
-
-  async search(query: string, dmPrompt: string, guidance: string[]): Promise<SearchResult[]> {
-    const prompt = `
-You are researching source material for a tabletop RPG world.
-
-DM's request: ${dmPrompt}
-
-${guidance.length > 0 ? `DM guidance during research:\n${guidance.map(g => `- ${g}`).join('\n')}` : ''}
-
-Search for: ${query}
-
-Use WebSearch to find relevant information about this source material.
-Focus on: characters, locations, plot elements, themes, and visual style.
-`;
-
-    const result = await this.cli.execute(prompt, {
-      tools: ['WebSearch'],
-      maxTurns: 3,
-    });
-
-    return this.parseSearchResults(result);
-  }
-
-  async fetchAndExtract(url: string, extractionFocus: string): Promise<ExtractedContent> {
-    const prompt = `
-Fetch the content from: ${url}
-
-Extract the following for a tabletop RPG:
-- Characters (name, role, description, personality traits)
-- Locations (name, description, atmosphere)
-- Themes and tone
-- Visual style cues (era, aesthetic, colors)
-
-Focus on: ${extractionFocus}
-
-Return structured JSON.
-`;
-
-    const result = await this.cli.execute(prompt, {
-      tools: ['WebFetch'],
-      maxTurns: 2,
-    });
-
-    return this.parseExtraction(result);
-  }
-
-  async synthesize(
-    extracted: ExtractedContent[],
-    dmPrompt: string,
-    predefined: { characters?: any[]; areas?: any[] }
-  ): Promise<WorldSeed> {
-    const prompt = `
-Synthesize this research into a coherent world seed for a tabletop RPG.
-
-DM's vision: ${dmPrompt}
-
-Research findings:
-${JSON.stringify(extracted, null, 2)}
-
-${predefined.characters ? `DM pre-defined these characters:\n${JSON.stringify(predefined.characters)}` : ''}
-${predefined.areas ? `DM pre-defined these areas:\n${JSON.stringify(predefined.areas)}` : ''}
-
-Create a WorldSeed JSON that:
-1. Honors the DM's vision and pre-defined elements
-2. Incorporates the best of the research
-3. Creates a coherent, playable world
-4. Includes visual style guidance for pixel art generation
-
-Return valid JSON matching the WorldSeed schema.
-`;
-
-    const result = await this.cli.execute(prompt, {
-      maxTurns: 1,
-    });
-
-    return this.parseSeed(result);
-  }
-}
-```
-
-### Error Handling
-
-```typescript
-interface ResearchError {
-  phase: 'search' | 'fetch' | 'extract' | 'synthesize';
-  message: string;
-  details: string;
-  recoverable: boolean;
-  suggestedAction?: string;
-}
-
-function handleResearchError(error: Error, phase: string): ResearchError {
-  // Classify error and provide actionable feedback to DM
-  if (error.message.includes('rate limit')) {
-    return {
-      phase,
-      message: 'Search rate limit reached',
-      details: 'Too many searches in a short time',
-      recoverable: true,
-      suggestedAction: 'Wait 30 seconds and try again, or provide direct URLs',
-    };
-  }
-
-  if (error.message.includes('not found') || error.message.includes('404')) {
-    return {
-      phase,
-      message: 'Source material not found',
-      details: `Could not find information about this topic`,
-      recoverable: true,
-      suggestedAction: 'Try a more specific query or provide reference URLs',
-    };
-  }
-
-  // Generic error
-  return {
-    phase,
-    message: 'Research encountered an issue',
-    details: error.message,
-    recoverable: false,
-    suggestedAction: 'Try again or proceed with partial data',
+  const onWorldSeed = (seed: any) => {
+    res.write(`data: ${JSON.stringify({ type: 'worldseed', seed })}\n\n`);
   };
-}
+
+  const onError = (message: string) => {
+    res.write(`data: ${JSON.stringify({ type: 'error', message })}\n\n`);
+  };
+
+  const onComplete = () => {
+    res.write(`data: ${JSON.stringify({ type: 'complete' })}\n\n`);
+    cleanup();
+    res.end();
+  };
+
+  session.on('console', onConsole);
+  session.on('worldseed', onWorldSeed);
+  session.on('error', onError);
+  session.on('complete', onComplete);
+
+  const cleanup = () => {
+    session.off('console', onConsole);
+    session.off('worldseed', onWorldSeed);
+    session.off('error', onError);
+    session.off('complete', onComplete);
+  };
+
+  req.on('close', cleanup);
+});
+
+// Send DM input to session
+app.post('/api/game/:gameId/seed/input', async (req, res) => {
+  const { sessionId, input } = req.body;
+  const session = sessions.get(sessionId);
+
+  if (!session) {
+    return res.status(404).json({ error: 'Session not found' });
+  }
+
+  await session.sendInput(input);
+  res.json({ sent: true });
+});
+
+// Stop session
+app.post('/api/game/:gameId/seed/stop', (req, res) => {
+  const { sessionId } = req.body;
+  const session = sessions.get(sessionId);
+
+  if (session) {
+    session.stop();
+    sessions.delete(sessionId);
+  }
+
+  res.json({ stopped: true });
+});
 ```
 
-## Seed Data Structure
+## WorldSeed Schema
 
 ```typescript
 interface WorldSeed {
-  // Metadata
-  id: string;
-  sourceQuery: string;           // DM's original prompt
-  sourceTitle?: string;          // Identified primary source (e.g., "Die Hard (1988)")
-  sourceType: 'movie' | 'book' | 'tv_series' | 'game' | 'historical' | 'original' | 'mashup';
-  createdAt: string;
+  $schema: 'worldseed-v1';
 
-  // Characters (merged: extracted + DM pre-defined)
-  characters: SeedCharacter[];
+  // What inspired this world
+  sourceInspiration: string;
 
-  // Locations (merged: extracted + DM pre-defined)
-  locations: SeedLocation[];
+  // One-line setting
+  setting: string;
 
-  // Narrative elements
-  themes: string[];
+  // Tone guidance
   tone: {
     overall: 'dark' | 'light' | 'comedic' | 'dramatic' | 'horror' | 'adventure';
     description: string;
   };
-  plotBeats?: PlotBeat[];  // Optional story structure hints
 
-  // Visual style for pixel art
+  // Characters to create
+  characters: {
+    name: string;
+    role: 'player' | 'ally' | 'villain' | 'neutral';
+    description: string;
+    suggestedTraits: string[];
+    visualDescription: string;
+  }[];
+
+  // Locations to create
+  locations: {
+    name: string;
+    description: string;
+    mood: string;
+    connectedTo: string[];
+    visualDescription: string;
+  }[];
+
+  // Theme tags
+  themes: string[];
+
+  // Visual style for pixel art (future)
   visualStyle: {
-    era: string;           // "1980s", "medieval", "futuristic"
-    aesthetic: string;     // "action movie", "noir", "whimsical"
+    era: string;
+    aesthetic: string;
     colorPalette: string[];
     lightingMood: string;
   };
 
-  // For AI context during gameplay
-  contextSummary: string;  // 500-word summary
-
-  // DM modifications
-  dmNotes?: string;
+  // Context for AI narrator
+  contextSummary: string;
 }
-
-interface SeedCharacter {
-  id: string;
-  name: string;
-  originalName?: string;  // If inspired by source character
-  role: 'player' | 'ally' | 'villain' | 'neutral' | 'comic_relief';
-  description: string;
-  suggestedTraits: string[];  // Map to Reckoning trait system
-  suggestedClass?: string;
-  visualDescription: string;  // For pixel art
-  relationships?: {
-    targetId: string;
-    type: 'ally' | 'enemy' | 'neutral' | 'complex';
-  }[];
-  isPreDefined: boolean;  // DM specified vs extracted
-}
-
-interface SeedLocation {
-  id: string;
-  name: string;
-  originalName?: string;
-  description: string;
-  mood: string;
-  tags: string[];
-  connectedTo: string[];  // Other location IDs
-  visualDescription: string;
-  isPreDefined: boolean;
-}
-```
-
-## API Design
-
-### Endpoints
-
-```
-POST /api/game/:gameId/seed/start
-  Body: WorldSeedRequest
-  Returns: { sessionId: string }
-  Starts interactive research session
-
-POST /api/game/:gameId/seed/guidance
-  Body: { sessionId: string, guidance: string }
-  Returns: { received: true }
-  Send DM course correction
-
-POST /api/game/:gameId/seed/stop
-  Body: { sessionId: string, proceed: boolean }
-  Returns: { seed?: WorldSeed }
-  Stop research early (proceed=true uses partial data)
-
-GET /api/game/:gameId/seed/status
-  Returns: ResearchProgress
-  Poll for progress (backup if SSE fails)
-
-POST /api/game/:gameId/seed/finalize
-  Body: { sessionId: string, modifications?: Partial<WorldSeed> }
-  Returns: { seed: WorldSeed }
-  Finalize seed with optional DM edits
-
-POST /api/game/:gameId/generate-from-seed
-  Body: { seedId: string }
-  Returns: { success: true }
-  Trigger world generation from finalized seed
-```
-
-### SSE Endpoint
-
-```
-GET /api/game/:gameId/seed/events?sessionId=xxx
-  Returns: SSE stream of ResearchEvent
 ```
 
 ## Database Schema
 
 ```sql
--- Research sessions (temporary, cleaned up after completion)
-CREATE TABLE research_sessions (
-  id TEXT PRIMARY KEY,
-  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  status TEXT NOT NULL DEFAULT 'active',  -- 'active', 'complete', 'failed', 'cancelled'
-  request TEXT NOT NULL,      -- JSON WorldSeedRequest
-  partial_seed TEXT,          -- JSON partial extraction
-  dm_guidance TEXT,           -- JSON array of guidance strings
-  error_details TEXT,         -- JSON error info if failed
-  started_at TEXT DEFAULT (datetime('now')),
-  completed_at TEXT
-);
-
--- Finalized seeds (kept for reference)
+-- Store completed seeds for reference
 CREATE TABLE world_seeds (
   id TEXT PRIMARY KEY,
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  source_query TEXT NOT NULL,
-  seed_data TEXT NOT NULL,    -- JSON WorldSeed
+  dm_prompt TEXT NOT NULL,           -- Original DM prompt
+  seed_data TEXT NOT NULL,           -- JSON WorldSeed
+  research_log TEXT,                 -- Full console output (optional)
   created_at TEXT DEFAULT (datetime('now'))
 );
-```
-
-## UI Components
-
-### SeedingInterface Component
-
-```typescript
-// packages/client/src/components/world-seeding/seeding-interface.ts
-
-export class SeedingInterface {
-  private promptInput: HTMLTextAreaElement;
-  private urlInputs: HTMLInputElement[];
-  private characterInputs: CharacterInput[];
-  private areaInputs: AreaInput[];
-  private progressPanel: ProgressPanel;
-  private guidanceInput: HTMLTextAreaElement;
-  private extractedDataView: ExtractedDataView;
-
-  // Start research session
-  async startResearch(): Promise<void> {
-    const request = this.buildRequest();
-    const { sessionId } = await this.api.startSeedResearch(this.gameId, request);
-
-    // Connect to SSE for live updates
-    this.connectToResearchEvents(sessionId);
-    this.showProgressPanel();
-  }
-
-  // Send guidance mid-research
-  async sendGuidance(): Promise<void> {
-    const guidance = this.guidanceInput.value;
-    await this.api.sendSeedGuidance(this.gameId, this.sessionId, guidance);
-    this.guidanceInput.value = '';
-    this.addToGuidanceLog(guidance);
-  }
-
-  // Handle SSE events
-  private handleResearchEvent(event: ResearchEvent): void {
-    switch (event.type) {
-      case 'research:status':
-        this.progressPanel.update(event.data);
-        break;
-      case 'research:extraction':
-        this.extractedDataView.addItems(event.data.type, event.data.items);
-        break;
-      case 'research:error':
-        this.showError(event.data);
-        break;
-      case 'research:complete':
-        this.showSeedReview(event.data.seed);
-        break;
-    }
-  }
-}
-```
-
-### ProgressPanel Component
-
-```typescript
-export class ProgressPanel {
-  render(): HTMLElement {
-    return html`
-      <div class="research-progress">
-        <div class="progress-header">
-          <span class="phase">${this.phase}</span>
-          <span class="eta">${this.eta}</span>
-        </div>
-        <div class="progress-bar">
-          <div class="progress-fill" style="width: ${this.percent}%"></div>
-        </div>
-        <div class="progress-log">
-          ${this.logEntries.map(entry => html`
-            <div class="log-entry ${entry.status}">
-              ${entry.status === 'complete' ? '✓' : entry.status === 'failed' ? '✗' : '→'}
-              ${entry.message}
-            </div>
-          `)}
-        </div>
-      </div>
-    `;
-  }
-}
 ```
 
 ## Flow Summary
 
 ```
-1. DM creates party (existing flow)
-          │
-          ▼
-2. DM opens World Seeding interface
-   - Writes prompt describing desired world
-   - Optionally adds reference URLs
-   - Optionally pre-defines characters/areas
-          │
-          ▼
-3. DM clicks "Begin Research"
-   - Server starts ResearchSession
-   - SSE connection established
-          │
-          ▼
-4. Interactive Research Phase
-   - DM sees live progress
-   - DM sees extracted data as it's found
-   - DM can send guidance to steer research
-   - DM can stop early if satisfied
-          │
-          ▼
-5. Seed Review
-   - DM reviews complete WorldSeed
-   - DM can edit/remove characters and locations
-   - DM can adjust themes and visual style
-          │
-          ▼
-6. World Generation
-   - Transform seed → game entities
-   - Create areas, NPCs, initial scenes
-   - (Pixel art generation - future scope)
-          │
-          ▼
-7. Game Ready
+1. DM writes natural language prompt
+        │
+        ▼
+2. Server spawns Claude Code with research system prompt
+        │
+        ▼
+3. Claude Code console streams to web UI
+   - DM watches research happen
+   - DM can type additional guidance
+        │
+        ▼
+4. Claude Code outputs "WORLDSEED OUTPUT:" + JSON
+        │
+        ▼
+5. Server parses WorldSeed, triggers world generation
+        │
+        ▼
+6. Game entities created from seed
 ```
 
-## Open Questions (Resolved)
+## Future Enhancements (Out of Scope)
 
-| Question | Resolution |
-|----------|------------|
-| Research depth | DM controls via guidance and early stop |
-| Caching | Out of scope for v1 |
-| Error handling | Stop and alert DM with details |
-| Model choice | Haiku for research, Opus for pixelsrc (later) |
-| UX flow | Interactive session with live monitoring |
+- **Progress reporting tools**: Give Claude Code tools to report structured progress
+- **Seed editing UI**: Let DM edit the parsed WorldSeed before generation
+- **Seed library**: Save and reuse seeds across games
+- **Pixel art integration**: Pass visualStyle to pixelsrc generator
 
 ## Success Criteria
 
-- [ ] DM can provide prompt + optional URLs + optional pre-defined elements
-- [ ] Research session shows live progress via SSE
-- [ ] DM can send guidance mid-research and see it acknowledged
-- [ ] DM can stop research early and proceed with partial data
-- [ ] Errors show clear message and suggested action
-- [ ] Finalized seed can be edited before generation
-- [ ] World generation uses seed to create themed game entities
-- [ ] Works for movies, books, TV shows, games, and historical events
+- [ ] DM can type natural language prompt to start research
+- [ ] Claude Code console streams to web UI in real-time
+- [ ] DM can type additional guidance during research
+- [ ] DM can stop research early
+- [ ] Claude Code outputs valid WorldSeed JSON
+- [ ] WorldSeed is parsed and used for world generation
+- [ ] Works for movies, books, TV shows, games, historical events
