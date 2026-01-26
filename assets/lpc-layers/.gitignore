@@ -1,0 +1,32 @@
+# LPC Assets - Large binary files fetched separately
+# Keep only documentation and sample files in git
+
+# Ignore everything by default
+*
+
+# But keep these
+!.gitignore
+!ATTRIBUTION.md
+!CREDITS.csv
+
+# Keep category directories but only their .gitkeep and sample files
+!body/
+!hair/
+!armor/
+!weapons/
+!accessories/
+
+# Inside categories, keep only one sample per category (for structure verification)
+body/*
+!body/*.png
+hair/*
+!hair/*.png
+armor/*
+!armor/*.png
+weapons/*
+!weapons/*.png
+accessories/*
+!accessories/*.png
+
+# Limit to first file (samples)
+# Note: Full assets should be fetched via scripts/fetch-lpc-assets.sh
