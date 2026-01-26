@@ -14,6 +14,7 @@ export type {
 } from './types.js';
 
 export { ClaudeCodeCLI, type ClaudeCLIConfig } from './claude-cli.js';
+export { MockAIProvider, shouldUseMockAI } from './mock-provider.js';
 
 export { GAME_CONTENT_SCHEMA, WORLD_GENERATION_SCHEMA } from './schemas.js';
 

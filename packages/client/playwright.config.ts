@@ -40,7 +40,7 @@ export default defineConfig({
   /* Run both client and server before starting the tests */
   webServer: [
     {
-      command: 'pnpm --filter @reckoning/server dev',
+      command: 'USE_MOCK_AI=true pnpm --filter @reckoning/server dev',
       url: 'http://localhost:3001/health',
       reuseExistingServer: !process.env.CI,
       timeout: 120000,

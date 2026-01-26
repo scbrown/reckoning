@@ -30,6 +30,8 @@ import {
   broadcastManager,
   setupSSEResponse,
   ClaudeCodeCLI,
+  MockAIProvider,
+  shouldUseMockAI,
 } from '../services/index.js';
 import { createGameEngine, type GameEngine } from '../services/game-engine/index.js';
 
@@ -112,7 +114,13 @@ let gameEngine: GameEngine | null = null;
 function getGameEngine(): GameEngine {
   if (!gameEngine) {
     const db = getDatabase();
-    const aiProvider = new ClaudeCodeCLI();
+    // Use mock AI provider for tests to avoid Claude CLI timeouts
+    const aiProvider = shouldUseMockAI()
+      ? new MockAIProvider()
+      : new ClaudeCodeCLI();
+    if (shouldUseMockAI()) {
+      console.log('[GameEngine] Using MockAIProvider for testing');
+    }
     gameEngine = createGameEngine({
       db,
       aiProvider,

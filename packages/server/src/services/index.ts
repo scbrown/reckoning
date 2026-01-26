@@ -21,6 +21,8 @@ export { TTSCacheService } from './cache/tts-cache-service.js';
 export {
   ClaudeCodeCLI,
   type ClaudeCLIConfig,
+  MockAIProvider,
+  shouldUseMockAI,
   type AIProvider,
   type AIRequest,
   type AIResponse,
