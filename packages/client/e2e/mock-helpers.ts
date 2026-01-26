@@ -494,54 +494,61 @@ export async function mockSSEEvents(page: Page, events: MockSSEEvent[]): Promise
 // World Seeding Mocks
 // =============================================================================
 
+export interface MockResearchSessionOptions {
+  /** Session ID to return from start endpoint (default: 'test-session-123') */
+  sessionId?: string;
+  /** Delay in ms before fulfilling SSE response (default: 0) */
+  delay?: number;
+}
+
 /**
- * Mock research session events for world seeding
- * Simulates the SSE stream from Claude Code research process
+ * Mock world seeding research session API and SSE events
+ *
+ * Sets up route handlers for:
+ * - POST /api/game/:id/seed/start - Start research session
+ * - GET /api/game/:id/seed/events - SSE stream for research progress
+ * - POST /api/game/:id/seed/input - DM guidance input
+ *
+ * @example
+ * ```typescript
+ * await mockResearchSession(page, [
+ *   { type: 'console', data: 'Researching Die Hard (1988)...\n' },
+ *   { type: 'console', data: 'Found key elements: John McClane, Hans Gruber...\n' },
+ *   { type: 'worldseed', seed: TEST_WORLD_SEED },
+ *   { type: 'complete' }
+ * ]);
+ * ```
  */
 export async function mockResearchSession(
   page: Page,
-  options: {
-    sessionId?: string;
-    consoleOutput?: string[];
-    worldSeed?: WorldSeed;
-    error?: string;
-    delayMs?: number;
-  } = {}
+  events: ResearchConsoleEvent[],
+  options?: MockResearchSessionOptions
 ): Promise<void> {
-  const {
-    sessionId = 'test-session-' + Date.now(),
-    consoleOutput = [
-      'Starting research session...\n',
-      'Analyzing source material...\n',
-      'Generating world seed...\n',
-      'Research complete.\n',
-    ],
-    worldSeed = TEST_WORLD_SEED,
-    error,
-    delayMs = 100,
-  } = options;
+  const sessionId = options?.sessionId ?? 'test-session-123';
+  const delay = options?.delay ?? 0;
 
+  // Mock POST /api/game/:id/seed/start - Start research session
+  await page.route('**/api/game/*/seed/start', async (route: Route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ sessionId }),
+    });
+  });
+
+  // Mock GET /api/game/:id/seed/events - SSE stream for research progress
   await page.route('**/api/game/*/seed/events*', async (route: Route) => {
-    const events: ResearchConsoleEvent[] = [];
-
-    // Add console output events
-    for (const output of consoleOutput) {
-      events.push({ type: 'console', data: output });
+    // Apply optional delay before responding
+    if (delay > 0) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
     }
 
-    // Add worldseed or error event
-    if (error) {
-      events.push({ type: 'error', message: error });
-    } else {
-      events.push({ type: 'worldseed', seed: worldSeed });
-    }
-
-    // Add completion event
-    events.push({ type: 'complete' });
-
-    // Build SSE response
+    // Build SSE response body with proper event format
     const sseBody = events
-      .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+      .map((event) => {
+        const eventData = JSON.stringify(event);
+        return `event: ${event.type}\ndata: ${eventData}\n\n`;
+      })
       .join('');
 
     await route.fulfill({
@@ -555,14 +562,44 @@ export async function mockResearchSession(
     });
   });
 
-  // Mock the input endpoint
+  // Mock POST /api/game/:id/seed/input - DM guidance input
   await page.route('**/api/game/*/seed/input', async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ success: true, sessionId }),
+      body: JSON.stringify({ sent: true }),
     });
   });
+}
+
+/**
+ * Create default research events for testing
+ * Provides a complete happy-path research session
+ */
+export function createDefaultResearchEvents(
+  worldSeed: WorldSeed = TEST_WORLD_SEED
+): ResearchConsoleEvent[] {
+  return [
+    { type: 'console', data: 'Starting research session...\n' },
+    { type: 'console', data: 'Analyzing source material...\n' },
+    { type: 'console', data: 'Extracting themes and characters...\n' },
+    { type: 'console', data: 'Generating world seed...\n' },
+    { type: 'worldseed', seed: worldSeed },
+    { type: 'complete' },
+  ];
+}
+
+/**
+ * Create error research events for testing error handling
+ */
+export function createErrorResearchEvents(
+  errorMessage: string = 'Research failed: Unable to parse source material'
+): ResearchConsoleEvent[] {
+  return [
+    { type: 'console', data: 'Starting research session...\n' },
+    { type: 'console', data: 'Analyzing source material...\n' },
+    { type: 'error', message: errorMessage },
+  ];
 }
 
 // =============================================================================
