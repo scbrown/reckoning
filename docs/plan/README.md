@@ -32,7 +32,16 @@ This directory contains detailed implementation plans for each development phase
 | [Structured Events](./structured-events.md) | Pattern Detection & Emergence | Complete |
 | [Narrative Structure](./narrative-structure.md) | Scenes & Story Graph | Complete |
 | [Export Layer](./export-layer.md) | Git Persistence | Complete |
-| [Pixelsrc Integration](./pixelsrc-integration.md) | Pixel Art Generation | Complete |
+| [Pixelsrc Integration](./pixelsrc-integration.md) | Pixel Art Generation | Complete* |
+
+*\*Pixelsrc integration code is complete, but requires external `@stiwi/pixelsrc-wasm` package (not bundled).*
+
+### Planned Work (In Design)
+
+| Plan | Description | Status |
+|------|-------------|--------|
+| [Multi-View UI](./multi-view-ui.md) | Separate group display, DM control, player views | Planning |
+| [World Seeding](./world-seeding.md) | Pop culture research for world generation | Planning |
 
 ### Future Work (Not Yet Planned)
 

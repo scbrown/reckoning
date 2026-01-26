@@ -8,10 +8,11 @@ Integrate pixelsrc for procedurally generated pixel art portraits, scenes, and a
 |-------|-------|
 | **Epic ID** | pixelsrc-integration |
 | **Prefix** | PXLS |
-| **Status** | Complete |
+| **Status** | Complete (code) |
 | **Dependencies** | None (can run parallel to other epics) |
 | **Blocked By** | None |
 | **Completed** | 2026-01-20 |
+| **External Dep** | Requires `@stiwi/pixelsrc-wasm` (not bundled - local file ref to `~/workspace/ttp/wasm`) |
 
 ## Task Dependency Graph
 
