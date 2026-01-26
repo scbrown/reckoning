@@ -23,7 +23,7 @@ import { createGameStateManager, type GameStateManager } from './state/index.js'
 import { getRouter, type Route } from './router/index.js';
 
 // Views
-import { DMView } from './views/index.js';
+import { DMView, PlayerView } from './views/index.js';
 
 // UI Components (modals only at app level)
 import { SaveLoadModal, createSaveLoadModal } from './components/save-load-modal.js';
@@ -56,6 +56,7 @@ let stateManager: GameStateManager | null = null;
 // =============================================================================
 
 let dmView: DMView | null = null;
+let playerView: PlayerView | null = null;
 let saveLoadModal: SaveLoadModal | null = null;
 let exportImportModal: ExportImportModal | null = null;
 let speechBubble: SpeechBubble | null = null;
@@ -198,12 +199,34 @@ function mountDMView(): void {
 }
 
 /**
+ * Mount the Player View
+ */
+function mountPlayerView(gameId: string, characterId: string): void {
+  // Create PlayerView if not exists or if character changed
+  if (!playerView) {
+    playerView = new PlayerView(
+      { containerId: 'view-container', gameId, characterId },
+      {
+        onShowError: showError,
+      }
+    );
+  }
+
+  playerView.mount();
+}
+
+/**
  * Unmount the current view
  */
 function unmountCurrentView(): void {
   if (dmView) {
     dmView.unmount();
     dmView = null;
+  }
+
+  if (playerView) {
+    playerView.unmount();
+    playerView = null;
   }
 
   if (connectionStatusInterval) {
@@ -227,7 +250,7 @@ function handleRouteChange(route: Route): void {
     showWelcomeScreen();
     updateConnectionStatusDisplay('disconnected');
   } else if (route.path === 'game' && route.params) {
-    const { gameId, view } = route.params;
+    const { gameId, view, characterId } = route.params;
 
     // Ensure we have the game loaded
     if (stateManager?.getState().gameId !== gameId) {
@@ -237,12 +260,17 @@ function handleRouteChange(route: Route): void {
 
     showGameUI();
 
+    // Unmount previous view before mounting new one
+    unmountCurrentView();
+
     if (view === 'dm') {
       mountDMView();
     } else if (view === 'party') {
       // TODO: Mount Party View when implemented
       console.log('[Main] Party view not yet implemented');
       mountDMView(); // Fallback to DM view for now
+    } else if (view === 'player' && characterId) {
+      mountPlayerView(gameId, characterId);
     }
   }
 }

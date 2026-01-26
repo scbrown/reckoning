@@ -8,11 +8,12 @@
  * Uses hash-based routing for simplicity (#/game/123/view/dm)
  */
 
-export type ViewType = 'dm' | 'party';
+export type ViewType = 'dm' | 'party' | 'player';
 
 export interface RouteParams {
   gameId: string;
   view: ViewType;
+  characterId?: string; // Required for player view
 }
 
 export interface Route {
@@ -75,6 +76,16 @@ export class Router {
   }
 
   /**
+   * Navigate to player view for a specific character
+   */
+  navigateToPlayer(gameId: string, characterId: string): void {
+    this.navigate({
+      path: 'game',
+      params: { gameId, view: 'player', characterId },
+    });
+  }
+
+  /**
    * Subscribe to route changes
    */
   onRouteChange(callback: RouteChangeCallback): () => void {
@@ -102,7 +113,20 @@ export class Router {
       return { path: 'welcome' };
     }
 
-    // Match /game/:id/view/:viewType
+    // Match /game/:id/view/player/:characterId
+    const playerMatch = path.match(/^game\/([^/]+)\/view\/player\/([^/]+)$/);
+    if (playerMatch) {
+      return {
+        path: 'game',
+        params: {
+          gameId: playerMatch[1],
+          view: 'player',
+          characterId: playerMatch[2],
+        },
+      };
+    }
+
+    // Match /game/:id/view/:viewType (dm or party)
     const gameMatch = path.match(/^game\/([^/]+)\/view\/(dm|party)$/);
     if (gameMatch) {
       return {
@@ -139,6 +163,9 @@ export class Router {
     }
 
     if (route.path === 'game' && route.params) {
+      if (route.params.view === 'player' && route.params.characterId) {
+        return `#/game/${route.params.gameId}/view/player/${route.params.characterId}`;
+      }
       return `#/game/${route.params.gameId}/view/${route.params.view}`;
     }
 

@@ -13,6 +13,9 @@ import {
   AreaRepository,
   EventRepository,
   SceneRepository,
+  TraitRepository,
+  RelationshipRepository,
+  PerceivedRelationshipRepository,
 } from '../db/repositories/index.js';
 import { GameStateFilterService, type FullGameState } from '../services/view-filter/index.js';
 
@@ -47,12 +50,14 @@ export async function viewRoutes(fastify: FastifyInstance) {
   const areaRepo = new AreaRepository(db);
   const sceneRepo = new SceneRepository(db);
   const eventRepo = new EventRepository(db);
+  const traitRepo = new TraitRepository(db);
+  const relationshipRepo = new RelationshipRepository(db);
+  const perceivedRelationshipRepo = new PerceivedRelationshipRepository(db);
   const filterService = new GameStateFilterService(db);
 
   /**
    * Build full game state from repositories
-   * Note: For party view, we only need characters, area, scene, and narration.
-   * Other fields (traits, relationships, etc.) are not used by party view filter.
+   * Populates all fields needed for any view type (party, dm, player)
    */
   function buildFullGameState(gameId: string): FullGameState | null {
     const game = gameRepo.findById(gameId);
@@ -61,8 +66,11 @@ export async function viewRoutes(fastify: FastifyInstance) {
     // Get characters (party members)
     const characters = characterRepo.findByParty(gameId);
 
-    // Get current area
+    // Get current area with details (including NPCs)
     const currentArea = game.currentAreaId ? areaRepo.findById(game.currentAreaId) : null;
+
+    // Get NPCs in current area
+    const npcs = game.currentAreaId ? areaRepo.getNPCsInArea(game.currentAreaId) : [];
 
     // Get current active scene
     const activeScenes = sceneRepo.findActiveByGame(gameId);
@@ -73,6 +81,15 @@ export async function viewRoutes(fastify: FastifyInstance) {
     const recentNarration = recentEvents
       .filter(e => e.eventType === 'narration' || e.eventType === 'party_dialogue' || e.eventType === 'npc_dialogue')
       .map(e => e.speaker ? `${e.speaker}: ${e.content}` : e.content);
+
+    // Get all traits for this game
+    const traits = traitRepo.findByGame(gameId);
+
+    // Get all relationships for this game
+    const relationships = relationshipRepo.findByGame(gameId);
+
+    // Get all perceived relationships for this game
+    const perceivedRelationships = perceivedRelationshipRepo.findByGame(gameId);
 
     return {
       game: {
@@ -90,11 +107,11 @@ export async function viewRoutes(fastify: FastifyInstance) {
       },
       characters,
       currentArea,
-      npcs: [], // NPCs not needed for party view
-      traits: [], // Traits not needed for party view
-      relationships: [], // Relationships not needed for party view
-      perceivedRelationships: [], // Not needed for party view
-      pendingEvolutions: [], // Not needed for party view
+      npcs,
+      traits,
+      relationships,
+      perceivedRelationships,
+      pendingEvolutions: [], // DM-only, populated separately if needed
       currentScene,
       recentNarration,
     };

@@ -310,6 +310,21 @@ export class RelationshipRepository {
   }
 
   /**
+   * Find all relationships in a game
+   */
+  findByGame(gameId: string): Relationship[] {
+    const rows = this.db.prepare(`
+      SELECT id, game_id, from_type, from_id, to_type, to_id,
+        trust, respect, affection, fear, resentment, debt,
+        updated_turn, created_at, updated_at
+      FROM relationships
+      WHERE game_id = ?
+    `).all(gameId) as RelationshipRow[];
+
+    return rows.map(row => this.rowToRelationship(row));
+  }
+
+  /**
    * Delete all relationships in a game
    */
   deleteByGame(gameId: string): void {
