@@ -826,3 +826,117 @@ export function createStateSyncHelper(pages: Page[]): {
     },
   };
 }
+
+// =============================================================================
+// View-Filtered SSE Mocking
+// =============================================================================
+
+/**
+ * View types for multi-view UI
+ */
+export type ViewType = 'party' | 'dm' | 'player';
+
+/**
+ * Event types that are DM-only and should be filtered from party/player views
+ */
+export const DM_ONLY_EVENT_TYPES = [
+  'evolution_suggested',
+  'emergence_detected',
+  'dm_only',
+] as const;
+
+/**
+ * Game event structure for view-filtered SSE
+ */
+export interface GameEvent {
+  type: string;
+  data: Record<string, unknown>;
+  /** Character ID this event is specific to (for player view filtering) */
+  characterId?: string;
+}
+
+/**
+ * Options for mockViewSSE
+ */
+export interface MockViewSSEOptions {
+  /** Character ID for player view filtering (required when viewType is 'player') */
+  characterId?: string;
+}
+
+/**
+ * Mock SSE endpoint with view-specific event filtering
+ *
+ * Filters events based on view type:
+ * - party: excludes evolution_suggested, emergence_detected, dm_only
+ * - dm: receives all events
+ * - player: excludes DM-only events and events specific to other characters
+ *
+ * @example
+ * ```typescript
+ * // Mock party view - excludes DM-only events
+ * await mockViewSSE(page, 'party', [
+ *   { type: 'narration', data: { content: 'The door opens...' } },
+ *   { type: 'evolution_suggested', data: { entity: 'guard' } }, // filtered out
+ * ]);
+ *
+ * // Mock player view - character-specific filtering
+ * await mockViewSSE(page, 'player', events, { characterId: 'char-1' });
+ * ```
+ */
+export async function mockViewSSE(
+  page: Page,
+  viewType: ViewType,
+  events: GameEvent[],
+  options: MockViewSSEOptions = {}
+): Promise<void> {
+  const { characterId } = options;
+
+  await page.route('**/api/game/*/events*', async (route: Route) => {
+    const url = new URL(route.request().url());
+    const requestedView = url.searchParams.get('view') as ViewType | null;
+    const requestedCharacter = url.searchParams.get('characterId');
+
+    // Use URL param if present, otherwise fall back to viewType parameter
+    const effectiveView = requestedView ?? viewType;
+    const effectiveCharacterId = requestedCharacter ?? characterId;
+
+    // Filter events based on view type
+    const filteredEvents = events.filter((event) => {
+      // DM view receives all events
+      if (effectiveView === 'dm') {
+        return true;
+      }
+
+      // Party and player views exclude DM-only events
+      if (DM_ONLY_EVENT_TYPES.includes(event.type as typeof DM_ONLY_EVENT_TYPES[number])) {
+        return false;
+      }
+
+      // Player view: additional character-specific filtering
+      if (effectiveView === 'player' && effectiveCharacterId) {
+        // If event has a characterId, it must match the player's character
+        // Events without characterId are shared events (narration, scene changes)
+        if (event.characterId && event.characterId !== effectiveCharacterId) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+
+    // Build SSE response body
+    const sseBody = filteredEvents
+      .map((event) => `event: ${event.type}\ndata: ${JSON.stringify(event.data)}\n\n`)
+      .join('');
+
+    await route.fulfill({
+      status: 200,
+      contentType: 'text/event-stream',
+      headers: {
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
+      body: sseBody,
+    });
+  });
+}
