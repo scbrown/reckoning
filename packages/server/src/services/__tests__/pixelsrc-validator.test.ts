@@ -1,13 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PixelsrcValidator, _resetModuleState } from '../pixelsrc/validator.js';
 
-// Mock @pixelsrc/wasm module
-vi.mock('@pixelsrc/wasm', () => ({
+// Mock @stiwi/pixelsrc-wasm module
+vi.mock('@stiwi/pixelsrc-wasm', () => ({
   validate: vi.fn(),
 }));
 
 // Get the mocked validate function
-import { validate as wasmValidate } from '@pixelsrc/wasm';
+import { validate as wasmValidate } from '@stiwi/pixelsrc-wasm';
 const mockValidate = vi.mocked(wasmValidate);
 
 describe('PixelsrcValidator', () => {

@@ -99,7 +99,7 @@ async function loadWasmModule(): Promise<WasmValidateFn | null> {
 
   try {
     // Dynamic import to allow graceful failure when package not installed
-    const wasm = await import('@pixelsrc/wasm');
+    const wasm = await import('@stiwi/pixelsrc-wasm');
     wasmValidate = wasm.validate;
     return wasmValidate;
   } catch (error) {

@@ -21,7 +21,7 @@
     "@anthropic-ai/sdk": "^0.71.2",
     "@fastify/cors": "^9.0.1",
     "@reckoning/shared": "workspace:*",
-    "@stiwi/pixelsrc-wasm": "file:../../../../../../../workspace/ttp/wasm",
+    "@stiwi/pixelsrc-wasm": "^0.2.0",
     "better-sqlite3": "^11.10.0",
     "dotenv": "^16.3.1",
     "fastify": "^4.25.2",

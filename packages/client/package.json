@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@reckoning/shared": "workspace:*",
-    "@stiwi/pixelsrc-wasm": "file:../../../../../../../workspace/ttp/wasm"
+    "@stiwi/pixelsrc-wasm": "^0.2.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
