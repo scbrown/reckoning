@@ -3,7 +3,7 @@
 ## Goal
 
 Separate the game display from the control interface, enabling:
-- A **Group View** for shared display (the "TV" everyone watches)
+- A **Party View** for shared display (the "TV" everyone watches)
 - A **DM View** for game control and behind-the-scenes management
 - Optional **Player Views** for per-character perspectives
 
@@ -27,8 +27,8 @@ Separating views enables:
 │                              GAME SESSION                                    │
 │                                                                              │
 │   ┌─────────────────┐   ┌─────────────────┐   ┌─────────────────┐          │
-│   │   GROUP VIEW    │   │    DM VIEW      │   │  PLAYER VIEWS   │          │
-│   │   /view/group   │   │   /view/dm      │   │ /view/player/:id│          │
+│   │   PARTY VIEW    │   │    DM VIEW      │   │  PLAYER VIEWS   │          │
+│   │   /view/party   │   │   /view/dm      │   │ /view/player/:id│          │
 │   ├─────────────────┤   ├─────────────────┤   ├─────────────────┤          │
 │   │ Display-only    │   │ Full control    │   │ Character POV   │          │
 │   │ No controls     │   │ All approvals   │   │ Filtered info   │          │
@@ -47,9 +47,9 @@ Separating views enables:
 
 ## View Specifications
 
-### Group View (Display Mode)
+### Party View (Display Mode)
 
-**Purpose:** Shared screen for group play, streaming, or theater mode.
+**Purpose:** Shared screen for group play, streaming, or theater mode. This is the only view with TTS audio.
 
 **Shows:**
 - Narration text (styled, animated)
@@ -77,7 +77,7 @@ Separating views enables:
 **Purpose:** Full game control and visibility.
 
 **Shows:**
-- Everything in Group View, plus:
+- Everything in Party View, plus:
 - Beat editor (approve/edit/regenerate)
 - Evolution approval panel
 - Emergence notifications
@@ -89,7 +89,7 @@ Separating views enables:
 - NPC controls
 
 **Features:**
-- Side-by-side: Group View preview + controls
+- Side-by-side: Party View preview + controls
 - Quick actions: approve, reject, edit inline
 - Drag-drop scene ordering
 - Real-time player activity indicators
@@ -126,10 +126,9 @@ Guard fears you: 0.8    (hidden - player doesn't know)
 ### Route Structure
 
 ```
-/game/:gameId/view/group          # Display-only, no auth required (or viewer token)
+/game/:gameId/view/party          # Display-only with TTS, join via code/link
 /game/:gameId/view/dm             # Requires DM auth
 /game/:gameId/view/player/:charId # Requires player auth for that character
-/game/:gameId/view/spectator      # Read-only, follows group view
 ```
 
 ### Authentication & Authorization
@@ -162,7 +161,7 @@ All views connect to same SSE endpoint, but receive filtered events:
 interface SSEBroadcast {
   event: GameEvent;
   visibility: {
-    group: boolean;      // Show in group view?
+    party: boolean;      // Show in party view?
     dm: boolean;         // Show in DM view?
     players: string[];   // Which player IDs can see?
   };
@@ -170,7 +169,7 @@ interface SSEBroadcast {
 ```
 
 **Example events:**
-| Event | Group | DM | Player |
+| Event | Party | DM | Player |
 |-------|-------|-----|--------|
 | narration | Yes | Yes | Yes |
 | evolution_suggested | No | Yes | No |
@@ -184,12 +183,12 @@ interface SSEBroadcast {
 // Server-side filter before sending to client
 function filterGameStateForView(
   state: FullGameState,
-  view: 'group' | 'dm' | 'player',
+  view: 'party' | 'dm' | 'player',
   characterId?: string
 ): FilteredGameState {
   switch (view) {
-    case 'group':
-      return filterForGroup(state);
+    case 'party':
+      return filterForParty(state);
     case 'dm':
       return state; // DM sees everything
     case 'player':
@@ -222,10 +221,9 @@ function filterForPlayer(state: FullGameState, charId: string): FilteredGameStat
 ```
 packages/client/src/
 ├── views/
-│   ├── group-view.ts       # Display-only view
+│   ├── party-view.ts       # Display-only view with TTS
 │   ├── dm-view.ts          # Full control view
-│   ├── player-view.ts      # Per-character view
-│   └── spectator-view.ts   # Read-only observer
+│   └── player-view.ts      # Per-character view
 ├── components/
 │   ├── shared/             # Used by all views
 │   │   ├── narration-display.ts
@@ -241,7 +239,7 @@ packages/client/src/
 └── services/
     └── view-state/
         ├── index.ts
-        ├── group-state.ts
+        ├── party-state.ts
         ├── dm-state.ts
         └── player-state.ts
 ```
@@ -251,12 +249,24 @@ packages/client/src/
 ### New Tables
 
 ```sql
+-- Join codes for Jackbox-style party joining
+CREATE TABLE join_codes (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  code TEXT NOT NULL UNIQUE,       -- Short alphanumeric (e.g., "ABC123")
+  expires_at TEXT NOT NULL,
+  max_uses INTEGER DEFAULT 10,
+  current_uses INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+
 -- Track active view sessions
 CREATE TABLE view_sessions (
   id TEXT PRIMARY KEY,
   game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
-  view_type TEXT NOT NULL,  -- 'group', 'dm', 'player', 'spectator'
+  view_type TEXT NOT NULL,  -- 'party', 'dm', 'player'
   character_id TEXT,        -- For player views
+  display_name TEXT,        -- Player's chosen name
   token_hash TEXT NOT NULL, -- Hashed session token
   last_active TEXT DEFAULT (datetime('now')),
   created_at TEXT DEFAULT (datetime('now'))
@@ -282,8 +292,13 @@ CREATE TABLE perceived_relationships (
 ### New Endpoints
 
 ```
+# Join flow (Jackbox-style)
+POST /api/game/:id/join/create            # DM creates join code
+POST /api/game/:id/join                   # Player joins with code
+GET  /api/game/:id/join/:code             # Direct join link handler
+
+# View state
 GET  /api/game/:id/view/:viewType/state   # Filtered state for view
-POST /api/game/:id/view/token             # Generate view token
 GET  /api/game/:id/view/sessions          # List active sessions (DM only)
 DELETE /api/game/:id/view/session/:sid    # Kick a viewer (DM only)
 ```
@@ -291,25 +306,26 @@ DELETE /api/game/:id/view/session/:sid    # Kick a viewer (DM only)
 ### SSE Changes
 
 ```
-GET /api/game/:id/events?view=group&token=xxx
+GET /api/game/:id/events?view=party&token=xxx
 GET /api/game/:id/events?view=dm&token=xxx
 GET /api/game/:id/events?view=player&character=xxx&token=xxx
 ```
 
 ## UI/UX Considerations
 
-### Group View Design Goals
+### Party View Design Goals
 - Cinematic feel
 - Readable at distance (10ft UI)
 - Works on TV/projector
 - Minimal UI chrome
 - Smooth animations
+- TTS audio (only view with audio)
 
 ### DM View Design Goals
 - Information density
 - Quick actions
 - Keyboard shortcuts
-- Preview of what group sees
+- Preview of what party sees
 - Real-time sync indicators
 
 ### Player View Design Goals
@@ -320,13 +336,15 @@ GET /api/game/:id/events?view=player&character=xxx&token=xxx
 
 ## Migration Path
 
-### Phase 1: Extract Group View
-- Create `/view/group` route
+### Phase 1: Infrastructure + Party View
+- Add join_codes and view_sessions tables
+- Design party join system (Jackbox-style codes + links)
+- Create `/view/party` route with TTS
 - Move display components to shared
-- Current UI becomes DM view
 
-### Phase 2: Add DM-Specific Features
-- Side-by-side layout
+### Phase 2: DM View Refactor
+- Current UI becomes DM view
+- Side-by-side layout with Party View preview
 - Quick approve/reject
 - Enhanced visibility
 
@@ -334,26 +352,27 @@ GET /api/game/:id/events?view=player&character=xxx&token=xxx
 - Per-character routes
 - Relationship perception system
 - Subjective trait visibility
+- SSE event filtering per view
 
-### Phase 4: Polish
+### Phase 4: Polish (deferred)
 - View customization
 - Theming
 - Mobile optimization
 
-## Open Questions
+## Resolved Questions
 
-1. **Session management**: How do players join? QR code? Game code?
-2. **Sync latency**: How to handle slow connections for group view?
-3. **Audio routing**: Does TTS play on group view only, or all views?
-4. **Reconnection**: How to handle dropped connections gracefully?
-5. **View switching**: Can DM quickly switch between views?
+1. **Session management**: Jackbox-style - DM creates party, players join via short code OR DM shares direct link
+2. **Sync latency**: Not a concern for MVP - web page will eventually sync
+3. **Audio routing**: TTS only on Party View
+4. **Reconnection**: Deferred - not worried about this yet
+5. **View switching**: Users open a different URL to switch views
 
 ## Success Criteria
 
-- [ ] Group view runs independently, display-only
-- [ ] DM can control game while group view shows results
+- [ ] Party view runs independently, display-only with TTS
+- [ ] DM can control game while party view shows results
+- [ ] Players can join via code or link (Jackbox-style)
 - [ ] Player views show subjective relationship data
 - [ ] SSE properly filters events per view
-- [ ] Views stay in sync within 500ms
 - [ ] Works on mobile (player view)
-- [ ] Works on TV (group view)
+- [ ] Works on TV (party view)
