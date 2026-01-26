@@ -163,3 +163,20 @@ export {
   type ExportedEmergenceNotification,
   type ExportedFlags,
 } from './export/index.js';
+
+export { GameStateFilterService } from './view-filter/index.js';
+export type {
+  ViewType,
+  FullGameState,
+  PartyViewState,
+  PlayerViewState,
+  DMViewState,
+  FilteredGameState,
+  PartyAvatar,
+  SceneDisplay,
+  AreaDisplay,
+  PartyMemberView,
+  NPCView,
+  FilteredTrait,
+  PlayerRelationshipView,
+} from './view-filter/index.js';

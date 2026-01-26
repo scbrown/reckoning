@@ -97,3 +97,10 @@ export {
   type JoinCode,
   type CreateJoinCodeInput,
 } from './view-session-repository.js';
+export {
+  PerceivedRelationshipRepository,
+  type PerceivedDimension,
+  type PerceivedRelationship,
+  type UpsertPerceivedRelationshipInput,
+  PERCEIVED_DIMENSIONS,
+} from './perceived-relationship-repository.js';

@@ -394,6 +394,27 @@ CREATE TABLE IF NOT EXISTS join_codes (
 CREATE INDEX IF NOT EXISTS idx_join_codes_code ON join_codes(code);
 CREATE INDEX IF NOT EXISTS idx_join_codes_game ON join_codes(game_id);
 
+-- Perceived relationships table (Multi-View UI system)
+-- Stores subjective relationship perceptions for player views
+-- Player characters may perceive relationships differently than the truth
+CREATE TABLE IF NOT EXISTS perceived_relationships (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  perceiver_id TEXT NOT NULL,    -- Character doing the perceiving
+  target_id TEXT NOT NULL,       -- Who they're perceiving
+  -- Perceived values (what the perceiver thinks the relationship is)
+  perceived_trust REAL CHECK (perceived_trust IS NULL OR (perceived_trust >= 0.0 AND perceived_trust <= 1.0)),
+  perceived_respect REAL CHECK (perceived_respect IS NULL OR (perceived_respect >= 0.0 AND perceived_respect <= 1.0)),
+  perceived_affection REAL CHECK (perceived_affection IS NULL OR (perceived_affection >= 0.0 AND perceived_affection <= 1.0)),
+  -- Note: fear/resentment are intentionally NOT included - these are hidden from perceiver
+  last_updated_turn INTEGER NOT NULL,
+  created_at TEXT DEFAULT (datetime('now')),
+  updated_at TEXT DEFAULT (datetime('now')),
+  UNIQUE(game_id, perceiver_id, target_id)
+);
+CREATE INDEX IF NOT EXISTS idx_perceived_relationships_game ON perceived_relationships(game_id);
+CREATE INDEX IF NOT EXISTS idx_perceived_relationships_perceiver ON perceived_relationships(game_id, perceiver_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (
