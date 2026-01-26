@@ -80,3 +80,12 @@ export {
   type UpdateSceneInput,
   type SceneEvent,
 } from './scene-repository.js';
+export {
+  WorldSeedRepository,
+  type WorldSeed,
+  type WorldSeedTone,
+  type CharacterRole as WorldSeedCharacterRole,
+  type WorldSeedRecord,
+  type WorldSeedFull,
+  type CreateWorldSeedInput,
+} from './world-seed-repository.js';

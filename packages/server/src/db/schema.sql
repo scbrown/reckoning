@@ -350,6 +350,18 @@ CREATE TABLE IF NOT EXISTS scene_flags (
 CREATE INDEX IF NOT EXISTS idx_scene_flags_game_scene ON scene_flags(game_id, scene_id);
 CREATE INDEX IF NOT EXISTS idx_scene_flags_name ON scene_flags(game_id, flag_name);
 
+-- World seeds table (World Seeding system)
+-- Stores completed world seed configurations for games
+CREATE TABLE IF NOT EXISTS world_seeds (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  dm_prompt TEXT NOT NULL,
+  seed_data TEXT NOT NULL,  -- JSON WorldSeed
+  research_log TEXT,        -- Optional full console output
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_world_seeds_game ON world_seeds(game_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (
