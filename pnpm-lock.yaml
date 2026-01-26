@@ -33,8 +33,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@stiwi/pixelsrc-wasm':
-        specifier: file:../../../../../../../workspace/ttp/wasm
-        version: file:../../../../../workspace/ttp/wasm
+        specifier: ^0.2.0
+        version: 0.2.0
     devDependencies:
       '@playwright/test':
         specifier: ^1.57.0
@@ -67,8 +67,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@stiwi/pixelsrc-wasm':
-        specifier: file:../../../../../../../workspace/ttp/wasm
-        version: file:../../../../../workspace/ttp/wasm
+        specifier: ^0.2.0
+        version: 0.2.0
       better-sqlite3:
         specifier: ^11.10.0
         version: 11.10.0
@@ -1059,6 +1059,10 @@ packages:
   /@sinclair/typebox@0.27.8:
     resolution: {integrity: sha512-+Fj43pSMwJs4KRrH/938Uf+uAELIgVBmQzg/q1YG10djyfA3TnrU8N8XzqCh/okZdszqBQTZf96idMfE5lnwTA==}
     dev: true
+
+  /@stiwi/pixelsrc-wasm@0.2.0:
+    resolution: {integrity: sha512-cn1Aj6yGbp99FQq8ne1rpzI6ZOE345JAYRR/JJFL32iDVp5goLhVIFyDr59Ufqj2S2NAzzfjICQmIiBza3bbTw==}
+    dev: false
 
   /@types/better-sqlite3@7.6.13:
     resolution: {integrity: sha512-NMv9ASNARoKksWtsq/SHakpYAYnhBrQgGD8zkLYk/jaK8jUGn08CfEdTRgYhMypUQAfzSP8W6gNLe0q19/t4VA==}
@@ -3244,9 +3248,4 @@ packages:
 
   /zod@4.3.5:
     resolution: {integrity: sha512-k7Nwx6vuWx1IJ9Bjuf4Zt1PEllcwe7cls3VNzm4CQ1/hgtFUK2bRNG3rvnpPUhFjmqJKAKtjV576KnUkHocg/g==}
-    dev: false
-
-  file:../../../../../workspace/ttp/wasm:
-    resolution: {directory: ../../../../../workspace/ttp/wasm, type: directory}
-    name: '@stiwi/pixelsrc-wasm'
     dev: false
