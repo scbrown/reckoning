@@ -46,3 +46,7 @@ data/
 *.db
 *.db-wal
 *.db-shm
+
+# Gas Town (added by gt)
+.claude/
+.logs/
