@@ -201,3 +201,14 @@ export type {
   CharacterSpec,
   SpriteResult,
 } from './sprite-generator.js';
+
+export {
+  ArchetypeMatcher,
+  ArchetypeMatcherError,
+  getArchetypeMatcher,
+} from './archetype-matcher.js';
+export type {
+  CharacterQuery,
+  ArchetypeEntry,
+  ArchetypeMatch,
+} from './archetype-matcher.js';
