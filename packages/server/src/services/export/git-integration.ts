@@ -286,15 +286,16 @@ export class GitIntegrationService {
         }
       }
 
-      // Push to remote if requested
-      if (push && remote) {
-        // Configure the remote
+      // Configure remote if provided
+      if (remote) {
         this.configureRemote(exportPath, remote);
-
-        // Push changes
-        this.push(exportPath, remote);
-        result.pushed = true;
         result.remoteUrl = remote.url;
+
+        // Push to remote if requested
+        if (push) {
+          this.push(exportPath, remote);
+          result.pushed = true;
+        }
       }
 
       result.success = true;
