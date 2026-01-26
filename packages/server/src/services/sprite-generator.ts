@@ -16,7 +16,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 /**
  * Path to the LPC layers directory
  */
-const LPC_ROOT = join(__dirname, '..', '..', '..', 'assets', 'lpc-layers');
+const LPC_ROOT = join(__dirname, '..', '..', '..', '..', 'assets', 'lpc-layers');
 
 /**
  * Skin tone options available for character bodies
