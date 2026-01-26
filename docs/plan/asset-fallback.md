@@ -240,16 +240,34 @@ Explain your casting choices - why does this sprite work for this character?
 
 ## Asset Pack Sourcing
 
-### Option A: License Existing Packs
+### Recommended Free Packs
 
-| Source | License | Style | Cost |
-|--------|---------|-------|------|
-| [Kenney](https://kenney.nl) | CC0 | Clean, simple | Free |
-| [LPC](http://lpc.opengameart.org) | CC-BY/GPL | Classic RPG | Free |
-| [itch.io bundles](https://itch.io) | Varies | Varied | $5-50 |
+| Source | Assets | License | Style | Notes |
+|--------|--------|---------|-------|-------|
+| [LPC Character Generator](https://liberatedpixelcup.github.io/Universal-LPC-Spritesheet-Character-Generator/) | Infinite combos | CC-BY-SA 3.0 | Classic RPG 64x64 | **Top pick for characters.** Modular parts, 13+ animations (walk, attack, cast, etc). Mix hair, armor, weapons. Requires attribution. |
+| [Kenney All-in-1](https://kenney.itch.io/kenney-game-assets) | 60,000+ | CC0 | Clean vector/pixel | $20 bundle or free individual packs at [kenney.nl/assets](https://kenney.nl/assets). Great for UI, items, effects. |
+| [Hyptosis Collection](https://opengameart.org/content/lots-of-free-2d-tiles-and-sprites-by-hyptosis) | 1000s | CC-BY 3.0 | Zelda-like RPG | **Top pick for environments.** Tiles, items, NPCs. Credit "Hyptosis". |
+| [700 Sprites Pack](https://opengameart.org/content/700-sprites) | 700+ | CC0 | Fantasy 32x32 | Characters with 4 directions, 2 genders, 2 skin tones each. |
+| [itch.io CC0 Pixel Art](https://itch.io/game-assets/free/tag-cc0/tag-pixel-art) | Varies | CC0 | Mixed | Curated CC0 pixel art, good for gap-filling. |
+| [OpenGameArt Fantasy/RPG](https://opengameart.org/content/theme-fantasy-rpg) | 1000s | Mixed | Mixed | Large collection, check individual licenses. |
 
-**Pros:** Fast, cheap, proven quality
-**Cons:** May need multiple packs for coverage, style consistency issues
+### Recommended Starting Combo
+
+1. **Characters:** LPC Generator - generates spritesheets on demand with full animation
+2. **Environments:** Hyptosis - cohesive Zelda-like style, lots of variety
+3. **Items/UI:** Kenney individual packs - clean, consistent, CC0
+4. **Gap-fill:** itch.io CC0 searches for specific needs
+
+### License Considerations
+
+| License | Attribution Required | Derivative Works | Commercial OK |
+|---------|---------------------|------------------|---------------|
+| CC0 | No | Yes | Yes |
+| CC-BY | Yes | Yes | Yes |
+| CC-BY-SA | Yes | Must share alike | Yes |
+| GPL | Yes | Must open source | Yes |
+
+**For Reckoning:** CC0 and CC-BY are ideal. CC-BY-SA is fine for assets we don't modify. GPL may require open-sourcing derivative sprites.
 
 ### Option B: Commission Custom Pack
 
@@ -262,9 +280,12 @@ Have an artist create a unified pack designed for this system:
 **Pros:** Perfect fit, unique look
 **Cons:** Cost ($500-2000), time (weeks)
 
-### Option C: Hybrid
+### Option C: Hybrid (Recommended)
 
-Start with licensed assets, commission gap-fills and unifying elements.
+Start with LPC + Hyptosis + Kenney, commission:
+- Unique frames/overlays for our "theater" system
+- Expression overlays that work across LPC bases
+- Custom props for common archetypes
 
 ## Technical Implementation
 
