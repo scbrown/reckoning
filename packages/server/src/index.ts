@@ -15,6 +15,7 @@ import { sceneRoutes } from './routes/scene.js';
 import { pixelartRoutes } from './routes/pixelart.js';
 import { exportRoutes } from './routes/export.js';
 import { seedRoutes } from './routes/seed.js';
+import { viewRoutes } from './routes/view.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../../..');
@@ -47,6 +48,7 @@ await server.register(sceneRoutes, { prefix: '/api/scene' });
 await server.register(pixelartRoutes, { prefix: '/api/pixelart' });
 await server.register(exportRoutes, { prefix: '/api/export' });
 await server.register(seedRoutes, { prefix: '/api/seed' });
+await server.register(viewRoutes, { prefix: '/api/view' });
 
 /**
  * Try to start server on a port, incrementing if port is in use.
