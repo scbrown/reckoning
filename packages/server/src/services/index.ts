@@ -180,3 +180,9 @@ export type {
   FilteredTrait,
   PlayerRelationshipView,
 } from './view-filter/index.js';
+
+export {
+  buildResearchPrompt,
+  RESEARCH_SYSTEM_PROMPT,
+  WORLD_SEEDING_RESEARCH_PROMPT,
+} from './world-seeding/index.js';
