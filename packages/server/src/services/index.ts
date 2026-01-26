@@ -186,3 +186,18 @@ export {
   RESEARCH_SYSTEM_PROMPT,
   WORLD_SEEDING_RESEARCH_PROMPT,
 } from './world-seeding/index.js';
+
+export {
+  SpriteGenerator,
+  SpriteGeneratorError,
+  getSpriteGenerator,
+  generateCharacterSprite,
+} from './sprite-generator.js';
+export type {
+  SkinTone,
+  BodyType,
+  HairSpec,
+  ArmorSpec,
+  CharacterSpec,
+  SpriteResult,
+} from './sprite-generator.js';
