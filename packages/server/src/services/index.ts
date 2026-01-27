@@ -195,3 +195,29 @@ export {
   getAvailablePresets,
 } from './palette-shift.js';
 export type { PalettePreset, PaletteShift, PaletteZones } from './palette-shift.js';
+
+export {
+  SpriteGenerator,
+  SpriteGeneratorError,
+  getSpriteGenerator,
+  generateCharacterSprite,
+} from './sprite-generator.js';
+export type {
+  SkinTone,
+  BodyType,
+  HairSpec,
+  ArmorSpec,
+  CharacterSpec,
+  SpriteResult,
+} from './sprite-generator.js';
+
+export {
+  ArchetypeMatcher,
+  ArchetypeMatcherError,
+  getArchetypeMatcher,
+} from './archetype-matcher.js';
+export type {
+  CharacterQuery,
+  ArchetypeEntry,
+  ArchetypeMatch,
+} from './archetype-matcher.js';

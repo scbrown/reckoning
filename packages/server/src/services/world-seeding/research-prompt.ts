@@ -147,9 +147,52 @@ Then create the WorldSeed matching this exact schema:
     "colorPalette": ["string - color descriptions"],
     "lightingMood": "string - lighting atmosphere"
   },
-  "contextSummary": "string - 200 word summary for the AI narrator to understand the world"
+  "contextSummary": "string - 200 word summary for the AI narrator to understand the world",
+
+  "assetMappings": {
+    "characters": [
+      {
+        "name": "string - must match a character name above",
+        "spriteId": "string - archetype sprite ID from the library (e.g., 'human_male_warrior_light_01')",
+        "palette": {
+          "preset": "warm_heroic" | "cool_villain" | "gritty_worn" | "festive" | "noir" | "horror"
+        },
+        "reasoning": "string - explain why this sprite fits this character"
+      }
+    ],
+    "locations": [
+      {
+        "name": "string - must match a location name above",
+        "background": "string - background asset ID",
+        "lighting": "string - lighting mood"
+      }
+    ],
+    "globalPalette": "warm_heroic" | "cool_villain" | "gritty_worn" | "festive" | "noir" | "horror"
+  }
 }
 \`\`\`
+
+## Asset Casting
+
+When building the WorldSeed, you should also create asset mappings. Think of this like casting actors in a theater company — you're selecting sprite archetypes to "play" each character.
+
+For each character, choose a \`spriteId\` that best represents them visually. Sprite IDs follow the pattern: \`{race}_{gender}_{archetype}_{skinTone}_{number}\` (e.g., \`human_male_warrior_light_01\`, \`elf_female_mage_dark_02\`).
+
+Available races: human, elf, dwarf, orc
+Available archetypes: warrior, mage, rogue, noble, commoner
+Available skin tones: light, medium, dark
+
+Choose a \`globalPalette\` that matches the overall tone:
+- \`warm_heroic\` — adventure, heroism, golden age
+- \`cool_villain\` — intrigue, villainy, dark schemes
+- \`gritty_worn\` — survival, post-apocalyptic, weary
+- \`festive\` — comedy, celebration, whimsy
+- \`noir\` — mystery, crime, shadows
+- \`horror\` — dread, supernatural, decay
+
+For each character casting, explain your reasoning — why does this sprite fit this character?
+
+**Note:** If you're unsure about exact sprite IDs, make your best guess. Invalid IDs will be automatically resolved to the best matching archetype.
 
 ## Final Submission
 
