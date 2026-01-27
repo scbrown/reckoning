@@ -127,6 +127,58 @@ export interface PendingEvolution {
 }
 
 /**
+ * Emergence notification types for testing
+ */
+export type EmergenceType = 'villain' | 'ally';
+
+/**
+ * Emergence entity types
+ */
+export type EmergenceEntityType = 'player' | 'character' | 'npc' | 'location' | 'item';
+
+/**
+ * Emergence acknowledgment status
+ */
+export type EmergenceAcknowledgmentStatus = 'pending' | 'acknowledged' | 'dismissed';
+
+/**
+ * Emergence contributing factor for testing
+ */
+export interface EmergenceContributingFactor {
+  dimension: string;
+  value: number;
+  threshold: number;
+}
+
+/**
+ * Emergence opportunity for testing
+ */
+export interface EmergenceOpportunity {
+  type: EmergenceType;
+  entity: {
+    type: EmergenceEntityType;
+    id: string;
+  };
+  confidence: number;
+  reason: string;
+  triggeringEventId: string;
+  contributingFactors: EmergenceContributingFactor[];
+}
+
+/**
+ * Emergence notification for testing
+ */
+export interface EmergenceNotification {
+  id: string;
+  gameId: string;
+  opportunity: EmergenceOpportunity;
+  status: EmergenceAcknowledgmentStatus;
+  createdAt: string;
+  resolvedAt?: string;
+  dmNotes?: string;
+}
+
+/**
  * Join code structure for testing
  */
 export interface JoinCode {
@@ -647,6 +699,124 @@ export async function mockPendingEvolution(
     {
       type: 'evolution_pending',
       data: { evolutions },
+    },
+  ]);
+}
+
+// =============================================================================
+// Emergence Notification Mocks
+// =============================================================================
+
+/**
+ * Create a sample emergence notification for testing
+ */
+export function createTestEmergenceNotification(
+  overrides: Partial<EmergenceNotification> = {}
+): EmergenceNotification {
+  const now = new Date().toISOString();
+  return {
+    id: 'emergence-' + Date.now(),
+    gameId: 'test-game',
+    opportunity: {
+      type: 'villain',
+      entity: {
+        type: 'npc',
+        id: 'npc-guard-1',
+      },
+      confidence: 0.75,
+      reason: 'The guard has shown increasing hostility and distrust toward the party after repeated confrontations.',
+      triggeringEventId: 'event-123',
+      contributingFactors: [
+        { dimension: 'trust', value: -0.8, threshold: -0.7 },
+        { dimension: 'resentment', value: 0.9, threshold: 0.8 },
+      ],
+    },
+    status: 'pending',
+    createdAt: now,
+    ...overrides,
+  };
+}
+
+/**
+ * Create a sample ally emergence notification for testing
+ */
+export function createTestAllyEmergence(
+  overrides: Partial<EmergenceNotification> = {}
+): EmergenceNotification {
+  return createTestEmergenceNotification({
+    opportunity: {
+      type: 'ally',
+      entity: {
+        type: 'npc',
+        id: 'npc-merchant-1',
+      },
+      confidence: 0.82,
+      reason: 'The merchant has repeatedly aided the party and shown genuine concern for their wellbeing.',
+      triggeringEventId: 'event-456',
+      contributingFactors: [
+        { dimension: 'trust', value: 0.85, threshold: 0.7 },
+        { dimension: 'affection', value: 0.7, threshold: 0.6 },
+      ],
+    },
+    ...overrides,
+  });
+}
+
+/**
+ * Mock emergence notification API and events
+ * Simulates the emergence notification flow
+ */
+export async function mockEmergenceNotifications(
+  page: Page,
+  notifications: EmergenceNotification[] = [createTestEmergenceNotification()]
+): Promise<void> {
+  // Mock the emergence notifications endpoint
+  await page.route('**/api/game/*/emergence', async (route: Route, request) => {
+    if (request.method() === 'GET') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ notifications }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // Mock individual notification actions (acknowledge/dismiss)
+  await page.route('**/api/game/*/emergence/*', async (route: Route, request) => {
+    const url = request.url();
+    const notificationId = url.match(/emergence\/([^/?]+)/)?.[1];
+    const method = request.method();
+
+    if (method === 'POST' || method === 'PATCH') {
+      const body = request.postDataJSON();
+      const action = body?.action || 'acknowledge';
+
+      const notification = notifications.find((n) => n.id === notificationId);
+      if (notification) {
+        notification.status = action === 'dismiss' ? 'dismissed' : 'acknowledged';
+        notification.resolvedAt = new Date().toISOString();
+        if (body?.dmNotes) {
+          notification.dmNotes = body.dmNotes;
+        }
+      }
+
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ success: true, notification }),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+
+  // Inject SSE event for emergence notifications
+  await mockSSEEvents(page, [
+    {
+      type: 'emergence_detected',
+      data: { notifications },
     },
   ]);
 }
