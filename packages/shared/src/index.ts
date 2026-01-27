@@ -13,6 +13,9 @@ export * from './game/index.js';
 // Re-export emergence types
 export * from './emergence/index.js';
 
+// Re-export world seed types
+export * from './types/index.js';
+
 // Re-export SSE types from sse module (authoritative definitions)
 export type {
   HeartbeatEvent,
