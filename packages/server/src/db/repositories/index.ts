@@ -107,3 +107,6 @@ export {
 export {
   MemoryJournalRepository,
 } from './memory-journal-repository.js';
+export {
+  ChronicleRepository,
+} from './chronicle-repository.js';

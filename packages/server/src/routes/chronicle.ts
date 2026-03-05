@@ -12,6 +12,10 @@ import { getDatabase } from '../db/index.js';
 import { EventRepository, GameRepository } from '../db/repositories/index.js';
 import { PatternObserver } from '../services/chronicle/pattern-observer.js';
 import { ScenarioGenerator } from '../services/chronicle/scenario-generator.js';
+import { ChronicleNarrator } from '../services/chronicle/narrator.js';
+import { VerdictClassifier } from '../services/chronicle/trial.js';
+import { ChronicleRepository } from '../db/repositories/chronicle-repository.js';
+import { MemoryJournalRepository } from '../db/repositories/memory-journal-repository.js';
 
 // =============================================================================
 // Types
@@ -523,4 +527,150 @@ export async function chronicleRoutes(fastify: FastifyInstance) {
       categories,
     });
   });
+
+  // ===========================================================================
+  // Chronicle Narrator Endpoints
+  // ===========================================================================
+
+  const chronicleRepo = new ChronicleRepository(db);
+  const memoryJournalRepo = new MemoryJournalRepository(db);
+
+  /**
+   * GET /api/chronicle/narrate/:gameId/:playerId
+   * Generate a narration preview for recent events (returns AI prompt, not generated text)
+   */
+  fastify.get<{ Params: PatternParams; Querystring: PatternQuery }>(
+    '/narrate/:gameId/:playerId',
+    { schema: patternParamsSchema },
+    async (request, reply) => {
+      const { gameId, playerId } = request.params;
+      const { turnStart, turnEnd } = request.query;
+
+      try {
+        const game = gameRepo.findById(gameId);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${gameId}`);
+        }
+
+        const events = eventRepo.findByActor(gameId, 'player', playerId, { limit: 100 });
+        const filteredEvents = turnStart && turnEnd
+          ? events.filter(e => e.turn >= parseInt(turnStart, 10) && e.turn <= parseInt(turnEnd, 10))
+          : events.slice(-20);
+
+        const patterns = patternObserver.getPlayerPatterns(gameId, playerId);
+        const narrator = new ChronicleNarrator({ dynamicBias: true });
+        const narration = narrator.narrate(filteredEvents, patterns);
+
+        return reply.send({ narration });
+      } catch (error) {
+        request.log.error(error, 'Failed to generate narration');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to generate narration');
+      }
+    }
+  );
+
+  /**
+   * GET /api/chronicle/entries/:gameId
+   * Get all chronicle entries for a game
+   */
+  fastify.get<{ Params: { gameId: string }; Querystring: { limit?: string } }>(
+    '/entries/:gameId',
+    async (request, reply) => {
+      const { gameId } = request.params;
+      const limit = request.query.limit ? parseInt(request.query.limit, 10) : undefined;
+
+      const entries = chronicleRepo.findByGame(gameId, limit);
+      const reputation = chronicleRepo.getReputationScore(gameId);
+      return reply.send({ entries, reputation });
+    }
+  );
+
+  // ===========================================================================
+  // Trial Endpoints
+  // ===========================================================================
+
+  /**
+   * GET /api/chronicle/verdict/:gameId/:playerId
+   * Classify the player into a verdict archetype based on their behavior
+   */
+  fastify.get<{ Params: PatternParams }>(
+    '/verdict/:gameId/:playerId',
+    { schema: patternParamsSchema },
+    async (request, reply) => {
+      const { gameId, playerId } = request.params;
+
+      try {
+        const game = gameRepo.findById(gameId);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${gameId}`);
+        }
+
+        const patterns = patternObserver.getPlayerPatterns(gameId, playerId);
+        const events = eventRepo.findByActor(gameId, 'player', playerId, { limit: 1000 });
+
+        const classifier = new VerdictClassifier();
+        const verdict = classifier.classify(patterns, events);
+
+        return reply.send({ verdict, patterns });
+      } catch (error) {
+        request.log.error(error, 'Failed to classify verdict');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to classify verdict');
+      }
+    }
+  );
+
+  /**
+   * GET /api/chronicle/trial/:gameId/:playerId
+   * Get full trial data: charges, verdict, and evidence summary
+   */
+  fastify.get<{ Params: PatternParams }>(
+    '/trial/:gameId/:playerId',
+    { schema: patternParamsSchema },
+    async (request, reply) => {
+      const { gameId, playerId } = request.params;
+
+      try {
+        const game = gameRepo.findById(gameId);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${gameId}`);
+        }
+
+        const patterns = patternObserver.getPlayerPatterns(gameId, playerId);
+        const events = eventRepo.findByActor(gameId, 'player', playerId, { limit: 1000 });
+
+        // Build chronicle excerpts map from chronicle entries
+        const chronicleEntries = chronicleRepo.findByGame(gameId);
+        const chronicleExcerpts = new Map<string, string>();
+        for (const entry of chronicleEntries) {
+          for (const eventId of entry.sourceEventIds) {
+            chronicleExcerpts.set(eventId, entry.content);
+          }
+        }
+
+        // Build player memories map
+        const memories = memoryJournalRepo.findByCharacter(gameId, playerId);
+        const playerMemories = new Map<string, string>();
+        for (const mem of memories) {
+          playerMemories.set(mem.sourceEventId, mem.content);
+        }
+
+        const classifier = new VerdictClassifier();
+        const charges = classifier.selectCharges(events, chronicleExcerpts, playerMemories);
+        const verdict = classifier.classify(patterns, events);
+        const reputation = chronicleRepo.getReputationScore(gameId);
+
+        return reply.send({
+          charges,
+          verdict,
+          patterns,
+          reputation,
+          chronicleEntryCount: chronicleEntries.length,
+          memoryCount: memories.length,
+        });
+      } catch (error) {
+        request.log.error(error, 'Failed to build trial');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to build trial');
+      }
+    }
+  );
 }

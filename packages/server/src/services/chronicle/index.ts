@@ -21,3 +21,13 @@ export type {
   PatternAxis,
   ScenarioGeneratorConfig,
 } from './scenario-generator.js';
+export {
+  ChronicleNarrator,
+  type NarratorConfig,
+  type NarrationResult,
+} from './narrator.js';
+export {
+  VerdictClassifier,
+  type TrialConfig,
+  type EvidenceSummary,
+} from './trial.js';

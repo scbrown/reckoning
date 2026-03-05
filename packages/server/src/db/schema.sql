@@ -442,6 +442,23 @@ CREATE INDEX IF NOT EXISTS idx_memory_journal_character ON memory_journal(game_i
 CREATE INDEX IF NOT EXISTS idx_memory_journal_turn ON memory_journal(game_id, turn);
 CREATE INDEX IF NOT EXISTS idx_memory_journal_event ON memory_journal(source_event_id);
 
+-- Chronicle entries table (Living Chronicle — Pillar 4)
+-- Stores the biased historian's account of events
+CREATE TABLE IF NOT EXISTS chronicle_entries (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  turn_start INTEGER NOT NULL,
+  turn_end INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  bias TEXT NOT NULL,                   -- sympathetic, hostile, detached, mocking, tragic
+  source_event_ids TEXT NOT NULL,       -- JSON array of event IDs
+  reputation_impact REAL NOT NULL DEFAULT 0.0 CHECK (reputation_impact >= -1.0 AND reputation_impact <= 1.0),
+  dm_override TEXT,
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_chronicle_entries_game ON chronicle_entries(game_id);
+CREATE INDEX IF NOT EXISTS idx_chronicle_entries_turns ON chronicle_entries(game_id, turn_start, turn_end);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

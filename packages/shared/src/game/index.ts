@@ -110,3 +110,16 @@ export type {
   MemoryEntry,
   CreateMemoryInput,
 } from './memory.js';
+
+// Chronicle & Trial types (Pillar 4)
+export type {
+  NarratorBias,
+  ChronicleEntry,
+  CreateChronicleInput,
+  TrialPhase,
+  TrialCharge,
+  TrialTestimony,
+  VerdictArchetype,
+  TrialVerdict,
+  Trial,
+} from './chronicle.js';
