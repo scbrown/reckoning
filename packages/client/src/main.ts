@@ -242,7 +242,7 @@ function unmountCurrentView(): void {
 // Route Handler
 // =============================================================================
 
-function handleRouteChange(route: Route): void {
+async function handleRouteChange(route: Route): Promise<void> {
   console.log('[Main] Route changed:', route);
 
   if (route.path === 'welcome') {
@@ -252,10 +252,20 @@ function handleRouteChange(route: Route): void {
   } else if (route.path === 'game' && route.params) {
     const { gameId, view, characterId } = route.params;
 
-    // Ensure we have the game loaded
+    // Load game from ID if not already loaded
     if (stateManager?.getState().gameId !== gameId) {
-      console.warn('[Main] Game ID mismatch, need to load game:', gameId);
-      // TODO: Load game from ID if not already loaded
+      console.log('[Main] Loading game from URL:', gameId);
+      showLoading(true, 'Loading game...', 'Fetching game session');
+      try {
+        await stateManager?.initGame(gameId);
+      } catch (error) {
+        console.error('[Main] Failed to load game:', error);
+        showLoading(false);
+        showError(error instanceof Error ? error.message : 'Failed to load game');
+        router.navigateToWelcome();
+        return;
+      }
+      showLoading(false);
     }
 
     showGameUI();
@@ -266,9 +276,9 @@ function handleRouteChange(route: Route): void {
     if (view === 'dm') {
       mountDMView();
     } else if (view === 'party') {
-      // TODO: Mount Party View when implemented
-      console.log('[Main] Party view not yet implemented');
-      mountDMView(); // Fallback to DM view for now
+      // Redirect to standalone party view (designed for TV/projector)
+      window.location.href = `/party-view.html?gameId=${gameId}`;
+      return;
     } else if (view === 'player' && characterId) {
       mountPlayerView(gameId, characterId);
     }
