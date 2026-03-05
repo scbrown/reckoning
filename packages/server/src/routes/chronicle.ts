@@ -11,6 +11,7 @@ import { ALL_ACTIONS, ACTION_CATEGORIES, isValidAction, isValidActionCategory } 
 import { getDatabase } from '../db/index.js';
 import { EventRepository, GameRepository } from '../db/repositories/index.js';
 import { PatternObserver } from '../services/chronicle/pattern-observer.js';
+import { ScenarioGenerator } from '../services/chronicle/scenario-generator.js';
 
 // =============================================================================
 // Types
@@ -389,6 +390,52 @@ export async function chronicleRoutes(fastify: FastifyInstance) {
       } catch (error) {
         request.log.error(error, 'Failed to get player patterns');
         return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to get patterns');
+      }
+    }
+  );
+
+  /**
+   * GET /api/chronicle/scenarios/:gameId/:playerId
+   * Get scenario directives based on player behavior patterns (Pattern Engine)
+   */
+  fastify.get<{ Params: PatternParams; Querystring: PatternQuery }>(
+    '/scenarios/:gameId/:playerId',
+    { schema: patternParamsSchema },
+    async (
+      request: FastifyRequest<{ Params: PatternParams; Querystring: PatternQuery }>,
+      reply: FastifyReply
+    ) => {
+      const { gameId, playerId } = request.params;
+      const { turnStart, turnEnd, limit } = request.query;
+
+      try {
+        const game = gameRepo.findById(gameId);
+        if (!game) {
+          return sendError(reply, 404, 'GAME_NOT_FOUND', `Game not found: ${gameId}`);
+        }
+
+        const options: { turnRange?: { start: number; end: number }; limit?: number } = {};
+        if (turnStart && turnEnd) {
+          options.turnRange = {
+            start: parseInt(turnStart, 10),
+            end: parseInt(turnEnd, 10),
+          };
+        }
+        if (limit) {
+          options.limit = parseInt(limit, 10);
+        }
+
+        const patterns = patternObserver.getPlayerPatterns(gameId, playerId, options);
+        const scenarioGenerator = new ScenarioGenerator();
+        const scenario = scenarioGenerator.generateScenario(patterns);
+
+        return reply.send({
+          patterns,
+          scenario,
+        });
+      } catch (error) {
+        request.log.error(error, 'Failed to generate scenario');
+        return sendError(reply, 500, 'INTERNAL_ERROR', 'Failed to generate scenario');
       }
     }
   );

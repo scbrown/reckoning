@@ -49,6 +49,10 @@ export interface PromptBuildContext extends GenerationContext {
   npcContext?: NPCContext;
   /** Environment-specific context (for environment_reaction type) */
   environmentContext?: EnvironmentContext;
+  /** Formatted player behavior patterns for AI context */
+  formattedPlayerBehavior?: string;
+  /** Formatted scenario directives from Pattern Engine */
+  formattedScenarioDirectives?: string;
 }
 
 /**
@@ -114,11 +118,20 @@ export function buildPrompt(context: PromptBuildContext): BuiltPrompt {
       throw new Error(`Unknown generation type: ${context.type}`);
   }
 
-  const combined = `${systemPrompt}\n\n---\n\n${userPrompt}`;
+  // Append player behavior and scenario directives if available
+  let enhancedUserPrompt = userPrompt;
+  if (context.formattedPlayerBehavior) {
+    enhancedUserPrompt += `\n\n${context.formattedPlayerBehavior}`;
+  }
+  if (context.formattedScenarioDirectives) {
+    enhancedUserPrompt += `\n\n${context.formattedScenarioDirectives}`;
+  }
+
+  const combined = `${systemPrompt}\n\n---\n\n${enhancedUserPrompt}`;
 
   return {
     systemPrompt,
-    userPrompt,
+    userPrompt: enhancedUserPrompt,
     combined,
   };
 }
@@ -179,7 +192,16 @@ Vary the beat types (narration, dialogue, action, etc.) to create engaging flow.
 Include speaker names for dialogue, action, and thought beats.
 Add TTS hints (emotion, volume, pace) for dramatic moments.`;
 
-  const enhancedUserPrompt = `${userPrompt}\n\n${beatInstructions}`;
+  // Append player behavior, scenario directives, and beat instructions
+  let enhancedUserPrompt = userPrompt;
+  if (context.formattedPlayerBehavior) {
+    enhancedUserPrompt += `\n\n${context.formattedPlayerBehavior}`;
+  }
+  if (context.formattedScenarioDirectives) {
+    enhancedUserPrompt += `\n\n${context.formattedScenarioDirectives}`;
+  }
+  enhancedUserPrompt += `\n\n${beatInstructions}`;
+
   const combined = `${systemPrompt}\n\n---\n\n${enhancedUserPrompt}`;
 
   return {

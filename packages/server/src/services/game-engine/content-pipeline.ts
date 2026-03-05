@@ -358,6 +358,12 @@ export class ContentPipeline {
     if (context.dmGuidance !== undefined) {
       baseContext.dmGuidance = context.dmGuidance;
     }
+    if (context.formattedPlayerBehavior !== undefined) {
+      baseContext.formattedPlayerBehavior = context.formattedPlayerBehavior;
+    }
+    if (context.formattedScenarioDirectives !== undefined) {
+      baseContext.formattedScenarioDirectives = context.formattedScenarioDirectives;
+    }
 
     // Get area ID safely (AreaWithDetails extends Area which has id)
     const areaId = (context.currentArea as { id: string }).id;

@@ -35,6 +35,7 @@ import type { Scene } from '../../db/repositories/scene-repository.js';
 import { EvolutionService } from '../evolution/index.js';
 import { EmergenceObserver, EmergenceNotificationService } from '../events/index.js';
 import { SceneManager, type SceneEvent } from '../scene/index.js';
+import { ScenarioGenerator } from '../chronicle/scenario-generator.js';
 import { ContentPipeline } from './content-pipeline.js';
 import { EventLoop } from './event-loop.js';
 import { StateManager } from './state-manager.js';
@@ -114,9 +115,11 @@ export class GameEngine {
       pendingRepo: new PendingEvolutionRepository(db),
     });
 
-    // Create context builder with evolution service
+    // Create context builder with evolution service and scenario generator
+    const scenarioGenerator = new ScenarioGenerator();
     const contextBuilder = createContextBuilder(db, {
       evolutionRepo: evolutionService,
+      scenarioGenerator,
     });
 
     // Create emergence observer and notification service (SEVT-011)

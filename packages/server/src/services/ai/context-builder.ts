@@ -23,6 +23,7 @@ import type {
   PlayerPatterns,
   SocialApproach,
 } from '../chronicle/types.js';
+import { ScenarioGenerator } from '../chronicle/scenario-generator.js';
 import type { Scene, SceneStatus } from '../../db/repositories/scene-repository.js';
 
 // =============================================================================
@@ -462,6 +463,8 @@ export interface ExtendedGenerationContext extends GenerationContext {
   playerBehavior?: PlayerBehaviorContext;
   /** Formatted player behavior context for AI prompts */
   formattedPlayerBehavior?: string;
+  /** Formatted scenario directives for AI prompts (Pattern Engine) */
+  formattedScenarioDirectives?: string;
   /** Scene context (current scene, available scenes, history) */
   sceneContext?: SceneContext;
   /** Formatted scene context for AI prompts */
@@ -707,7 +710,8 @@ export class DefaultContextBuilder implements ContextBuilder {
     private evolutionRepo?: EvolutionRepository,
     private patternRepo?: PatternRepository,
     private sceneRepo?: SceneRepository,
-    private gameRepoWithScene?: GameRepositoryWithScene
+    private gameRepoWithScene?: GameRepositoryWithScene,
+    private scenarioGenerator?: ScenarioGenerator
   ) {}
 
   async build(
@@ -804,12 +808,22 @@ export class DefaultContextBuilder implements ContextBuilder {
     let playerBehavior: PlayerBehaviorContext | undefined;
     let formattedPlayerBehavior: string | undefined;
 
+    let formattedScenarioDirectives: string | undefined;
+
     if (this.patternRepo) {
       const player = party.find((m) => m.role === 'player');
       if (player) {
         const patterns = this.patternRepo.getPlayerPatterns(gameId, player.id);
         playerBehavior = patternsToContext(patterns);
         formattedPlayerBehavior = formatPlayerBehavior(playerBehavior);
+
+        // Generate scenario directives from patterns (Pattern Engine)
+        if (this.scenarioGenerator) {
+          const scenario = this.scenarioGenerator.generateScenario(patterns);
+          if (scenario.formatted) {
+            formattedScenarioDirectives = scenario.formatted;
+          }
+        }
       }
     }
 
@@ -900,6 +914,9 @@ export class DefaultContextBuilder implements ContextBuilder {
     if (formattedPlayerBehavior) {
       context.formattedPlayerBehavior = formattedPlayerBehavior;
     }
+    if (formattedScenarioDirectives) {
+      context.formattedScenarioDirectives = formattedScenarioDirectives;
+    }
     if (sceneContext) {
       context.sceneContext = sceneContext;
     }
@@ -938,6 +955,8 @@ export interface ContextBuilderOptions {
   sceneRepo?: SceneRepository;
   /** Optional game repository with scene support */
   gameRepoWithScene?: GameRepositoryWithScene;
+  /** Optional scenario generator for pattern-driven directives */
+  scenarioGenerator?: ScenarioGenerator;
 }
 
 /**
@@ -959,6 +978,7 @@ export function createContextBuilder(
     options?.evolutionRepo,
     options?.patternRepo,
     options?.sceneRepo,
-    options?.gameRepoWithScene
+    options?.gameRepoWithScene,
+    options?.scenarioGenerator
   );
 }
