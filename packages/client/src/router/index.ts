@@ -119,9 +119,9 @@ export class Router {
       return {
         path: 'game',
         params: {
-          gameId: playerMatch[1],
+          gameId: playerMatch[1]!,
           view: 'player',
-          characterId: playerMatch[2],
+          characterId: playerMatch[2]!,
         },
       };
     }
@@ -132,7 +132,7 @@ export class Router {
       return {
         path: 'game',
         params: {
-          gameId: gameMatch[1],
+          gameId: gameMatch[1]!,
           view: gameMatch[2] as ViewType,
         },
       };
@@ -144,7 +144,7 @@ export class Router {
       return {
         path: 'game',
         params: {
-          gameId: gameIdMatch[1],
+          gameId: gameIdMatch[1]!,
           view: 'dm',
         },
       };

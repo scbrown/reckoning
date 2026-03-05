@@ -301,18 +301,19 @@ export class PlayerView {
     if (!this.narrationDisplay || !this.state) return;
 
     // Convert narration strings to NarrativeEntry format
-    const entries = this.state.narration.map((text, index) => {
+    const entries: import('../state/types.js').NarrativeEntry[] = this.state.narration.map((text, index) => {
       // Parse speaker from "Speaker: text" format
       const speakerMatch = text.match(/^([^:]+):\s*(.+)$/);
 
-      return {
+      const entry: import('../state/types.js').NarrativeEntry = {
         id: `narration-${index}`,
-        content: speakerMatch ? speakerMatch[2] : text,
+        content: speakerMatch ? speakerMatch[2]! : text,
         type: speakerMatch ? 'party_dialogue' as const : 'narration' as const,
-        speaker: speakerMatch ? speakerMatch[1] : undefined,
-        timestamp: Date.now(),
+        timestamp: new Date(),
         isTTSPlaying: false,
       };
+      if (speakerMatch) entry.speaker = speakerMatch[1]!;
+      return entry;
     });
 
     this.narrationDisplay.update(entries);

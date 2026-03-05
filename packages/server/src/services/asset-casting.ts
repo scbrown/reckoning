@@ -137,26 +137,28 @@ export async function resolveAssetCasting(
       const matches = matcher.findBestMatch(query, 1);
 
       const resolvedSpriteId = matches.length > 0
-        ? matches[0].archetype.id
+        ? matches[0]!.archetype.id
         : 'silhouette_humanoid';
 
       const reason = existing?.spriteId
         ? `Invalid sprite ID "${existing.spriteId}" — resolved via archetype matcher`
         : 'No asset mapping provided — resolved via archetype matcher';
 
-      fallbacks.push({
+      const fallbackEntry: { name: string; originalSpriteId?: string; resolvedSpriteId: string; reason: string } = {
         name: character.name,
-        originalSpriteId: existing?.spriteId,
         resolvedSpriteId,
         reason,
-      });
+      };
+      if (existing?.spriteId) fallbackEntry.originalSpriteId = existing.spriteId;
+      fallbacks.push(fallbackEntry);
 
-      resolvedCharacters.push({
+      const castEntry: typeof resolvedCharacters[number] = {
         name: character.name,
         spriteId: resolvedSpriteId,
-        palette: existing?.palette,
         reasoning: existing?.reasoning ?? `Auto-matched from: ${character.visualDescription}`,
-      });
+      };
+      if (existing?.palette) castEntry.palette = existing.palette;
+      resolvedCharacters.push(castEntry);
     }
   }
 

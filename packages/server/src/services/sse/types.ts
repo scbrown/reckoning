@@ -110,7 +110,9 @@ export type SSEEvent =
   | { type: 'emergence_detected'; timestamp: string; opportunity: EmergenceOpportunitySSE; notificationId: string }
   | { type: 'scene_started'; scene: SceneSSE; gameId: string }
   | { type: 'scene_completed'; scene: SceneSSE; gameId: string }
-  | { type: 'scene_abandoned'; scene: SceneSSE; gameId: string };
+  | { type: 'scene_abandoned'; scene: SceneSSE; gameId: string }
+  | { type: 'worldseed_ready'; seed: unknown }
+  | { type: 'seed_progress'; eventType: string; data?: unknown };
 
 // =============================================================================
 // SSE Client Types

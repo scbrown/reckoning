@@ -94,7 +94,7 @@ function parseArgs(args: string[]): ParsedArgs {
   const options: Record<string, string> = {};
 
   for (let i = 1; i < args.length; i++) {
-    const arg = args[i];
+    const arg = args[i]!;
     if (arg.startsWith('--')) {
       const key = arg.slice(2);
       const value = args[i + 1];
@@ -301,16 +301,16 @@ async function main(): Promise<void> {
   switch (command) {
     case 'submit':
       result = await submitWorldSeed({
-        session: options.session,
-        file: options.file,
+        session: options.session ?? '',
+        file: options.file ?? '',
       });
       break;
 
     case 'event':
       result = await sendEvent({
-        session: options.session,
+        session: options.session ?? '',
         type: options.type as EventType,
-        data: options.data,
+        data: options.data ?? '',
       });
       break;
 

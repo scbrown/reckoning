@@ -368,8 +368,8 @@ export class GitIntegrationService {
       const remotesOutput = this.execGit('remote -v', exportPath);
       const remoteLines = remotesOutput.split('\n').filter(line => line.includes('(push)'));
       status.remotes = remoteLines.map(line => {
-        const [name, url] = line.split('\t');
-        return { name, url: url.replace(' (push)', '') };
+        const parts = line.split('\t');
+        return { name: parts[0] ?? '', url: (parts[1] ?? '').replace(' (push)', '') };
       });
     } catch {
       status.remotes = [];

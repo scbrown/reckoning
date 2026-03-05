@@ -14,12 +14,9 @@ import type {
   ArtEvolutionTriggerContext,
   ArtEvolutionRequest,
   ArtEvolutionResult,
-  ArtEvolutionParams,
   ArtArchiveEntry,
   ArtEvolutionHistory,
   ArtEvolutionEventEmitter,
-  PaletteModification,
-  CompositionLayer,
   TraitVisualMapping,
   ActTransitionData,
   MajorEventData,
@@ -186,7 +183,7 @@ export class ArtEvolutionService {
       const entry = this.archive.entries.get(id);
       if (entry && entry.toTurn === undefined) {
         entry.toTurn = turn;
-        entry.trigger = trigger;
+        if (trigger !== undefined) entry.trigger = trigger;
       }
     }
 

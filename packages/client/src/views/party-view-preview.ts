@@ -104,7 +104,7 @@ export class PartyViewPreview {
   private filterForPartyView(entries: NarrativeEntry[]): NarrativeEntry[] {
     return entries.filter((entry) => {
       // Remove DM notes
-      if (entry.type === 'dm_note') {
+      if (entry.type === ('dm_note' as string)) {
         return false;
       }
 

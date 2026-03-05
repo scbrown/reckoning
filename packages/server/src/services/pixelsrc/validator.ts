@@ -100,7 +100,7 @@ async function loadWasmModule(): Promise<WasmValidateFn | null> {
   try {
     // Dynamic import to allow graceful failure when package not installed
     const wasm = await import('@stiwi/pixelsrc-wasm');
-    wasmValidate = wasm.validate;
+    wasmValidate = wasm.validate as unknown as WasmValidateFn;
     return wasmValidate;
   } catch (error) {
     wasmLoadError = error instanceof Error ? error : new Error(String(error));
@@ -195,18 +195,16 @@ export class PixelsrcValidator {
       const warnings: ValidationWarning[] = [];
 
       for (const diag of diagnostics) {
-        const diagnostic = {
-          message: diag.message,
-          line: diag.line,
-          column: diag.column,
-          source: diag.source,
-          code: diag.code,
-        };
+        const diagnostic: ValidationError = { message: diag.message };
+        if (diag.line !== undefined) diagnostic.line = diag.line;
+        if (diag.column !== undefined) diagnostic.column = diag.column;
+        if (diag.source !== undefined) diagnostic.source = diag.source;
+        if (diag.code !== undefined) diagnostic.code = diag.code;
 
         if (diag.severity === 'error') {
           errors.push(diagnostic);
         } else {
-          warnings.push(diagnostic);
+          warnings.push(diagnostic as ValidationWarning);
         }
       }
 

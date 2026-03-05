@@ -7,7 +7,7 @@
 import { FastifyInstance } from 'fastify';
 import { getDatabase } from '../db/index.js';
 import { JsonExporter, GitIntegrationService } from '../services/export/index.js';
-import type { GitRemoteConfig, GitOAuthConfig } from '../services/export/index.js';
+import type { GitRemoteConfig } from '../services/export/index.js';
 
 // =============================================================================
 // Types
@@ -207,15 +207,14 @@ export async function exportRoutes(fastify: FastifyInstance): Promise<void> {
     try {
       const gitService = new GitIntegrationService();
 
-      const result = await gitService.integrate({
-        exportPath,
-        commit,
-        commitMessage,
-        push,
-        remote,
-        authorName,
-        authorEmail,
-      });
+      const opts: import('../services/export/index.js').GitIntegrationOptions = { exportPath };
+      if (commit !== undefined) opts.commit = commit;
+      if (commitMessage !== undefined) opts.commitMessage = commitMessage;
+      if (push !== undefined) opts.push = push;
+      if (remote !== undefined) opts.remote = remote;
+      if (authorName !== undefined) opts.authorName = authorName;
+      if (authorEmail !== undefined) opts.authorEmail = authorEmail;
+      const result = await gitService.integrate(opts);
 
       if (!result.success) {
         return reply.status(500).send({

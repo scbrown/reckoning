@@ -398,7 +398,7 @@ export class DMView {
 
     // Update connection status periodically
     const intervalId = window.setInterval(() => {
-      const state = sseService.getConnectionState();
+      sseService.getConnectionState();
       // Connection status is handled by parent
     }, 1000);
     this.intervalIds.push(intervalId);
@@ -435,7 +435,7 @@ export class DMView {
     const content = this.dmEditor?.getContent();
 
     try {
-      await stateManager.submitContent({ type: 'EDIT', content });
+      await stateManager.submitContent({ type: 'EDIT', content: content ?? '' });
       this.dmEditor?.resetEditingState();
 
       if (content) {

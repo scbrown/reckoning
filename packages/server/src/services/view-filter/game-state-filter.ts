@@ -35,7 +35,9 @@ import type {
  * Service for filtering game state based on view type
  */
 export class GameStateFilterService {
+  // @ts-expect-error Reserved for player view filtering (future use)
   private relationshipRepo: RelationshipRepository;
+  // @ts-expect-error Reserved for player view filtering (future use)
   private traitRepo: TraitRepository;
   private perceivedRelationshipRepo: PerceivedRelationshipRepository;
 
@@ -127,14 +129,16 @@ export class GameStateFilterService {
    * Extract avatar info for party view
    */
   private extractAvatars(characters: Character[]): PartyAvatar[] {
-    return characters.map(c => ({
-      id: c.id,
-      name: c.name,
-      pixelArtRef: c.pixelArtRef ? {
-        path: c.pixelArtRef.path,
-        spriteName: c.pixelArtRef.spriteName,
-      } : undefined,
-    }));
+    return characters.map(c => {
+      const avatar: PartyAvatar = { id: c.id, name: c.name };
+      if (c.pixelArtRef) {
+        avatar.pixelArtRef = {
+          path: c.pixelArtRef.path,
+          spriteName: c.pixelArtRef.spriteName,
+        };
+      }
+      return avatar;
+    });
   }
 
   /**
@@ -142,12 +146,13 @@ export class GameStateFilterService {
    */
   private extractSceneDisplay(scene: FullGameState['currentScene']): SceneDisplay | null {
     if (!scene) return null;
-    return {
+    const display: SceneDisplay = {
       id: scene.id,
       name: scene.name,
       sceneType: scene.sceneType,
-      mood: scene.mood ?? undefined,
     };
+    if (scene.mood != null) display.mood = scene.mood;
+    return display;
   }
 
   /**

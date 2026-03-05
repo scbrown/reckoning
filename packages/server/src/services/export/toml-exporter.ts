@@ -111,7 +111,7 @@ export class TomlExporter {
       throw new Error(`No party found for game: ${gameId}`);
     }
 
-    const party = parties[0];
+    const party = parties[0]!;
 
     // Get player character
     const playerCharacter = this.characterRepo.findPlayer(party.id);
@@ -543,7 +543,7 @@ export class TomlExporter {
     // For now, get relationships for player and all characters
     const parties = this.partyRepo.findByGameId(gameId);
     if (parties.length > 0) {
-      const characters = this.characterRepo.findByParty(parties[0].id);
+      const characters = this.characterRepo.findByParty(parties[0]!.id);
       const processedIds = new Set<string>();
 
       for (const char of characters) {

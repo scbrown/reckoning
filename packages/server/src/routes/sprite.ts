@@ -234,7 +234,7 @@ export async function spriteRoutes(fastify: FastifyInstance): Promise<void> {
     }
 
     try {
-      const spec: CharacterSpec = bodyResult.data;
+      const spec = bodyResult.data as CharacterSpec;
       const result = await generator.generate(spec);
 
       // Set caching headers
@@ -278,14 +278,14 @@ export async function spriteRoutes(fastify: FastifyInstance): Promise<void> {
 
     const { race, gender, archetype, tags, mood, limit } = queryResult.data;
 
+    const query: Record<string, unknown> = {};
+    if (race !== undefined) query.race = race;
+    if (gender !== undefined) query.gender = gender;
+    if (archetype !== undefined) query.archetype = archetype;
+    if (tags !== undefined) query.tags = tags.split(',').map(t => t.trim());
+    if (mood !== undefined) query.mood = mood.split(',').map(m => m.trim());
     const matches = matcher.findBestMatch(
-      {
-        race,
-        gender,
-        archetype,
-        tags: tags?.split(',').map(t => t.trim()),
-        mood: mood?.split(',').map(m => m.trim()),
-      },
+      query as Parameters<typeof matcher.findBestMatch>[0],
       limit
     );
 

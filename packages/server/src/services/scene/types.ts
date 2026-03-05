@@ -74,3 +74,50 @@ export interface RequirementContext {
   /** All relationships in the game */
   relationships: Relationship[];
 }
+
+/**
+ * A signal detected by the boundary detector indicating a potential scene break.
+ */
+export interface BoundarySignal {
+  type: 'location_change' | 'confrontation_resolved' | 'mood_shift' | 'long_duration';
+  strength: number;
+  reason: string;
+  triggerEventId?: string;
+}
+
+/**
+ * Context about the current scene included in a boundary suggestion.
+ */
+export interface BoundarySceneContext {
+  sceneId: string;
+  currentTurn: number;
+  startedTurn: number;
+  eventCount: number;
+  currentLocationId: string | null;
+  currentMood: string | null;
+}
+
+/**
+ * A suggestion from the boundary detector about whether the current scene should end.
+ */
+export interface BoundarySuggestion {
+  shouldEndScene: boolean;
+  confidence: number;
+  signals: BoundarySignal[];
+  sceneContext: BoundarySceneContext;
+}
+
+/**
+ * Configuration for boundary detection thresholds and weights.
+ * All fields are optional; defaults are applied by the detector.
+ */
+export interface BoundaryDetectionConfig {
+  confidenceThreshold?: number;
+  longDurationTurns?: number;
+  longDurationEvents?: number;
+  locationChangeWeight?: number;
+  confrontationResolvedWeight?: number;
+  moodShiftWeight?: number;
+  longDurationWeight?: number;
+  recentEventWindow?: number;
+}

@@ -13,15 +13,9 @@ import { version as packageVersion } from '../../../package.json';
 import {
   GameRepository,
   EventRepository,
-  AreaRepository,
   PartyRepository,
-  RelationshipRepository,
   TraitRepository,
-  PendingEvolutionRepository,
-  EmergenceNotificationRepository,
   SceneRepository,
-  SceneConnectionRepository,
-  SceneAvailabilityRepository,
 } from '../../db/repositories/index.js';
 import type { Character } from '@reckoning/shared/game';
 import {
@@ -73,30 +67,18 @@ export interface JsonExporterConfig {
 export class JsonExporter {
   private gameRepo: GameRepository;
   private eventRepo: EventRepository;
-  private areaRepo: AreaRepository;
   private partyRepo: PartyRepository;
-  private relationshipRepo: RelationshipRepository;
   private traitRepo: TraitRepository;
-  private pendingEvolutionRepo: PendingEvolutionRepository;
-  private emergenceNotificationRepo: EmergenceNotificationRepository;
   private sceneRepo: SceneRepository;
-  private sceneConnectionRepo: SceneConnectionRepository;
-  private sceneAvailabilityRepo: SceneAvailabilityRepository;
   private db: Database.Database;
 
   constructor(config: JsonExporterConfig) {
     this.db = config.db;
     this.gameRepo = new GameRepository(config.db);
     this.eventRepo = new EventRepository(config.db);
-    this.areaRepo = new AreaRepository(config.db);
     this.partyRepo = new PartyRepository(config.db);
-    this.relationshipRepo = new RelationshipRepository(config.db);
     this.traitRepo = new TraitRepository(config.db);
-    this.pendingEvolutionRepo = new PendingEvolutionRepository(config.db);
-    this.emergenceNotificationRepo = new EmergenceNotificationRepository(config.db);
     this.sceneRepo = new SceneRepository(config.db);
-    this.sceneConnectionRepo = new SceneConnectionRepository(config.db);
-    this.sceneAvailabilityRepo = new SceneAvailabilityRepository(config.db);
   }
 
   /**
@@ -224,7 +206,7 @@ export class JsonExporter {
     if (parties.length === 0) return null;
 
     // Use the first party (games typically have one party)
-    const party = parties[0];
+    const party = parties[0]!;
     let player: ExportedCharacter | null = null;
 
     const members: ExportedCharacter[] = party.members.map((member: Character) => {
@@ -256,15 +238,15 @@ export class JsonExporter {
       description: character.description || '',
       class: character.class || '',
       stats: {
+        ...character.stats,
         health: character.stats?.health ?? 100,
         maxHealth: character.stats?.maxHealth ?? 100,
-        ...character.stats,
       },
       voiceId: character.voiceId || null,
       pixelArtRef: character.pixelArtRef ? {
         path: character.pixelArtRef.path,
         spriteName: character.pixelArtRef.spriteName,
-        animation: character.pixelArtRef.animation,
+        ...(character.pixelArtRef.animation && { animation: character.pixelArtRef.animation.defaultState }),
       } : null,
     };
   }
@@ -272,7 +254,7 @@ export class JsonExporter {
   /**
    * Export all NPCs
    */
-  private exportNPCs(gameId: string): ExportedNPC[] {
+  private exportNPCs(_gameId: string): ExportedNPC[] {
     // NPCs are stored globally, not per-game in the current schema
     // We need to query NPCs directly
     const rows = this.db.prepare(`
@@ -375,9 +357,9 @@ export class JsonExporter {
     const exportedScenes: ExportedScene[] = scenes.map(scene => ({
       id: scene.id,
       gameId: scene.gameId,
-      name: scene.name,
-      description: scene.description,
-      sceneType: scene.sceneType,
+      name: scene.name ?? '',
+      description: scene.description ?? '',
+      sceneType: scene.sceneType ?? '',
       locationId: scene.locationId,
       startedTurn: scene.startedTurn,
       completedTurn: scene.completedTurn,
@@ -568,9 +550,8 @@ export class JsonExporter {
    * Export events
    */
   private exportEvents(gameId: string, limit: number | null): ExportedEvent[] {
-    const events = this.eventRepo.findByGame(gameId, {
-      limit: limit ?? undefined,
-    });
+    const opts = limit != null ? { limit } : {};
+    const events = this.eventRepo.findByGame(gameId, opts);
 
     return events.map(event => ({
       id: event.id,
@@ -588,7 +569,7 @@ export class JsonExporter {
       actorId: event.actorId || null,
       targetType: event.targetType || null,
       targetId: event.targetId || null,
-      tags: event.tags,
+      tags: event.tags ?? [],
     }));
   }
 

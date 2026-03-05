@@ -134,7 +134,7 @@ export class SceneBoundaryDetector {
 
     // Get current location from most recent event
     const currentLocationId = recentEvents.length > 0
-      ? recentEvents[recentEvents.length - 1].locationId
+      ? recentEvents[recentEvents.length - 1]!.locationId
       : currentScene.locationId;
 
     return {
@@ -178,7 +178,7 @@ export class SceneBoundaryDetector {
     }
 
     // Check if most recent event's location differs from scene's starting location
-    const lastEvent = recentEvents[recentEvents.length - 1];
+    const lastEvent = recentEvents[recentEvents.length - 1]!;
     if (scene.locationId && lastEvent.locationId !== scene.locationId) {
       // Check if this location change is recent (in last few events)
       const recentLocationChange = this.findLocationTransition(recentEvents, scene.locationId);
@@ -250,21 +250,21 @@ export class SceneBoundaryDetector {
     if (hasRecentViolence && hasRecentMercy) {
       const lastViolenceIndex = this.findLastIndex(
         recentEvents,
-        (e) => e.action && (VIOLENCE_ACTIONS as readonly string[]).includes(e.action)
+        (e) => !!e.action && (VIOLENCE_ACTIONS as readonly string[]).includes(e.action)
       );
       const lastMercyIndex = this.findLastIndex(
         recentEvents,
-        (e) => e.action && (MERCY_ACTIONS as readonly string[]).includes(e.action)
+        (e) => !!e.action && (MERCY_ACTIONS as readonly string[]).includes(e.action)
       );
 
       // Mercy came after violence - confrontation may be resolved
       if (lastMercyIndex > lastViolenceIndex) {
-        const mercyEvent = recentEvents[lastMercyIndex];
+        const mercyEvent = recentEvents[lastMercyIndex]!;
         return {
           type: 'confrontation_resolved',
           strength: this.config.confrontationResolvedWeight * 0.7,
           reason: 'Violence followed by mercy action suggests resolution',
-          triggerEventId: mercyEvent?.id,
+          ...(mercyEvent.id != null ? { triggerEventId: mercyEvent.id } : {}),
         };
       }
     }
@@ -278,7 +278,7 @@ export class SceneBoundaryDetector {
     // the confrontation may have naturally concluded
     if (hasRecentViolence && !hasOngoingConfrontation) {
       // Only suggest if the last event isn't a violence action
-      const lastEvent = recentEvents[recentEvents.length - 1];
+      const lastEvent = recentEvents[recentEvents.length - 1]!;
       if (!lastEvent.action || !(VIOLENCE_ACTIONS as readonly string[]).includes(lastEvent.action)) {
         return {
           type: 'confrontation_resolved',
@@ -453,7 +453,7 @@ export class SceneBoundaryDetector {
    * Create an empty suggestion when no scene is active.
    */
   private createEmptySuggestion(
-    gameId: string,
+    _gameId: string,
     currentTurn: number
   ): BoundarySuggestion {
     return {
@@ -479,7 +479,7 @@ export class SceneBoundaryDetector {
     predicate: (item: T) => boolean
   ): number {
     for (let i = array.length - 1; i >= 0; i--) {
-      if (predicate(array[i])) {
+      if (predicate(array[i]!)) {
         return i;
       }
     }

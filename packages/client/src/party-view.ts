@@ -18,7 +18,7 @@ import type { PartyViewState } from './services/view/types.js';
 
 interface NarrativeEntry {
   id: string;
-  type: 'narration' | 'party_dialogue' | 'npc_dialogue' | 'dm_note';
+  type: 'narration' | 'party_dialogue' | 'npc_dialogue' | 'party_action' | 'npc_action' | 'environment' | 'dm_injection';
   content: string;
   speaker?: string;
   timestamp: Date;
@@ -108,7 +108,7 @@ function getGameIdFromUrl(): string | null {
 
   // Try to parse from path
   const pathMatch = window.location.pathname.match(/\/game\/([^/]+)\/view\/party/);
-  if (pathMatch) return pathMatch[1];
+  if (pathMatch) return pathMatch[1] ?? null;
 
   return null;
 }
@@ -138,10 +138,10 @@ function updateAreaName(state: PartyViewState): void {
 
 function updateSceneInfo(state: PartyViewState): void {
   if (sceneNameEl) {
-    sceneNameEl.textContent = state.scene?.name || '';
+    sceneNameEl.textContent = state.scene?.name ?? '';
   }
   if (sceneMoodEl) {
-    sceneMoodEl.textContent = state.scene?.mood || '';
+    sceneMoodEl.textContent = state.scene?.mood ?? '';
   }
 }
 
@@ -150,20 +150,21 @@ function updateNarration(state: PartyViewState): void {
   const newEntries: NarrativeEntry[] = state.narration.map((text, index) => {
     // Check if text has speaker prefix (e.g., "Character: dialogue")
     const speakerMatch = text.match(/^([^:]+):\s*(.+)$/);
-    const hasSpeaker = speakerMatch && speakerMatch[1].length < 30; // Reasonable name length
+    const hasSpeaker = speakerMatch !== null && speakerMatch[1] !== undefined && speakerMatch[1].length < 30;
 
-    return {
+    const entry: NarrativeEntry = {
       id: `narr-${index}-${Date.now()}`,
-      type: hasSpeaker ? 'party_dialogue' : 'narration',
-      content: hasSpeaker ? speakerMatch![2] : text,
-      speaker: hasSpeaker ? speakerMatch![1] : undefined,
+      type: (hasSpeaker ? 'party_dialogue' : 'narration') as NarrativeEntry['type'],
+      content: hasSpeaker ? speakerMatch[2]! : text,
       timestamp: new Date(),
       isTTSPlaying: false,
     };
+    if (hasSpeaker) entry.speaker = speakerMatch[1]!;
+    return entry;
   });
 
   narrativeHistory = newEntries;
-  narrationDisplay?.update(narrativeHistory);
+  narrationDisplay?.update(narrativeHistory as unknown as import('./state/types.js').NarrativeEntry[]);
 }
 
 function updateAvatars(state: PartyViewState): void {
@@ -232,7 +233,7 @@ function setupSSEHandlers(): void {
   });
 
   // New narration events
-  sseService.on('content_accepted', (event) => {
+  sseService.on('generation_complete', (event) => {
     if (event.content) {
       const entry: NarrativeEntry = {
         id: `narr-${Date.now()}`,
@@ -241,7 +242,7 @@ function setupSSEHandlers(): void {
         timestamp: new Date(),
       };
       narrativeHistory.push(entry);
-      narrationDisplay?.addEntry(entry);
+      narrationDisplay?.addEntry(entry as unknown as import('./state/types.js').NarrativeEntry);
 
       // Trigger TTS for new narration
       ttsService.speak({ text: event.content, role: 'narrator' }).catch(console.error);

@@ -117,12 +117,12 @@ class SeedSessionManager extends EventEmitter {
     const id = this.generateId();
     const session: SeedSession = {
       id,
-      gameId,
-      dmPrompt,
       status: 'active',
       events: [],
       createdAt: new Date().toISOString(),
     };
+    if (gameId !== undefined) session.gameId = gameId;
+    if (dmPrompt !== undefined) session.dmPrompt = dmPrompt;
     this.sessions.set(id, session);
     console.log(`[SeedSession] Created session ${id}`);
     return session;
@@ -481,9 +481,9 @@ export async function seedRoutes(fastify: FastifyInstance) {
         const session = sessionManager.get(sessionId);
         if (session?.gameId) {
           broadcastManager.broadcast(session.gameId, {
-            type: 'worldseed_ready',
+            type: 'worldseed_ready' as never,
             seed,
-          });
+          } as never);
         }
 
         return reply.send({
@@ -522,10 +522,10 @@ export async function seedRoutes(fastify: FastifyInstance) {
         const session = sessionManager.get(sessionId);
         if (session?.gameId) {
           broadcastManager.broadcast(session.gameId, {
-            type: 'seed_progress',
+            type: 'seed_progress' as never,
             eventType: type,
             data,
-          });
+          } as never);
         }
 
         return reply.send({

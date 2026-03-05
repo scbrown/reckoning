@@ -73,8 +73,7 @@ export async function viewRoutes(fastify: FastifyInstance) {
     const npcs = game.currentAreaId ? areaRepo.getNPCsInArea(game.currentAreaId) : [];
 
     // Get current active scene
-    const activeScenes = sceneRepo.findActiveByGame(gameId);
-    const currentScene = activeScenes.length > 0 ? activeScenes[0] : null;
+    const currentScene = sceneRepo.findActive(gameId);
 
     // Get recent narration (last 20 events)
     const recentEvents = eventRepo.getRecentContext(gameId, 20);

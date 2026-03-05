@@ -754,3 +754,193 @@ export interface JsonExportResult {
   contentType: string;
   filename: string;
 }
+
+// =============================================================================
+// Comic Service Types
+// =============================================================================
+
+/**
+ * Panel layout options for comic pages
+ */
+export type PanelLayout = 'single' | 'half' | 'thirds' | 'quarter' | 'feature' | 'strip';
+
+/**
+ * Options for comic generation
+ */
+export interface ComicOptions {
+  /** Scene IDs to include (empty = all completed scenes) */
+  sceneIds: string[];
+  /** Number of panels per page */
+  panelsPerPage: number;
+  /** Whether to include chapter title pages */
+  includeChapterTitles: boolean;
+  /** Maximum panels to generate per scene */
+  maxPanelsPerScene: number;
+  /** Strategy for selecting events as panels */
+  selectionStrategy: 'all' | 'highlights' | 'dialogue';
+}
+
+/**
+ * A single comic panel derived from a game event
+ */
+export interface ComicPanel {
+  /** Unique panel ID */
+  id: string;
+  /** Source event ID */
+  eventId: string;
+  /** Event content text */
+  content: string;
+  /** Generated description for panel artwork */
+  description: string;
+  /** Character IDs appearing in this panel */
+  characters: string[];
+  /** Location ID for the panel */
+  locationId?: string;
+  /** Dialogue bubble content */
+  dialogue?: {
+    speaker: string;
+    text: string;
+  };
+  /** Scene mood */
+  mood?: string;
+  /** Action being performed */
+  action?: string;
+}
+
+/**
+ * A single page in the comic layout
+ */
+export interface ComicPage {
+  /** Page number */
+  pageNumber: number;
+  /** Panel layout style for this page */
+  layout: PanelLayout;
+  /** Panels on this page */
+  panels: ComicPanel[];
+  /** Optional chapter title displayed on this page */
+  chapterTitle?: string;
+}
+
+/**
+ * Complete comic layout for a game
+ */
+export interface ComicLayout {
+  /** Game ID */
+  gameId: string;
+  /** Game name */
+  gameName: string;
+  /** ISO timestamp of export */
+  exportedAt: string;
+  /** All pages in the comic */
+  pages: ComicPage[];
+  /** Total number of pages */
+  totalPages: number;
+  /** Total number of panels across all pages */
+  totalPanels: number;
+}
+
+// =============================================================================
+// Transcript Service Types
+// =============================================================================
+
+/**
+ * Options for transcript generation
+ */
+export interface TranscriptOptions {
+  /** Output format */
+  format: 'markdown' | 'plain';
+  /** Include scene header sections */
+  includeSceneHeaders: boolean;
+  /** Show turn numbers in output */
+  includeTurnNumbers: boolean;
+  /** Show timestamps in output */
+  includeTimestamps: boolean;
+  /** Only include dialogue events */
+  dialogueOnly: boolean;
+  /** Format dialogue with speaker attribution */
+  formatDialogue: boolean;
+  /** Specific scene IDs to include */
+  sceneIds?: string[];
+  /** Filter to specific event types */
+  eventTypes?: string[];
+  /** Filter to a turn range */
+  turnRange?: { start: number; end: number };
+}
+
+/**
+ * A single entry in a transcript section
+ */
+export interface TranscriptEntry {
+  /** Source event ID */
+  eventId: string;
+  /** Turn number */
+  turn: number;
+  /** ISO timestamp */
+  timestamp: string;
+  /** Event type */
+  eventType: string;
+  /** Event content text */
+  content: string;
+  /** Speaker name (for dialogue events) */
+  speaker?: string;
+  /** Action performed */
+  action?: string;
+}
+
+/**
+ * A section of the transcript (usually corresponds to a scene)
+ */
+export interface TranscriptSection {
+  /** Section title */
+  title: string;
+  /** Scene ID (if from a scene) */
+  sceneId?: string;
+  /** Start turn number */
+  startTurn: number;
+  /** End turn number */
+  endTurn?: number;
+  /** Transcript entries in this section */
+  entries: TranscriptEntry[];
+  /** Scene type */
+  sceneType?: string;
+  /** Scene mood */
+  mood?: string;
+  /** Scene stakes */
+  stakes?: string;
+  /** Location ID */
+  locationId?: string;
+}
+
+/**
+ * Complete transcript for a game
+ */
+export interface Transcript {
+  /** Game ID */
+  gameId: string;
+  /** Game name */
+  gameName: string;
+  /** ISO timestamp of export */
+  exportedAt: string;
+  /** Transcript sections */
+  sections: TranscriptSection[];
+  /** Total number of events in the transcript */
+  totalEvents: number;
+}
+
+// =============================================================================
+// PDF Export Types
+// =============================================================================
+
+/**
+ * Options for PDF export
+ */
+export interface PDFExportOptions {
+  /** Page size */
+  pageSize: 'letter' | 'a4' | 'comic';
+  /** Page orientation */
+  orientation: 'portrait' | 'landscape';
+  /** Include a cover page */
+  includeCover: boolean;
+  /** Include table of contents */
+  includeTOC: boolean;
+}
