@@ -1,0 +1,14 @@
+node_modules
+packages/*/node_modules
+packages/*/dist
+dist
+.git
+.env
+.env.*
+*.sqlite
+*.sqlite3
+data/
+Dockerfile.claude
+.server-port
+coverage
+.playwright

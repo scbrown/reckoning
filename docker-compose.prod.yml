@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: reckoning-app
+    restart: unless-stopped
+    environment:
+      - NODE_ENV=production
+      - PORT=3001
+      - REDIS_URL=redis://redis:6379
+      - RECKONING_DATA_DIR=/app/data
+      - RECKONING_STATIC_DIR=/app/packages/client/dist
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-}
+    volumes:
+      - app-data:/app/data
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - reckoning
+      - traefik
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.reckoning.rule=Host(`reckoning.lan`)"
+      - "traefik.http.routers.reckoning.entrypoints=web"
+      - "traefik.http.services.reckoning.loadbalancer.server.port=3001"
+
+  redis:
+    image: redis:7-alpine
+    container_name: reckoning-redis
+    restart: unless-stopped
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - reckoning
+
+volumes:
+  app-data:
+    driver: local
+  redis-data:
+    driver: local
+
+networks:
+  reckoning:
+    driver: bridge
+  traefik:
+    external: true

@@ -1,7 +1,8 @@
 import Fastify from 'fastify';
 import cors from '@fastify/cors';
+import fastifyStatic from '@fastify/static';
 import { config } from 'dotenv';
-import { writeFileSync } from 'fs';
+import { existsSync, writeFileSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
 
@@ -51,6 +52,23 @@ await server.register(exportRoutes, { prefix: '/api/export' });
 await server.register(seedRoutes, { prefix: '/api/seed' });
 await server.register(viewRoutes, { prefix: '/api/view' });
 await server.register(spriteRoutes, { prefix: '/api/assets' });
+
+// Serve static client files in production
+const staticDir = process.env.RECKONING_STATIC_DIR || join(PROJECT_ROOT, 'packages/client/dist');
+if (process.env.NODE_ENV === 'production' && existsSync(staticDir)) {
+  await server.register(fastifyStatic, {
+    root: staticDir,
+    wildcard: false,
+  });
+  // SPA fallback: serve index.html for non-API routes
+  server.setNotFoundHandler((request, reply) => {
+    if (request.url.startsWith('/api/') || request.url.startsWith('/health')) {
+      reply.code(404).send({ error: { message: 'Not found' } });
+    } else {
+      reply.sendFile('index.html');
+    }
+  });
+}
 
 /**
  * Try to start server on a port, incrementing if port is in use.
