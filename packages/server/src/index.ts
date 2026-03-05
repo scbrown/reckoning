@@ -18,6 +18,7 @@ import { exportRoutes } from './routes/export.js';
 import { seedRoutes } from './routes/seed.js';
 import { viewRoutes } from './routes/view.js';
 import { spriteRoutes } from './routes/sprite.js';
+import memoryRoutes from './routes/memory.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, '../../..');
@@ -52,6 +53,7 @@ await server.register(exportRoutes, { prefix: '/api/export' });
 await server.register(seedRoutes, { prefix: '/api/seed' });
 await server.register(viewRoutes, { prefix: '/api/view' });
 await server.register(spriteRoutes, { prefix: '/api/assets' });
+await server.register(memoryRoutes, { prefix: '/api/memory' });
 
 // Serve static client files in production
 const staticDir = process.env.RECKONING_STATIC_DIR || join(PROJECT_ROOT, 'packages/client/dist');

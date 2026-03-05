@@ -104,3 +104,6 @@ export {
   type UpsertPerceivedRelationshipInput,
   PERCEIVED_DIMENSIONS,
 } from './perceived-relationship-repository.js';
+export {
+  MemoryJournalRepository,
+} from './memory-journal-repository.js';

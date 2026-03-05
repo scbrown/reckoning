@@ -415,6 +415,33 @@ CREATE TABLE IF NOT EXISTS perceived_relationships (
 CREATE INDEX IF NOT EXISTS idx_perceived_relationships_game ON perceived_relationships(game_id);
 CREATE INDEX IF NOT EXISTS idx_perceived_relationships_perceiver ON perceived_relationships(game_id, perceiver_id);
 
+-- Memory Journal table (Unreliable Self — Pillar 1)
+-- Stores character-biased interpretations of events
+-- The character's subjective memory may differ from canonical events
+CREATE TABLE IF NOT EXISTS memory_journal (
+  id TEXT PRIMARY KEY,
+  game_id TEXT NOT NULL REFERENCES games(id) ON DELETE CASCADE,
+  character_id TEXT NOT NULL,           -- Character whose memory this is
+  source_event_id TEXT NOT NULL REFERENCES events(id),
+  turn INTEGER NOT NULL,                -- Turn when the memory was formed
+  -- The biased journal entry (character's perspective)
+  content TEXT NOT NULL,
+  -- What distortion was applied
+  distortion_type TEXT NOT NULL,        -- self_aggrandizing, guilt_suppression, etc.
+  -- How strongly distorted (0 = faithful, 1 = heavily distorted)
+  distortion_strength REAL NOT NULL DEFAULT 0.5 CHECK (distortion_strength >= 0.0 AND distortion_strength <= 1.0),
+  -- Which traits influenced the distortion
+  influencing_traits TEXT,              -- JSON array of trait names
+  -- DM override
+  dm_override TEXT,                     -- DM can replace the biased text
+  dm_approved INTEGER DEFAULT 0,        -- 1 if DM has reviewed
+  created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_memory_journal_game ON memory_journal(game_id);
+CREATE INDEX IF NOT EXISTS idx_memory_journal_character ON memory_journal(game_id, character_id);
+CREATE INDEX IF NOT EXISTS idx_memory_journal_turn ON memory_journal(game_id, turn);
+CREATE INDEX IF NOT EXISTS idx_memory_journal_event ON memory_journal(source_event_id);
+
 -- Seed default starting area (only if not exists)
 INSERT OR IGNORE INTO areas (id, name, description, tags)
 VALUES (

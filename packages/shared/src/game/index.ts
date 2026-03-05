@@ -103,3 +103,10 @@ export {
   isValidAction,
   isValidActionCategory,
 } from './actions.js';
+
+// Memory Journal types (Unreliable Self)
+export type {
+  DistortionType,
+  MemoryEntry,
+  CreateMemoryInput,
+} from './memory.js';
